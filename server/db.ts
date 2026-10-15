@@ -88,33 +88,73 @@ const DEFAULT_DB: DatabaseSchema = {
   ]
 };
 
-function ensureDbExists() {
-  if (!fs.existsSync(DATA_DIR)) {
-    fs.mkdirSync(DATA_DIR, { recursive: true });
+const IS_VERCEL = !!process.env.VERCEL;
+const VERCEL_TMP_FILE = path.resolve('/tmp', 'database.json');
+let memoryDb: DatabaseSchema | null = null;
+
+function getActiveDbPath(): string {
+  if (IS_VERCEL && fs.existsSync(VERCEL_TMP_FILE)) {
+    return VERCEL_TMP_FILE;
   }
-  if (!fs.existsSync(DB_FILE)) {
-    fs.writeFileSync(DB_FILE, JSON.stringify(DEFAULT_DB, null, 2), 'utf-8');
+  return DB_FILE;
+}
+
+function ensureDbExists() {
+  if (IS_VERCEL) return;
+  try {
+    if (!fs.existsSync(DATA_DIR)) {
+      fs.mkdirSync(DATA_DIR, { recursive: true });
+    }
+    if (!fs.existsSync(DB_FILE)) {
+      fs.writeFileSync(DB_FILE, JSON.stringify(DEFAULT_DB, null, 2), 'utf-8');
+    }
+  } catch (e) {
+    // Read-only filesystem warning
   }
 }
 
 export function readDatabase(): DatabaseSchema {
+  if (memoryDb) {
+    return memoryDb;
+  }
   try {
+    const targetFile = getActiveDbPath();
+    if (fs.existsSync(targetFile)) {
+      const data = fs.readFileSync(targetFile, 'utf-8');
+      memoryDb = JSON.parse(data);
+      return memoryDb!;
+    }
     ensureDbExists();
-    const data = fs.readFileSync(DB_FILE, 'utf-8');
-    return JSON.parse(data);
+    if (fs.existsSync(DB_FILE)) {
+      const data = fs.readFileSync(DB_FILE, 'utf-8');
+      memoryDb = JSON.parse(data);
+      return memoryDb!;
+    }
+    memoryDb = { ...DEFAULT_DB };
+    return memoryDb;
   } catch (err) {
     console.error('Error reading database file:', err);
-    return DEFAULT_DB;
+    memoryDb = { ...DEFAULT_DB };
+    return memoryDb;
   }
 }
 
 export function writeDatabase(data: DatabaseSchema): boolean {
   try {
+    memoryDb = data;
+    if (IS_VERCEL) {
+      try {
+        fs.writeFileSync(VERCEL_TMP_FILE, JSON.stringify(data, null, 2), 'utf-8');
+      } catch (writeErr) {
+        console.warn('Vercel /tmp write notice:', writeErr);
+      }
+      return true;
+    }
     ensureDbExists();
     fs.writeFileSync(DB_FILE, JSON.stringify(data, null, 2), 'utf-8');
     return true;
   } catch (err) {
-    console.error('Error writing database file:', err);
-    return false;
+    console.warn('Error writing database file, falling back to memory state:', err);
+    return true;
   }
 }

@@ -1,0 +1,23 @@
+{
+  "framework": "vite",
+  "buildCommand": "vite build",
+  "outputDirectory": "dist",
+  "rewrites": [
+    {
+      "source": "/api/(.*)",
+      "destination": "/api"
+    },
+    {
+      "source": "/admin",
+      "destination": "/register.html"
+    },
+    {
+      "source": "/admin.html",
+      "destination": "/register.html"
+    },
+    {
+      "source": "/register",
+      "destination": "/register.html"
+    }
+  ]
+}
