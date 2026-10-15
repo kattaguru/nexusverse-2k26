@@ -1,0 +1,314 @@
+@import "tailwindcss";
+
+@theme {
+  --font-serif: "Cormorant Garamond", Georgia, serif;
+  --font-heading: "Bricolage Grotesque", "Instrument Sans", sans-serif;
+  --font-sans: "Instrument Sans", system-ui, -apple-system, sans-serif;
+  --font-mono: "JetBrains Mono", monospace;
+
+  --color-canvas: #0a0a0d;
+  --color-surface: #131318;
+  --color-surface-hover: #181820;
+  --color-border: #2e2b22;
+  --color-gold: #d4a935;
+  --color-gold-bright: #f2c14e;
+  --color-gold-soft: #1f1b0e;
+  --color-ink: #f3ecd9;
+  --color-ink-muted: #a79f8b;
+  --color-emerald-custom: #4cc38a;
+  --color-coral: #ff8a80;
+}
+
+:root {
+  --bg: #0a0a0d;
+  --surface: #131318;
+  --text: #f3ecd9;
+  --muted: #a79f8b;
+  --line: #2e2b22;
+  --brand: #d4a935;
+  --brand-ink: #1a1300;
+  --brand-soft: #1f1b0e;
+  --signal: #f2c14e;
+  --ok: #4cc38a;
+  --err: #ff8a80;
+  --hero: #050507;
+  --hero-text: #ffffff;
+  --hero-muted: #b9ae94;
+  color-scheme: dark;
+}
+
+html {
+  scroll-behavior: smooth;
+  scroll-padding-top: 80px;
+}
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font-sans);
+}
+
+.font-serif-title {
+  font-family: "Cormorant Garamond", Georgia, serif;
+}
+
+.font-grotesque {
+  font-family: "Bricolage Grotesque", sans-serif;
+}
+
+/* ===== ANIMATED EVENT POSTER BACKGROUND KEYFRAMES ===== */
+@keyframes d1 {
+  0% { transform: translate(0, 0) scale(1); }
+  100% { transform: translate(18vmax, 14vmax) scale(1.2); }
+}
+
+@keyframes d2 {
+  0% { transform: translate(0, 0) scale(1); }
+  100% { transform: translate(-20vmax, -12vmax) scale(1.15); }
+}
+
+@keyframes d3 {
+  0% { transform: translate(0, 0) scale(1); }
+  100% { transform: translate(-16vmax, 10vmax) scale(0.85); }
+}
+
+@keyframes breathePoster {
+  0% { transform: translate(-50%, -50%) scale(0.96); opacity: 0.35; }
+  100% { transform: translate(-50%, -50%) scale(1.05); opacity: 0.55; }
+}
+
+@keyframes gridFloor {
+  0% { background-position: 0 0; }
+  100% { background-position: 0 56px; }
+}
+
+@keyframes sweepBeam {
+  0% { transform: translateX(-14vw) rotate(18deg); }
+  100% { transform: translateX(14vw) rotate(18deg); }
+}
+
+@keyframes spinOrbit {
+  0% { transform: translate(-50%, -50%) rotate(0deg); }
+  100% { transform: translate(-50%, -50%) rotate(360deg); }
+}
+
+@keyframes spinOrbitReverse {
+  0% { transform: translate(-50%, -50%) rotate(360deg); }
+  100% { transform: translate(-50%, -50%) rotate(0deg); }
+}
+
+/* ===== 3D MARQUEE RIGHT-TO-LEFT STREAM KEYFRAMES ===== */
+@keyframes marqueeRightToLeft {
+  0% {
+    transform: translateX(0%);
+  }
+  100% {
+    transform: translateX(-50%);
+  }
+}
+
+.perspective-3d-stage {
+  perspective: 1400px;
+  perspective-origin: center center;
+}
+
+.marquee-track-3d {
+  display: flex;
+  width: max-content;
+  will-change: transform;
+  animation: marqueeRightToLeft var(--marquee-duration, 38s) linear infinite;
+  transform-style: preserve-3d;
+}
+
+.marquee-track-3d.is-paused {
+  animation-play-state: paused !important;
+}
+
+.marquee-track-3d:hover {
+  animation-play-state: paused;
+}
+
+/* 3D Component Card with angled isometric tilt & floating depth */
+.card-3d-component {
+  transform-style: preserve-3d;
+  transform: perspective(1000px) rotateY(-10deg) rotateX(4deg) translateZ(0);
+  transition: transform 0.45s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.45s ease, border-color 0.45s ease;
+  backface-visibility: hidden;
+}
+
+.card-3d-component:hover {
+  transform: perspective(1000px) rotateY(0deg) rotateX(0deg) translateZ(50px) scale(1.06);
+  z-index: 40;
+}
+
+/* Alternate subtle angle for second track */
+.card-3d-component-alt {
+  transform-style: preserve-3d;
+  transform: perspective(1000px) rotateY(-8deg) rotateX(-3deg) translateZ(0);
+  transition: transform 0.45s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.45s ease, border-color 0.45s ease;
+  backface-visibility: hidden;
+}
+
+.card-3d-component-alt:hover {
+  transform: perspective(1000px) rotateY(0deg) rotateX(0deg) translateZ(50px) scale(1.06);
+  z-index: 40;
+}
+
+/* 3D Badge & Title Layer Elevation on hover */
+.card-3d-component:hover .layer-3d-depth,
+.card-3d-component-alt:hover .layer-3d-depth {
+  transform: translateZ(24px);
+}
+
+
+/* Custom scrollbar */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+::-webkit-scrollbar-track {
+  background: #0a0a0d;
+}
+::-webkit-scrollbar-thumb {
+  background: #2e2b22;
+  border-radius: 4px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #d4a935;
+}
+
+@media print {
+  .no-print {
+    display: none !important;
+  }
+  body {
+    background: #ffffff !important;
+    color: #000000 !important;
+  }
+}
+
+/* ============================================================
+   LIGHT THEME DESIGN SYSTEM & AUTOMATIC CONTRAST ADJUSTMENTS
+   ============================================================ */
+html.light, [data-theme="light"] {
+  --bg: #f8f6f0;
+  --surface: #ffffff;
+  --surface-hover: #f3efe6;
+  --text: #171511;
+  --muted: #5e574a;
+  --line: #ded7c8;
+  --brand: #b8860b;
+  --brand-ink: #ffffff;
+  --brand-soft: #fbf6ec;
+  --signal: #a16207;
+  --ok: #15803d;
+  --err: #b91c1c;
+  --hero: #ffffff;
+  --hero-text: #171511;
+  --hero-muted: #5e574a;
+  color-scheme: light;
+}
+
+html.light body {
+  background-color: #f8f6f0 !important;
+  color: #171511 !important;
+}
+
+/* Background Color Adjustments in Light Theme */
+html.light .bg-\[\#0a0a0d\] {
+  background-color: #f8f6f0 !important;
+}
+html.light .bg-\[\#050507\]\/95 {
+  background-color: rgba(255, 255, 255, 0.96) !important;
+  box-shadow: 0 2px 14px rgba(0, 0, 0, 0.05);
+}
+html.light .bg-\[\#050507\] {
+  background-color: #ffffff !important;
+}
+html.light .bg-\[\#131318\] {
+  background-color: #ffffff !important;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.05);
+  border-color: #e5ded0 !important;
+}
+html.light .bg-\[\#181820\] {
+  background-color: #f2eee4 !important;
+  color: #171511 !important;
+}
+html.light .bg-\[\#1f1b0e\] {
+  background-color: #fcf6e8 !important;
+  border-color: rgba(184, 134, 11, 0.3) !important;
+}
+html.light .bg-\[\#0e0e12\] {
+  background-color: #f5f1e8 !important;
+}
+html.light .bg-\[\#16161d\] {
+  background-color: #f7f4ed !important;
+}
+
+/* Typography Overrides in Light Theme */
+html.light .text-\[\#f3ecd9\] {
+  color: #171511 !important;
+}
+html.light .text-\[\#ffffff\] {
+  color: #0e0c0a !important;
+}
+html.light .text-\[\#b9ae94\] {
+  color: #4f483c !important;
+}
+html.light .text-\[\#a79f8b\] {
+  color: #5c5547 !important;
+}
+html.light .text-\[\#5a6a80\] {
+  color: #6e6758 !important;
+}
+html.light .text-\[\#f2c14e\] {
+  color: #925807 !important;
+}
+html.light .text-\[\#d4a935\] {
+  color: #a16207 !important;
+}
+
+/* Border Overrides in Light Theme */
+html.light .border-\[\#2e2b22\] {
+  border-color: #ded7c8 !important;
+}
+html.light .border-\[\#3d382d\] {
+  border-color: #cfc6b4 !important;
+}
+html.light .border-\[\#d4a935\]\/30,
+html.light .border-\[\#d4a935\]\/40 {
+  border-color: rgba(161, 98, 7, 0.35) !important;
+}
+
+/* Form Inputs & Selects in Light Theme */
+html.light input:not([type="checkbox"]):not([type="radio"]),
+html.light select,
+html.light textarea {
+  background-color: #ffffff !important;
+  color: #171511 !important;
+  border-color: #d8d0bf !important;
+}
+html.light input:focus,
+html.light select:focus,
+html.light textarea:focus {
+  border-color: #b8860b !important;
+  box-shadow: 0 0 0 2px rgba(184, 134, 11, 0.2) !important;
+}
+html.light input::placeholder,
+html.light textarea::placeholder {
+  color: #8c8371 !important;
+}
+
+/* Scrollbar in Light Theme */
+html.light ::-webkit-scrollbar-track {
+  background: #f0ebe0;
+}
+html.light ::-webkit-scrollbar-thumb {
+  background: #cfc5b0;
+}
+html.light ::-webkit-scrollbar-thumb:hover {
+  background: #a16207;
+}
+
+

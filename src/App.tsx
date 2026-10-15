@@ -1,0 +1,1617 @@
+import React, { useState, useEffect } from 'react';
+import confetti from 'canvas-confetti';
+import { Navbar } from './components/Navbar';
+import { Hero } from './components/Hero';
+import { GallerySection } from './components/GallerySection';
+import { EventModal } from './components/EventModal';
+import { PaymentModal } from './components/PaymentModal';
+import { TicketPass, RegistrationRecord, TeamMemberInfo } from './components/TicketPass';
+import { PassLookupModal } from './components/PassLookupModal';
+import { AdminModal } from './components/AdminModal';
+import { getLeftLogo, getRightLogo, setLeftLogo, setRightLogo } from './utils/logoManager';
+import { TimelineSection } from './components/TimelineSection';
+import { FaqSection } from './components/FaqSection';
+import { ContactSection } from './components/ContactSection';
+import { Footer } from './components/Footer';
+import { EVENTS, SYMPOSIUM_CONFIG, SymposiumEvent } from './data/symposiumData';
+import { 
+  fetchRegistrationsApi, 
+  saveRegistrationApi, 
+  updateRegistrationApi, 
+  deleteRegistrationApi, 
+  fetchSettingsApi, 
+  updateSettingsApi,
+  sendTicketEmailApi
+} from './services/api';
+import { 
+  ShieldCheck, 
+  Info, 
+  Sparkles, 
+  Check, 
+  AlertCircle, 
+  Plus, 
+  Trash2, 
+  Users, 
+  Layers, 
+  Phone, 
+  User, 
+  Award,
+  ChevronRight,
+  Shield
+} from 'lucide-react';
+
+export interface FormTeamMember {
+  name: string;
+  roll: string;
+  className: string;
+  section: string;
+  branch: string;
+  year: string;
+  phone: string;
+  isIeeeMember?: boolean;
+  ieeeId?: string;
+}
+
+export interface FormEventTeamData {
+  teamName: string;
+  projectTitle?: string;
+  members: FormTeamMember[];
+}
+
+export default function App() {
+  // Participant form fields (Lead / Individual)
+  const [name, setName] = useState('');
+  const [roll, setRoll] = useState('');
+  const [classNameVal, setClassNameVal] = useState('B.Tech');
+  const [sectionVal, setSectionVal] = useState('A');
+  const [dept, setDept] = useState('');
+  const [year, setYear] = useState('3rd Year');
+  const [phone, setPhone] = useState('');
+  const [college, setCollege] = useState('N.B.K.R. Institute of Science & Technology');
+  const [email, setEmail] = useState('');
+  const [isIeeeMember, setIsIeeeMember] = useState(false);
+  const [ieeeId, setIeeeId] = useState('');
+  
+  // Selected single technical event
+  const [selectedEvents, setSelectedEvents] = useState<string[]>(['ctf']);
+
+  // Structured Team Details for team events
+  const [teamDetails, setTeamDetails] = useState<Record<string, FormEventTeamData>>({
+    ctf: {
+      teamName: '',
+      members: [
+        { name: '', roll: '', className: 'B.Tech', section: 'A', branch: '', year: '3rd Year', phone: '', isIeeeMember: false, ieeeId: '' }
+      ]
+    },
+    expo: {
+      teamName: '',
+      projectTitle: '',
+      members: []
+    },
+    bug: {
+      teamName: '',
+      projectTitle: '',
+      members: []
+    },
+    code: {
+      teamName: '',
+      members: []
+    },
+    canva: {
+      teamName: '',
+      members: []
+    }
+  });
+
+  // Promo code & terms
+  const [promoCode, setPromoCode] = useState('');
+  const [promoMessage, setPromoMessage] = useState<{ text: string; valid: boolean } | null>(null);
+  const [termsAccepted, setTermsAccepted] = useState(false);
+
+  // Field errors
+  const [errors, setErrors] = useState<Record<string, string>>({});
+
+  // Modals and Active View states
+  const [inspectEvent, setInspectEvent] = useState<SymposiumEvent | null>(null);
+  const [isPaymentOpen, setIsPaymentOpen] = useState(false);
+  const [isLookupOpen, setIsLookupOpen] = useState(false);
+  const [confirmedRecord, setConfirmedRecord] = useState<RegistrationRecord | null>(null);
+  const [savedRecords, setSavedRecords] = useState<RegistrationRecord[]>([]);
+
+  // Dedicated /admin Route Detection (Only opens when visiting /admin)
+  const [isAdminRoute, setIsAdminRoute] = useState(() => {
+    if (typeof window === 'undefined') return false;
+    const p = window.location.pathname.toLowerCase().replace(/\/+$/, '');
+    return p.endsWith('/admin') || p.endsWith('/admin.html') || p.includes('/admin') || window.location.search.includes('admin') || window.location.hash.includes('admin');
+  });
+
+  useEffect(() => {
+    const handleLocationChange = () => {
+      const p = window.location.pathname.toLowerCase().replace(/\/+$/, '');
+      setIsAdminRoute(p.endsWith('/admin') || p.endsWith('/admin.html') || p.includes('/admin') || window.location.search.includes('admin') || window.location.hash.includes('admin'));
+    };
+
+    window.addEventListener('popstate', handleLocationChange);
+    window.addEventListener('hashchange', handleLocationChange);
+    return () => {
+      window.removeEventListener('popstate', handleLocationChange);
+      window.removeEventListener('hashchange', handleLocationChange);
+    };
+  }, []);
+
+  // Admin Portal & Customization States
+  const [isAdminOpen, setIsAdminOpen] = useState(false);
+  const [adminInitialTab, setAdminInitialTab] = useState<'registrations' | 'manual' | 'status' | 'photos' | 'settings'>('registrations');
+  const [isRegClosed, setIsRegClosed] = useState(false);
+  const [closedMessage, setClosedMessage] = useState(() => {
+    try {
+      return localStorage.getItem('nexusverse_closed_msg') || 'Registration for NexusVerse 2K26 is currently closed. For inquiries, contact IEEE-SB NBKRIST.';
+    } catch (e) {
+      return 'Registration for NexusVerse 2K26 is currently closed. For inquiries, contact IEEE-SB NBKRIST.';
+    }
+  });
+  const [leftLogo, setLeftLogoState] = useState(() => getLeftLogo());
+  const [rightLogo, setRightLogoState] = useState(() => getRightLogo());
+
+  // Force registrations open on mount and migrate left logo to symposium poster
+  useEffect(() => {
+    try {
+      localStorage.setItem('nexusverse_reg_closed', 'false');
+      const stored = localStorage.getItem('nexusverse_logo_left');
+      if (!stored || stored === '/nbkrist-logo.png') {
+        localStorage.setItem('nexusverse_logo_left', '/symposium-poster.jpg');
+        setLeftLogoState('/symposium-poster.jpg');
+      }
+    } catch (e) {}
+  }, []);
+
+  // Dark / Light Theme Mode State & Sync
+  const [theme, setTheme] = useState<'dark' | 'light'>(() => {
+    try {
+      const saved = localStorage.getItem('nexusverse_theme');
+      if (saved === 'light' || saved === 'dark') return saved;
+      return window.matchMedia && window.matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark';
+    } catch (e) {
+      return 'dark';
+    }
+  });
+
+  useEffect(() => {
+    try {
+      if (theme === 'light') {
+        document.documentElement.classList.add('light');
+        document.documentElement.classList.remove('dark');
+        document.documentElement.setAttribute('data-theme', 'light');
+      } else {
+        document.documentElement.classList.add('dark');
+        document.documentElement.classList.remove('light');
+        document.documentElement.setAttribute('data-theme', 'dark');
+      }
+      localStorage.setItem('nexusverse_theme', theme);
+    } catch (e) {
+      // Ignore
+    }
+  }, [theme]);
+
+  const handleToggleTheme = () => {
+    setTheme(prev => prev === 'dark' ? 'light' : 'dark');
+  };
+
+  // Load saved registrations and settings from backend API (with local fallback)
+  useEffect(() => {
+    let mounted = true;
+    async function loadBackendData() {
+      try {
+        const records = await fetchRegistrationsApi();
+        if (mounted && Array.isArray(records)) {
+          setSavedRecords(records);
+        }
+        const settings = await fetchSettingsApi();
+        if (mounted && settings) {
+          if (typeof settings.isRegClosed === 'boolean') {
+            setIsRegClosed(settings.isRegClosed);
+          }
+          if (settings.closedMessage) {
+            setClosedMessage(settings.closedMessage);
+          }
+        }
+      } catch (err) {
+        console.warn('Backend sync failed, using local cache:', err);
+      }
+    }
+    loadBackendData();
+    return () => { mounted = false; };
+  }, []);
+
+  // Save registration record helper (synced to backend API + local cache)
+  const saveRegistration = async (record: RegistrationRecord) => {
+    const saved = await saveRegistrationApi(record);
+    setSavedRecords(prev => [saved, ...prev.filter(r => r.regId !== saved.regId)]);
+  };
+
+  // Admin CRUD and control handlers (synced to backend API + local cache)
+  const handleUpdateRecord = async (updated: RegistrationRecord) => {
+    setSavedRecords(prev => prev.map(r => r.regId === updated.regId ? updated : r));
+    await updateRegistrationApi(updated);
+    if (confirmedRecord?.regId === updated.regId) {
+      setConfirmedRecord(updated);
+    }
+  };
+
+  const handleDeleteRecord = async (regId: string) => {
+    setSavedRecords(prev => prev.filter(r => r.regId !== regId));
+    await deleteRegistrationApi(regId);
+    if (confirmedRecord?.regId === regId) {
+      setConfirmedRecord(null);
+    }
+  };
+
+  const handleToggleRegClosed = async (closed: boolean) => {
+    setIsRegClosed(closed);
+    await updateSettingsApi({ isRegClosed: closed });
+  };
+
+  const handleUpdateClosedMessage = async (msg: string) => {
+    setClosedMessage(msg);
+    await updateSettingsApi({ closedMessage: msg });
+  };
+
+  const handleUpdateLeftLogo = (url: string) => {
+    setLeftLogoState(url);
+    setLeftLogo(url);
+  };
+
+  const handleUpdateRightLogo = (url: string) => {
+    setRightLogoState(url);
+    setRightLogo(url);
+  };
+
+  // Select single event
+  const selectEvent = (id: string) => {
+    setSelectedEvents([id]);
+    if (errors.events) {
+      setErrors(prev => {
+        const copy = { ...prev };
+        delete copy.events;
+        return copy;
+      });
+    }
+
+    // FLAGHUNT requires exactly 2 participants (Leader + 1 Teammate)
+    if (id === 'ctf') {
+      setTeamDetails(prev => {
+        const cur = prev.ctf || { teamName: '', members: [] };
+        if (!cur.members || cur.members.length === 0) {
+          return {
+            ...prev,
+            ctf: {
+              ...cur,
+              members: [
+                { name: '', roll: '', className: classNameVal || 'B.Tech', section: sectionVal || 'A', branch: dept || '', year: year || '3rd Year', phone: '', isIeeeMember: false, ieeeId: '' }
+              ]
+            }
+          };
+        }
+        return prev;
+      });
+    }
+  };
+
+  // Team Member management helpers
+  const handleAddTeamMember = (eventId: string, maxAllowed: number) => {
+    const current = teamDetails[eventId] || { teamName: '', members: [] };
+    // Leader is 1, so additional members can be at most maxAllowed - 1
+    if ((current.members?.length || 0) + 1 >= maxAllowed) return;
+
+    setTeamDetails(prev => ({
+      ...prev,
+      [eventId]: {
+        ...current,
+        members: [
+          ...(current.members || []),
+          { 
+            name: '', 
+            roll: '', 
+            className: classNameVal || 'B.Tech', 
+            section: sectionVal || 'A', 
+            branch: dept || '', 
+            year: year || '3rd Year', 
+            phone: '',
+            isIeeeMember: false,
+            ieeeId: ''
+          }
+        ]
+      }
+    }));
+  };
+
+  const handleRemoveTeamMember = (eventId: string, index: number) => {
+    const current = teamDetails[eventId] || { teamName: '', members: [] };
+    setTeamDetails(prev => ({
+      ...prev,
+      [eventId]: {
+        ...current,
+        members: (current.members || []).filter((_, i) => i !== index)
+      }
+    }));
+  };
+
+  const handleUpdateTeamMemberField = (
+    eventId: string, 
+    index: number, 
+    field: keyof FormTeamMember, 
+    value: any
+  ) => {
+    setTeamDetails(prev => {
+      const current = prev[eventId] || { teamName: '', members: [] };
+      const updatedMembers = [...(current.members || [])];
+      if (!updatedMembers[index]) {
+        updatedMembers[index] = { 
+          name: '', 
+          roll: '', 
+          className: 'B.Tech', 
+          section: 'A', 
+          branch: '', 
+          year: '3rd Year', 
+          phone: '',
+          isIeeeMember: false,
+          ieeeId: ''
+        };
+      }
+      updatedMembers[index] = {
+        ...updatedMembers[index],
+        [field]: value
+      };
+      return {
+        ...prev,
+        [eventId]: {
+          ...current,
+          members: updatedMembers
+        }
+      };
+    });
+
+    const errorKey = `member_${eventId}_${index}_${field}`;
+    if (errors[errorKey]) {
+      setErrors(prev => {
+        const copy = { ...prev };
+        delete copy[errorKey];
+        return copy;
+      });
+    }
+  };
+
+  // Update promo validation
+  useEffect(() => {
+    const clean = promoCode.trim().toUpperCase();
+    if (!clean) {
+      setPromoMessage(null);
+      return;
+    }
+    const discount = SYMPOSIUM_CONFIG.promoCodes[clean];
+    if (discount) {
+      setPromoMessage({ text: `Code applied: ${discount}% discount off total!`, valid: true });
+    } else {
+      setPromoMessage({ text: 'Invalid promo code.', valid: false });
+    }
+  }, [promoCode]);
+
+  // Pricing calculations: ₹200 per head (₹150 for IEEE members)
+  const calculateTotal = () => {
+    const subtotal = selectedEvents.reduce((sum, id) => {
+      const ev = EVENTS.find(e => e.id === id);
+      if (!ev) return sum;
+      const details = teamDetails[id] || { teamName: '', members: [] };
+      const leaderFee = isIeeeMember ? ev.feeMember : ev.feeNonMember;
+      const teammatesFee = (details.members || []).reduce((mSum, m) => {
+        return mSum + (m.isIeeeMember ? ev.feeMember : ev.feeNonMember);
+      }, 0);
+      return sum + leaderFee + teammatesFee;
+    }, 0);
+
+    const cleanCode = promoCode.trim().toUpperCase();
+    const discountPercent = SYMPOSIUM_CONFIG.promoCodes[cleanCode] || 0;
+    const discountAmount = Math.round((subtotal * discountPercent) / 100);
+    const total = Math.max(0, subtotal - discountAmount);
+
+    return { subtotal, discountPercent, discountAmount, total };
+  };
+
+  const { subtotal, discountPercent, discountAmount, total } = calculateTotal();
+
+  // Validate form
+  const validateForm = () => {
+    const newErrors: Record<string, string> = {};
+
+    // Participant (Lead) validation
+    if (!name.trim() || name.trim().length < 2) newErrors.name = 'Please enter participant full name.';
+    if (!roll.trim() || roll.trim().length < 1) newErrors.roll = 'Enter roll number / registration number.';
+    if (!classNameVal.trim()) newErrors.className = 'Please enter or select class/degree.';
+    if (!sectionVal.trim()) newErrors.section = 'Please enter section.';
+    if (!dept.trim() || dept.trim().length < 2) newErrors.dept = 'Enter department / branch.';
+    if (!year) newErrors.year = 'Select year of study.';
+    if (!phone.trim() || !/^[6-9]\d{9}$/.test(phone.replace(/\s+/g, ''))) {
+      newErrors.phone = 'Enter a valid 10-digit mobile number.';
+    }
+    if (!college.trim() || college.trim().length < 2) newErrors.college = 'Enter college or institution name.';
+    if (!email.trim() || !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email.trim())) {
+      newErrors.email = 'Enter a valid email address.';
+    }
+
+    if (isIeeeMember && (!ieeeId.trim() || ieeeId.trim().length < 4)) {
+      newErrors.ieeeId = 'Enter your valid IEEE membership number.';
+    }
+
+    if (selectedEvents.length !== 1) {
+      newErrors.events = 'Please select one technical event to participate in.';
+    }
+
+    // Validate per-event team requirements
+    for (const id of selectedEvents) {
+      const ev = EVENTS.find(e => e.id === id);
+      if (!ev) continue;
+      const details = teamDetails[id] || { teamName: '', members: [] };
+
+      if (ev.max > 1) {
+        if (!details.teamName?.trim()) {
+          newErrors[`teamName_${id}`] = 'Please provide a team name.';
+        }
+        
+        const totalTeamMembers = 1 + (details.members?.length || 0); // 1 is Lead
+        if (totalTeamMembers < ev.min) {
+          newErrors[`teamCount_${id}`] = `This event requires at least ${ev.min} members (including leader). Please add ${ev.min - totalTeamMembers} more teammate(s).`;
+        }
+
+        // Validate each additional team member: name, roll, class, section, branch, year, phone
+        (details.members || []).forEach((m, idx) => {
+          if (!m.name.trim() || m.name.trim().length < 2) {
+            newErrors[`member_${id}_${idx}_name`] = `Member ${idx + 2}: Enter name.`;
+          }
+          if (!m.roll.trim()) {
+            newErrors[`member_${id}_${idx}_roll`] = `Member ${idx + 2}: Enter roll number.`;
+          }
+          if (!m.className.trim()) {
+            newErrors[`member_${id}_${idx}_className`] = `Member ${idx + 2}: Enter class.`;
+          }
+          if (!m.section.trim()) {
+            newErrors[`member_${id}_${idx}_section`] = `Member ${idx + 2}: Enter section.`;
+          }
+          if (!m.branch.trim()) {
+            newErrors[`member_${id}_${idx}_branch`] = `Member ${idx + 2}: Enter branch.`;
+          }
+          if (!m.year.trim()) {
+            newErrors[`member_${id}_${idx}_year`] = `Member ${idx + 2}: Select year.`;
+          }
+          if (!m.phone.trim() || !/^[6-9]\d{9}$/.test(m.phone.replace(/\s+/g, ''))) {
+            newErrors[`member_${id}_${idx}_phone`] = `Member ${idx + 2}: Enter 10-digit phone.`;
+          }
+          if (m.isIeeeMember && (!m.ieeeId?.trim() || m.ieeeId.trim().length < 4)) {
+            newErrors[`member_${id}_${idx}_ieeeId`] = `Member ${idx + 2}: Enter valid IEEE membership ID.`;
+          }
+        });
+      }
+
+      if (ev.project && !details.projectTitle?.trim()) {
+        newErrors[`projectTitle_${id}`] = 'Please provide your project / prototype title.';
+      }
+    }
+
+    if (!termsAccepted) {
+      newErrors.terms = 'You must accept the event rules and refund policy.';
+    }
+
+    setErrors(newErrors);
+    return Object.keys(newErrors).length === 0;
+  };
+
+  const handleRegisterSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (isRegClosed) {
+      alert(closedMessage || 'Registration is currently closed.');
+      return;
+    }
+    if (!validateForm()) {
+      const firstErrorKey = Object.keys(errors)[0];
+      if (firstErrorKey) {
+        const el = document.getElementById(`field-${firstErrorKey}`);
+        el?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }
+      return;
+    }
+
+    // Open Razorpay / Automatic QR Payment Gateway Modal
+    setIsPaymentOpen(true);
+  };
+
+  // Payment successful callback -> Generate Digital Ticket Pass
+  const handlePaymentSuccess = (paymentId: string) => {
+    setIsPaymentOpen(false);
+
+    const regId = 'NV26-' + Math.random().toString(36).slice(2, 8).toUpperCase();
+    
+    // Parse team member details into structured objects
+    const formattedTeamDetails: Record<string, { 
+      teamName?: string; 
+      members?: string[]; 
+      teamMembers?: TeamMemberInfo[]; 
+      projectTitle?: string 
+    }> = {};
+
+    for (const [id, det] of Object.entries(teamDetails)) {
+      if (selectedEvents.includes(id)) {
+        const teamMemberList: TeamMemberInfo[] = (det.members || []).map(m => ({
+          name: m.name.trim(),
+          roll: m.roll.trim().toUpperCase(),
+          className: m.className.trim(),
+          section: m.section.trim().toUpperCase(),
+          branch: m.branch.trim(),
+          year: m.year.trim(),
+          phone: m.phone.trim(),
+          isIeeeMember: !!m.isIeeeMember,
+          ieeeId: m.isIeeeMember ? m.ieeeId?.trim() : undefined
+        }));
+
+        formattedTeamDetails[id] = {
+          teamName: det.teamName?.trim(),
+          members: [name.trim(), ...teamMemberList.map(m => m.name)],
+          teamMembers: teamMemberList,
+          projectTitle: det.projectTitle?.trim()
+        };
+      }
+    }
+
+    const newRecord: RegistrationRecord = {
+      regId,
+      paymentId,
+      name: name.trim(),
+      email: email.trim(),
+      phone: phone.trim(),
+      college: college.trim(),
+      className: classNameVal.trim(),
+      section: sectionVal.trim().toUpperCase(),
+      dept: dept.trim(),
+      year,
+      roll: roll.trim().toUpperCase(),
+      isIeeeMember,
+      ieeeId: isIeeeMember ? ieeeId.trim() : undefined,
+      eventIds: selectedEvents,
+      teamDetails: formattedTeamDetails,
+      totalPaid: total,
+      promoCode: promoCode.trim().toUpperCase() || undefined,
+      timestamp: new Date().toISOString()
+    };
+
+    saveRegistration(newRecord);
+    setConfirmedRecord(newRecord);
+
+    // Automatically dispatch pass confirmation email
+    if (newRecord.email) {
+      sendTicketEmailApi(newRecord).catch(() => {});
+    }
+
+    // Trigger celebratory confetti
+    try {
+      confetti({
+        particleCount: 120,
+        spread: 80,
+        origin: { y: 0.6 },
+        colors: ['#f2c14e', '#d4a935', '#ffffff', '#4cc38a', '#00629b']
+      });
+    } catch (e) {
+      // Confetti fallback
+    }
+
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  // Dedicated Full-Page Admin Portal: ONLY opens when user navigates to /admin or /admin.html
+  if (isAdminRoute) {
+    return (
+      <AdminModal
+        isOpen={true}
+        isFullPage={true}
+        onClose={() => {
+          window.location.href = '/register.html';
+        }}
+        savedRecords={savedRecords}
+        onUpdateRecord={handleUpdateRecord}
+        onDeleteRecord={handleDeleteRecord}
+        onAddManualRecord={(rec) => saveRegistration(rec)}
+        onViewPass={(rec) => {
+          setConfirmedRecord(rec);
+          window.location.href = '/register.html';
+        }}
+        isRegClosed={isRegClosed}
+        onToggleRegClosed={handleToggleRegClosed}
+        closedMessage={closedMessage}
+        onUpdateClosedMessage={handleUpdateClosedMessage}
+        leftLogo={leftLogo}
+        rightLogo={rightLogo}
+        onUpdateLeftLogo={handleUpdateLeftLogo}
+        onUpdateRightLogo={handleUpdateRightLogo}
+        initialTab={adminInitialTab}
+      />
+    );
+  }
+
+  return (
+    <div className="min-h-screen bg-[#0a0a0d] text-[#f3ecd9] selection:bg-[#d4a935]/30 selection:text-[#f2c14e] font-sans antialiased">
+      {/* Top Navbar with Top Left Logo (Image 1), Top Right Logo (Image 2), and Admin button */}
+      <Navbar 
+        onOpenLookup={() => setIsLookupOpen(true)} 
+        onRegisterClick={() => {
+          document.getElementById('register-section')?.scrollIntoView({ behavior: 'smooth' });
+        }}
+        onOpenAdmin={() => setIsAdminOpen(true)}
+        leftLogo={leftLogo}
+        rightLogo={rightLogo}
+        isRegClosed={isRegClosed}
+        theme={theme}
+        onToggleTheme={handleToggleTheme}
+      />
+
+      {/* Prominent Announcement Banner when Registration is Closed */}
+      {isRegClosed && (
+        <div className="bg-[#2a1315] border-b border-[#ff8a80]/30 py-3.5 px-4 text-center animate-in fade-in sticky top-18 z-30 shadow-md">
+          <div className="max-w-4xl mx-auto flex items-center justify-center gap-2.5 text-xs sm:text-sm font-semibold text-[#ffb4ab]">
+            <AlertCircle className="w-4 h-4 text-[#ff8a80] shrink-0" />
+            <span>{closedMessage}</span>
+          </div>
+        </div>
+      )}
+
+      <main className="relative">
+        {/* Confirmed Ticket Pass View */}
+        {confirmedRecord ? (
+          <TicketPass 
+            record={confirmedRecord}
+            events={EVENTS}
+            leftLogo={leftLogo}
+            rightLogo={rightLogo}
+            onReset={() => {
+              setConfirmedRecord(null);
+              setSelectedEvents(['ctf']);
+              setName('');
+              setRoll('');
+              setPhone('');
+              setEmail('');
+            }}
+          />
+        ) : (
+          <>
+            {/* Hero Section */}
+            <Hero 
+              onRegisterClick={() => {
+                document.getElementById('register-section')?.scrollIntoView({ behavior: 'smooth' });
+              }}
+              selectedEventIds={selectedEvents}
+              attendeeName={name}
+              isIeeeMember={isIeeeMember}
+              leftLogo={leftLogo}
+              rightLogo={rightLogo}
+            />
+
+            {/* Previous Symposium Memories & Photo Gallery Section */}
+            <GallerySection onOpenAdmin={(tab) => {
+              setAdminInitialTab(tab || 'photos');
+              setIsAdminOpen(true);
+            }} />
+
+            {/* Registration Form Section */}
+            <section id="register-section" className="py-12 sm:py-20 px-4 sm:px-6 lg:px-8 max-w-7xl mx-auto">
+              <div className="space-y-8">
+                {/* Section Title */}
+                <div className="max-w-3xl">
+                  <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-[#1f1b0e] border border-[#d4a935]/40 text-[#f2c14e] text-xs font-semibold tracking-wider uppercase mb-3">
+                    <Sparkles className="w-3.5 h-3.5" />
+                    <span>Official Registration Portal</span>
+                  </div>
+                  <h2 className="font-serif-title text-4xl sm:text-5xl font-bold text-[#ffffff] tracking-tight">
+                    Register for NexusVerse 2K26
+                  </h2>
+                  <p className="text-base text-[#b9ae94] mt-3 leading-relaxed">
+                    Enter participant details, add team members for team events, scan the dynamic QR or checkout via Razorpay, and download your instant verified entry pass. Technical events cost <span className="text-[#f2c14e] font-semibold">₹150 per head for IEEE members</span> and <span className="text-[#f3ecd9] font-medium">₹200 per head for non-members</span>.
+                  </p>
+                </div>
+
+                <form onSubmit={handleRegisterSubmit} noValidate className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
+                  {/* Left Column: Form Details & Events Selection */}
+                  <div className="lg:col-span-8 space-y-8">
+                    {/* 1. PARTICIPANT INFORMATION CARD */}
+                    <div className="bg-[#131318] p-6 sm:p-8 rounded-2xl border border-[#2e2b22]">
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-6">
+                        <h3 className="font-serif-title text-2xl font-bold text-[#ffffff] flex items-center gap-2">
+                          <User className="w-6 h-6 text-[#d4a935]" />
+                          <span>1. Participant Information (Team Lead / Delegate)</span>
+                        </h3>
+                        <span className="text-xs font-sans text-[#a79f8b] font-normal">All fields required</span>
+                      </div>
+
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
+                        {/* 1. Full Name */}
+                        <div id="field-name">
+                          <label className="block text-xs font-semibold text-[#f3ecd9] mb-1.5">
+                            Full Name <span className="text-[#ff8a80]">*</span>
+                          </label>
+                          <input
+                            type="text"
+                            value={name}
+                            onChange={(e) => {
+                              setName(e.target.value);
+                              if (errors.name) setErrors(prev => ({ ...prev, name: '' }));
+                            }}
+                            placeholder="e.g. Ananya Sharma"
+                            className={`w-full px-3.5 py-2.5 rounded-xl bg-[#0a0a0d] border text-sm text-[#f3ecd9] placeholder-[#5a6a80] focus:outline-none focus:border-[#d4a935] transition-colors ${
+                              errors.name ? 'border-[#ff8a80]' : 'border-[#2e2b22]'
+                            }`}
+                          />
+                          {errors.name && <p className="text-xs text-[#ff8a80] mt-1">{errors.name}</p>}
+                        </div>
+
+                        {/* 2. Roll Number */}
+                        <div id="field-roll">
+                          <label className="block text-xs font-semibold text-[#f3ecd9] mb-1.5">
+                            Roll Number / Reg No <span className="text-[#ff8a80]">*</span>
+                          </label>
+                          <input
+                            type="text"
+                            value={roll}
+                            onChange={(e) => {
+                              setRoll(e.target.value);
+                              if (errors.roll) setErrors(prev => ({ ...prev, roll: '' }));
+                            }}
+                            placeholder="e.g. 23B91A0512"
+                            className={`w-full px-3.5 py-2.5 rounded-xl bg-[#0a0a0d] border text-sm text-[#f3ecd9] font-mono placeholder-[#5a6a80] focus:outline-none focus:border-[#d4a935] transition-colors ${
+                              errors.roll ? 'border-[#ff8a80]' : 'border-[#2e2b22]'
+                            }`}
+                          />
+                          {errors.roll && <p className="text-xs text-[#ff8a80] mt-1">{errors.roll}</p>}
+                        </div>
+
+                        {/* 3. Class */}
+                        <div id="field-className">
+                          <label className="block text-xs font-semibold text-[#f3ecd9] mb-1.5">
+                            Class / Degree <span className="text-[#ff8a80]">*</span>
+                          </label>
+                          <select
+                            value={classNameVal}
+                            onChange={(e) => {
+                              setClassNameVal(e.target.value);
+                              if (errors.className) setErrors(prev => ({ ...prev, className: '' }));
+                            }}
+                            className={`w-full px-3.5 py-2.5 rounded-xl bg-[#0a0a0d] border text-sm text-[#f3ecd9] focus:outline-none focus:border-[#d4a935] transition-colors ${
+                              errors.className ? 'border-[#ff8a80]' : 'border-[#2e2b22]'
+                            }`}
+                          >
+                            <option value="B.Tech">B.Tech</option>
+                            <option value="M.Tech">M.Tech</option>
+                            <option value="MCA">MCA</option>
+                            <option value="MBA">MBA</option>
+                            <option value="Diploma">Diploma</option>
+                            <option value="B.Sc / Degree">B.Sc / Degree</option>
+                          </select>
+                          {errors.className && <p className="text-xs text-[#ff8a80] mt-1">{errors.className}</p>}
+                        </div>
+
+                        {/* 4. Section */}
+                        <div id="field-section">
+                          <label className="block text-xs font-semibold text-[#f3ecd9] mb-1.5">
+                            Section <span className="text-[#ff8a80]">*</span>
+                          </label>
+                          <input
+                            type="text"
+                            value={sectionVal}
+                            onChange={(e) => {
+                              setSectionVal(e.target.value);
+                              if (errors.section) setErrors(prev => ({ ...prev, section: '' }));
+                            }}
+                            placeholder="e.g. A, B, C or 1, 2"
+                            className={`w-full px-3.5 py-2.5 rounded-xl bg-[#0a0a0d] border text-sm text-[#f3ecd9] placeholder-[#5a6a80] focus:outline-none focus:border-[#d4a935] transition-colors ${
+                              errors.section ? 'border-[#ff8a80]' : 'border-[#2e2b22]'
+                            }`}
+                          />
+                          {errors.section && <p className="text-xs text-[#ff8a80] mt-1">{errors.section}</p>}
+                        </div>
+
+                        {/* 5. Branch / Department */}
+                        <div id="field-dept">
+                          <label className="block text-xs font-semibold text-[#f3ecd9] mb-1.5">
+                            Branch / Department <span className="text-[#ff8a80]">*</span>
+                          </label>
+                          <input
+                            type="text"
+                            value={dept}
+                            onChange={(e) => {
+                              setDept(e.target.value);
+                              if (errors.dept) setErrors(prev => ({ ...prev, dept: '' }));
+                            }}
+                            placeholder="e.g. Computer Science & Engineering"
+                            className={`w-full px-3.5 py-2.5 rounded-xl bg-[#0a0a0d] border text-sm text-[#f3ecd9] placeholder-[#5a6a80] focus:outline-none focus:border-[#d4a935] transition-colors ${
+                              errors.dept ? 'border-[#ff8a80]' : 'border-[#2e2b22]'
+                            }`}
+                          />
+                          {errors.dept && <p className="text-xs text-[#ff8a80] mt-1">{errors.dept}</p>}
+                        </div>
+
+                        {/* 6. Year of Study */}
+                        <div id="field-year">
+                          <label className="block text-xs font-semibold text-[#f3ecd9] mb-1.5">
+                            Year of Study <span className="text-[#ff8a80]">*</span>
+                          </label>
+                          <select
+                            value={year}
+                            onChange={(e) => {
+                              setYear(e.target.value);
+                              if (errors.year) setErrors(prev => ({ ...prev, year: '' }));
+                            }}
+                            className={`w-full px-3.5 py-2.5 rounded-xl bg-[#0a0a0d] border text-sm text-[#f3ecd9] focus:outline-none focus:border-[#d4a935] transition-colors ${
+                              errors.year ? 'border-[#ff8a80]' : 'border-[#2e2b22]'
+                            }`}
+                          >
+                            <option value="1st Year">1st Year (Freshman)</option>
+                            <option value="2nd Year">2nd Year (Sophomore)</option>
+                            <option value="3rd Year">3rd Year (Junior)</option>
+                            <option value="4th Year">4th Year (Senior)</option>
+                          </select>
+                          {errors.year && <p className="text-xs text-[#ff8a80] mt-1">{errors.year}</p>}
+                        </div>
+
+                        {/* 7. Phone Number */}
+                        <div id="field-phone">
+                          <label className="block text-xs font-semibold text-[#f3ecd9] mb-1.5">
+                            Phone Number <span className="text-[#a79f8b] font-normal">(10 digits)</span> <span className="text-[#ff8a80]">*</span>
+                          </label>
+                          <input
+                            type="tel"
+                            maxLength={10}
+                            value={phone}
+                            onChange={(e) => {
+                              setPhone(e.target.value);
+                              if (errors.phone) setErrors(prev => ({ ...prev, phone: '' }));
+                            }}
+                            placeholder="9876543210"
+                            className={`w-full px-3.5 py-2.5 rounded-xl bg-[#0a0a0d] border text-sm text-[#f3ecd9] placeholder-[#5a6a80] focus:outline-none focus:border-[#d4a935] font-mono transition-colors ${
+                              errors.phone ? 'border-[#ff8a80]' : 'border-[#2e2b22]'
+                            }`}
+                          />
+                          {errors.phone && <p className="text-xs text-[#ff8a80] mt-1">{errors.phone}</p>}
+                        </div>
+
+                        {/* College Name */}
+                        <div id="field-college">
+                          <label className="block text-xs font-semibold text-[#f3ecd9] mb-1.5">
+                            College / Institution <span className="text-[#ff8a80]">*</span>
+                          </label>
+                          <input
+                            type="text"
+                            value={college}
+                            onChange={(e) => {
+                              setCollege(e.target.value);
+                              if (errors.college) setErrors(prev => ({ ...prev, college: '' }));
+                            }}
+                            placeholder="e.g. NBKRIST, Vidyanagar"
+                            className={`w-full px-3.5 py-2.5 rounded-xl bg-[#0a0a0d] border text-sm text-[#f3ecd9] placeholder-[#5a6a80] focus:outline-none focus:border-[#d4a935] transition-colors ${
+                              errors.college ? 'border-[#ff8a80]' : 'border-[#2e2b22]'
+                            }`}
+                          />
+                          {errors.college && <p className="text-xs text-[#ff8a80] mt-1">{errors.college}</p>}
+                        </div>
+
+                        {/* Email Address */}
+                        <div id="field-email" className="sm:col-span-2">
+                          <label className="block text-xs font-semibold text-[#f3ecd9] mb-1.5">
+                            Email Address <span className="text-[#ff8a80]">*</span>
+                          </label>
+                          <input
+                            type="email"
+                            value={email}
+                            onChange={(e) => {
+                              setEmail(e.target.value);
+                              if (errors.email) setErrors(prev => ({ ...prev, email: '' }));
+                            }}
+                            placeholder="ananya@gmail.com"
+                            className={`w-full px-3.5 py-2.5 rounded-xl bg-[#0a0a0d] border text-sm text-[#f3ecd9] placeholder-[#5a6a80] focus:outline-none focus:border-[#d4a935] transition-colors ${
+                              errors.email ? 'border-[#ff8a80]' : 'border-[#2e2b22]'
+                            }`}
+                          />
+                          {errors.email && <p className="text-xs text-[#ff8a80] mt-1">{errors.email}</p>}
+                        </div>
+
+                        {/* IEEE Membership Toggle */}
+                        <div className="sm:col-span-2 space-y-3 pt-1">
+                          <label className="block text-xs font-semibold text-[#f3ecd9]">
+                            IEEE Membership Status
+                          </label>
+                          <div className="grid grid-cols-2 gap-2">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setIsIeeeMember(false);
+                                setIeeeId('');
+                              }}
+                              className={`py-2.5 px-3 rounded-xl border text-xs font-semibold transition-all cursor-pointer ${
+                                !isIeeeMember
+                                  ? 'bg-[#181820] border-[#d4a935] text-[#f3ecd9]'
+                                  : 'bg-[#0a0a0d] border-[#2e2b22] text-[#a79f8b] hover:border-[#a79f8b]'
+                              }`}
+                            >
+                              Non-IEEE Member (₹200)
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setIsIeeeMember(true)}
+                              className={`py-2.5 px-3 rounded-xl border text-xs font-semibold transition-all cursor-pointer flex items-center justify-center gap-1.5 ${
+                                isIeeeMember
+                                  ? 'bg-[#1f1b0e] border-[#f2c14e] text-[#f2c14e]'
+                                  : 'bg-[#0a0a0d] border-[#2e2b22] text-[#a79f8b] hover:border-[#a79f8b]'
+                              }`}
+                            >
+                              <Award className="w-3.5 h-3.5" />
+                              <span>IEEE Member (₹150)</span>
+                            </button>
+                          </div>
+
+                          {isIeeeMember && (
+                            <div className="pt-2" id="field-ieeeId">
+                              <label className="block text-xs font-semibold text-[#f2c14e] mb-1.5 flex items-center justify-between">
+                                <span>IEEE Membership Number *</span>
+                                <span className="text-[11px] text-[#a79f8b]">8-digit ID verified on entrance</span>
+                              </label>
+                              <input
+                                type="text"
+                                value={ieeeId}
+                                onChange={(e) => {
+                                  setIeeeId(e.target.value);
+                                  if (errors.ieeeId) setErrors(prev => ({ ...prev, ieeeId: '' }));
+                                }}
+                                placeholder="e.g. 98124578"
+                                className={`w-full px-3.5 py-2.5 rounded-xl bg-[#0a0a0d] border text-sm text-[#f3ecd9] font-mono placeholder-[#5a6a80] focus:outline-none focus:border-[#d4a935] transition-colors ${
+                                  errors.ieeeId ? 'border-[#ff8a80]' : 'border-[#d4a935]/50'
+                                }`}
+                              />
+                              {errors.ieeeId && <p className="text-xs text-[#ff8a80] mt-1">{errors.ieeeId}</p>}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* 2. CHOOSE TECHNICAL EVENT & TEAM MEMBERS CARD */}
+                    <div className="bg-[#131318] p-6 sm:p-8 rounded-2xl border border-[#2e2b22]" id="events-section">
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-6">
+                        <div>
+                          <h3 className="font-serif-title text-2xl font-bold text-[#ffffff]">
+                            2. Choose Your Technical Event
+                          </h3>
+                          <p className="text-xs text-[#a79f8b] mt-1">
+                            Participants can register for <span className="text-[#f2c14e] font-semibold">only one technical event</span>. Select below:
+                          </p>
+                        </div>
+
+                        <span className="text-xs font-mono text-[#d4a935] bg-[#1f1b0e] px-2.5 py-1 rounded-md border border-[#d4a935]/30">
+                          {selectedEvents.length === 1 ? '1 event selected' : 'Select 1 event'}
+                        </span>
+                      </div>
+
+                      {errors.events && (
+                        <div className="mb-4 p-3 rounded-xl bg-[#ff8a80]/10 border border-[#ff8a80]/30 text-xs text-[#ff8a80] flex items-center gap-2">
+                          <AlertCircle className="w-4 h-4 shrink-0" />
+                          <span>{errors.events}</span>
+                        </div>
+                      )}
+
+                      {/* Event Cards List */}
+                      <div className="space-y-4">
+                        {EVENTS.map((event) => {
+                          const isSelected = selectedEvents.includes(event.id);
+                          const fee = isIeeeMember ? event.feeMember : event.feeNonMember;
+                          const details = teamDetails[event.id] || { teamName: '', members: [] };
+                          const currentMembers = details.members || [];
+                          const totalTeamMembers = 1 + currentMembers.length; // 1 is lead
+
+                          return (
+                            <div
+                              key={event.id}
+                              onClick={() => selectEvent(event.id)}
+                              className={`rounded-2xl border transition-all duration-200 overflow-hidden cursor-pointer ${
+                                isSelected
+                                  ? 'bg-[#181820] border-[#d4a935] shadow-lg shadow-[#d4a935]/10 ring-1 ring-[#d4a935]/50'
+                                  : 'bg-[#0a0a0d] border-[#2e2b22] hover:border-[#a79f8b]/50'
+                              }`}
+                            >
+                              {/* Event Header row */}
+                              <div className="p-5 flex items-start justify-between gap-4">
+                                <label className="flex items-start gap-3.5 flex-1 cursor-pointer" onClick={(e) => e.stopPropagation()}>
+                                  <input
+                                    type="radio"
+                                    name="technical_event_selection"
+                                    checked={isSelected}
+                                    onChange={() => selectEvent(event.id)}
+                                    className="mt-1 w-5 h-5 border-[#2e2b22] bg-[#0a0a0d] text-[#d4a935] accent-[#d4a935] cursor-pointer"
+                                  />
+                                  <div className="space-y-1">
+                                    <div className="flex flex-wrap items-center gap-2">
+                                      <span className="font-serif-title text-xl font-bold text-[#ffffff]">
+                                        {event.name}
+                                      </span>
+                                      <span className="text-xs text-[#a79f8b]">
+                                        · {event.teamLabel}
+                                      </span>
+                                      <span className="text-[11px] text-[#d4a935] bg-[#1f1b0e] px-2 py-0.5 rounded border border-[#d4a935]/30">
+                                        {event.slot}
+                                      </span>
+                                      {isSelected && (
+                                        <span className="text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded bg-[#f2c14e]/20 text-[#f2c14e] border border-[#f2c14e]/40">
+                                          Your Selected Event
+                                        </span>
+                                      )}
+                                    </div>
+                                    {event.tagline && (
+                                      <p className="text-xs font-semibold text-[#f2c14e] italic">
+                                        "{event.tagline}"
+                                      </p>
+                                    )}
+                                    <p className="text-xs text-[#b9ae94] leading-relaxed max-w-xl">
+                                      {event.tag}
+                                    </p>
+                                  </div>
+                                </label>
+
+                                <div className="text-right shrink-0 flex flex-col items-end gap-1" onClick={(e) => e.stopPropagation()}>
+                                  <span className="font-mono tabular-nums text-lg font-bold text-[#f2c14e]">
+                                    ₹{fee} <span className="text-xs font-sans font-normal text-[#a79f8b]">/ head</span>
+                                  </span>
+                                  <button
+                                    type="button"
+                                    onClick={() => setInspectEvent(event)}
+                                    className="text-[11px] text-[#d4a935] hover:text-[#f2c14e] underline transition-colors cursor-pointer"
+                                  >
+                                    View Rules & Rounds
+                                  </button>
+                                </div>
+                              </div>
+
+                              {/* STRUCTURED TEAM MEMBERS INPUT SECTION */}
+                              {isSelected && (event.max > 1 || event.project) && (
+                                <div 
+                                  className="p-5 pt-0 border-t border-[#2e2b22] bg-[#131318]/70 space-y-5"
+                                  onClick={(e) => e.stopPropagation()}
+                                >
+                                  {event.max > 1 && (
+                                    <>
+                                      {/* Team Name */}
+                                      <div id={`field-teamName_${event.id}`} className="pt-4">
+                                        <label className="block text-xs font-semibold text-[#f3ecd9] mb-1">
+                                          Team Name <span className="text-[#ff8a80]">*</span>
+                                        </label>
+                                        <input
+                                          type="text"
+                                          value={details.teamName || ''}
+                                          onChange={(e) => {
+                                            const val = e.target.value;
+                                            setTeamDetails(prev => ({
+                                              ...prev,
+                                              [event.id]: { ...details, teamName: val }
+                                            }));
+                                            if (errors[`teamName_${event.id}`]) {
+                                              setErrors(errs => {
+                                                const copy = { ...errs };
+                                                delete copy[`teamName_${event.id}`];
+                                                return copy;
+                                              });
+                                            }
+                                          }}
+                                          placeholder="e.g. CyberKnights"
+                                          className={`w-full px-3.5 py-2 text-xs rounded-xl bg-[#0a0a0d] border text-[#f3ecd9] placeholder-[#5a6a80] focus:outline-none focus:border-[#d4a935] ${
+                                            errors[`teamName_${event.id}`] ? 'border-[#ff8a80]' : 'border-[#2e2b22]'
+                                          }`}
+                                        />
+                                        {errors[`teamName_${event.id}`] && (
+                                          <p className="text-[11px] text-[#ff8a80] mt-1">{errors[`teamName_${event.id}`]}</p>
+                                        )}
+                                      </div>
+
+                                      {/* Team Members Header & Status */}
+                                      <div className="pt-2 border-t border-[#2e2b22] flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                                        <div>
+                                          <div className="text-xs font-semibold text-[#f2c14e] flex items-center gap-1.5">
+                                            <Users className="w-4 h-4" />
+                                            <span>Team Members ({totalTeamMembers} of {event.max} max)</span>
+                                          </div>
+                                          <p className="text-[11px] text-[#a79f8b]">
+                                            {event.participationText ? `${event.participationText} Each member enters Name, Roll No, Class, Section, Branch, Year, and Phone.` : `Requires ${event.min} to ${event.max} members. Each member enters Name, Roll No, Class, Section, Branch, Year, and Phone.`}
+                                          </p>
+                                        </div>
+
+                                        {totalTeamMembers < event.max && (
+                                          <button
+                                            type="button"
+                                            onClick={() => handleAddTeamMember(event.id, event.max)}
+                                            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg bg-[#1f1b0e] text-[#f2c14e] border border-[#d4a935]/40 hover:bg-[#d4a935] hover:text-[#1a1300] transition-colors cursor-pointer self-start sm:self-auto"
+                                          >
+                                            <Plus className="w-3.5 h-3.5" />
+                                            <span>Add Team Member</span>
+                                          </button>
+                                        )}
+                                      </div>
+
+                                      {errors[`teamCount_${event.id}`] && (
+                                        <p className="text-xs text-[#ff8a80]">{errors[`teamCount_${event.id}`]}</p>
+                                      )}
+
+                                      {/* MEMBER 1 (TEAM LEAD - PREFILLED FROM PARTICIPANT) */}
+                                      <div className="p-3.5 rounded-xl bg-[#0a0a0d] border border-[#d4a935]/40 text-xs space-y-1">
+                                        <div className="flex items-center justify-between">
+                                          <span className="font-bold text-[#ffffff] flex items-center gap-1.5">
+                                            <span>Member 1 (Team Leader):</span>
+                                            <span className="text-[#f2c14e] font-medium">{name || 'Your Name'}</span>
+                                          </span>
+                                          <span className="px-2 py-0.5 rounded bg-[#f2c14e]/20 text-[#f2c14e] font-mono text-[10px] font-bold">
+                                            LEAD (YOU)
+                                          </span>
+                                        </div>
+                                        <div className="text-[#a79f8b] text-[11px] font-mono">
+                                          Roll: {roll || 'Pending'} · Phone: {phone || 'Pending'} · {classNameVal} ({sectionVal ? `Sec ${sectionVal}` : 'Sec A'}) · {dept || 'Branch'} ({year})
+                                        </div>
+                                        <div className="text-[11px] pt-0.5">
+                                          {isIeeeMember ? (
+                                            <span className="text-[#f2c14e] font-medium flex items-center gap-1">
+                                              <Award className="w-3 h-3 text-[#f2c14e]" />
+                                              <span>IEEE Member (ID: {ieeeId || 'Pending'})</span>
+                                            </span>
+                                          ) : (
+                                            <span className="text-[#a79f8b]">Non-IEEE Member</span>
+                                          )}
+                                        </div>
+                                      </div>
+
+                                      {/* ADDITIONAL TEAM MEMBERS FORM CARDS */}
+                                      <div className="space-y-3">
+                                        {currentMembers.map((member, mIdx) => (
+                                          <div 
+                                            key={mIdx} 
+                                            className="p-4 rounded-xl bg-[#0a0a0d] border border-[#2e2b22] space-y-3"
+                                          >
+                                            <div className="flex items-center justify-between">
+                                              <span className="text-xs font-bold text-[#f3ecd9] flex items-center gap-1.5">
+                                                <User className="w-3.5 h-3.5 text-[#d4a935]" />
+                                                <span>Member {mIdx + 2} Details</span>
+                                              </span>
+                                              <button
+                                                type="button"
+                                                onClick={() => handleRemoveTeamMember(event.id, mIdx)}
+                                                className="text-[11px] text-[#ff8a80] hover:text-[#ffb4ab] flex items-center gap-1 transition-colors cursor-pointer"
+                                              >
+                                                <Trash2 className="w-3.5 h-3.5" />
+                                                <span>Remove</span>
+                                              </button>
+                                            </div>
+
+                                            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2.5 text-xs">
+                                              {/* Member Name */}
+                                              <div>
+                                                <label className="text-[10px] text-[#a79f8b] block mb-1">Full Name *</label>
+                                                <input
+                                                  type="text"
+                                                  value={member.name}
+                                                  onChange={(e) => handleUpdateTeamMemberField(event.id, mIdx, 'name', e.target.value)}
+                                                  placeholder="Teammate name"
+                                                  className={`w-full px-2.5 py-1.5 rounded-lg bg-[#131318] border text-xs text-[#f3ecd9] focus:outline-none focus:border-[#d4a935] ${
+                                                    errors[`member_${event.id}_${mIdx}_name`] ? 'border-[#ff8a80]' : 'border-[#2e2b22]'
+                                                  }`}
+                                                />
+                                              </div>
+
+                                              {/* Member Roll No */}
+                                              <div>
+                                                <label className="text-[10px] text-[#a79f8b] block mb-1">Roll Number *</label>
+                                                <input
+                                                  type="text"
+                                                  value={member.roll}
+                                                  onChange={(e) => handleUpdateTeamMemberField(event.id, mIdx, 'roll', e.target.value)}
+                                                  placeholder="e.g. 23B91A0515"
+                                                  className={`w-full px-2.5 py-1.5 rounded-lg bg-[#131318] border text-xs text-[#f3ecd9] font-mono focus:outline-none focus:border-[#d4a935] ${
+                                                    errors[`member_${event.id}_${mIdx}_roll`] ? 'border-[#ff8a80]' : 'border-[#2e2b22]'
+                                                  }`}
+                                                />
+                                              </div>
+
+                                              {/* Member Phone */}
+                                              <div>
+                                                <label className="text-[10px] text-[#a79f8b] block mb-1">Phone Number (10 digits) *</label>
+                                                <input
+                                                  type="tel"
+                                                  maxLength={10}
+                                                  value={member.phone}
+                                                  onChange={(e) => handleUpdateTeamMemberField(event.id, mIdx, 'phone', e.target.value)}
+                                                  placeholder="9876543210"
+                                                  className={`w-full px-2.5 py-1.5 rounded-lg bg-[#131318] border text-xs text-[#f3ecd9] font-mono focus:outline-none focus:border-[#d4a935] ${
+                                                    errors[`member_${event.id}_${mIdx}_phone`] ? 'border-[#ff8a80]' : 'border-[#2e2b22]'
+                                                  }`}
+                                                />
+                                              </div>
+
+                                              {/* Member Class */}
+                                              <div>
+                                                <label className="text-[10px] text-[#a79f8b] block mb-1">Class / Degree *</label>
+                                                <select
+                                                  value={member.className}
+                                                  onChange={(e) => handleUpdateTeamMemberField(event.id, mIdx, 'className', e.target.value)}
+                                                  className="w-full px-2.5 py-1.5 rounded-lg bg-[#131318] border border-[#2e2b22] text-xs text-[#f3ecd9] focus:outline-none focus:border-[#d4a935]"
+                                                >
+                                                  <option value="B.Tech">B.Tech</option>
+                                                  <option value="M.Tech">M.Tech</option>
+                                                  <option value="MCA">MCA</option>
+                                                  <option value="MBA">MBA</option>
+                                                  <option value="Diploma">Diploma</option>
+                                                  <option value="B.Sc / Degree">B.Sc / Degree</option>
+                                                </select>
+                                              </div>
+
+                                              {/* Member Section */}
+                                              <div>
+                                                <label className="text-[10px] text-[#a79f8b] block mb-1">Section *</label>
+                                                <input
+                                                  type="text"
+                                                  value={member.section}
+                                                  onChange={(e) => handleUpdateTeamMemberField(event.id, mIdx, 'section', e.target.value)}
+                                                  placeholder="e.g. A, B"
+                                                  className={`w-full px-2.5 py-1.5 rounded-lg bg-[#131318] border text-xs text-[#f3ecd9] focus:outline-none focus:border-[#d4a935] ${
+                                                    errors[`member_${event.id}_${mIdx}_section`] ? 'border-[#ff8a80]' : 'border-[#2e2b22]'
+                                                  }`}
+                                                />
+                                              </div>
+
+                                              {/* Member Branch */}
+                                              <div>
+                                                <label className="text-[10px] text-[#a79f8b] block mb-1">Branch *</label>
+                                                <input
+                                                  type="text"
+                                                  value={member.branch}
+                                                  onChange={(e) => handleUpdateTeamMemberField(event.id, mIdx, 'branch', e.target.value)}
+                                                  placeholder="e.g. CSE"
+                                                  className={`w-full px-2.5 py-1.5 rounded-lg bg-[#131318] border text-xs text-[#f3ecd9] focus:outline-none focus:border-[#d4a935] ${
+                                                    errors[`member_${event.id}_${mIdx}_branch`] ? 'border-[#ff8a80]' : 'border-[#2e2b22]'
+                                                  }`}
+                                                />
+                                              </div>
+
+                                              {/* Member Year */}
+                                              <div className="sm:col-span-2 md:col-span-1">
+                                                <label className="text-[10px] text-[#a79f8b] block mb-1">Year *</label>
+                                                <select
+                                                  value={member.year}
+                                                  onChange={(e) => handleUpdateTeamMemberField(event.id, mIdx, 'year', e.target.value)}
+                                                  className="w-full px-2.5 py-1.5 rounded-lg bg-[#131318] border border-[#2e2b22] text-xs text-[#f3ecd9] focus:outline-none focus:border-[#d4a935]"
+                                                >
+                                                  <option value="1st Year">1st Year</option>
+                                                  <option value="2nd Year">2nd Year</option>
+                                                  <option value="3rd Year">3rd Year</option>
+                                                  <option value="4th Year">4th Year</option>
+                                                </select>
+                                              </div>
+                                            </div>
+
+                                            {/* Member IEEE Membership Selection */}
+                                            <div className="pt-2 border-t border-[#2e2b22] space-y-2">
+                                              <label className="text-[10px] text-[#a79f8b] block font-medium">
+                                                IEEE Membership Status *
+                                              </label>
+                                              <div className="grid grid-cols-2 gap-2">
+                                                <button
+                                                  type="button"
+                                                  onClick={() => {
+                                                    handleUpdateTeamMemberField(event.id, mIdx, 'isIeeeMember', false);
+                                                    handleUpdateTeamMemberField(event.id, mIdx, 'ieeeId', '');
+                                                  }}
+                                                  className={`py-1.5 px-3 rounded-lg text-xs font-medium border text-center transition-all cursor-pointer ${
+                                                    !member.isIeeeMember
+                                                      ? 'bg-[#1f1b0e] text-[#f2c14e] border-[#d4a935]'
+                                                      : 'bg-[#131318] text-[#a79f8b] border-[#2e2b22] hover:border-[#3d382c]'
+                                                  }`}
+                                                >
+                                                  Non-IEEE Member
+                                                </button>
+                                                <button
+                                                  type="button"
+                                                  onClick={() => handleUpdateTeamMemberField(event.id, mIdx, 'isIeeeMember', true)}
+                                                  className={`py-1.5 px-3 rounded-lg text-xs font-medium border text-center transition-all cursor-pointer flex items-center justify-center gap-1.5 ${
+                                                    member.isIeeeMember
+                                                      ? 'bg-[#1f1b0e] text-[#f2c14e] border-[#d4a935]'
+                                                      : 'bg-[#131318] text-[#a79f8b] border-[#2e2b22] hover:border-[#3d382c]'
+                                                  }`}
+                                                >
+                                                  <Award className="w-3.5 h-3.5" />
+                                                  <span>IEEE Member</span>
+                                                </button>
+                                              </div>
+
+                                              {member.isIeeeMember && (
+                                                <div id={`field-member_${event.id}_${mIdx}_ieeeId`} className="pt-1">
+                                                  <label className="text-[10px] text-[#f2c14e] block mb-1 font-medium">
+                                                    Member {mIdx + 2} IEEE Membership ID *
+                                                  </label>
+                                                  <input
+                                                    type="text"
+                                                    value={member.ieeeId || ''}
+                                                    onChange={(e) => handleUpdateTeamMemberField(event.id, mIdx, 'ieeeId', e.target.value)}
+                                                    placeholder="Enter IEEE Membership ID (e.g. 99123456)"
+                                                    className={`w-full px-2.5 py-1.5 rounded-lg bg-[#131318] border text-xs text-[#f3ecd9] font-mono focus:outline-none focus:border-[#d4a935] ${
+                                                      errors[`member_${event.id}_${mIdx}_ieeeId`] ? 'border-[#ff8a80]' : 'border-[#2e2b22]'
+                                                    }`}
+                                                  />
+                                                  {errors[`member_${event.id}_${mIdx}_ieeeId`] && (
+                                                    <p className="text-[10px] text-[#ff8a80] mt-1">{errors[`member_${event.id}_${mIdx}_ieeeId`]}</p>
+                                                  )}
+                                                </div>
+                                              )}
+                                            </div>
+                                          </div>
+                                        ))}
+                                      </div>
+                                    </>
+                                  )}
+
+                                  {/* Project Expo Title */}
+                                  {event.project && (
+                                    <div id={`field-projectTitle_${event.id}`} className="pt-2">
+                                      <label className="block text-xs font-semibold text-[#f3ecd9] mb-1">
+                                        Project / Prototype Title <span className="text-[#ff8a80]">*</span>
+                                      </label>
+                                      <input
+                                        type="text"
+                                        value={details.projectTitle || ''}
+                                        onChange={(e) => {
+                                          const val = e.target.value;
+                                          setTeamDetails(prev => ({
+                                            ...prev,
+                                            [event.id]: { ...details, projectTitle: val }
+                                          }));
+                                          if (errors[`projectTitle_${event.id}`]) {
+                                            setErrors(errs => {
+                                              const copy = { ...errs };
+                                              delete copy[`projectTitle_${event.id}`];
+                                              return copy;
+                                            });
+                                          }
+                                        }}
+                                        placeholder="e.g. Autonomous Solar Powered IoT Irrigation Node"
+                                        className={`w-full px-3.5 py-2 text-xs rounded-xl bg-[#0a0a0d] border text-[#f3ecd9] placeholder-[#5a6a80] focus:outline-none focus:border-[#d4a935] ${
+                                          errors[`projectTitle_${event.id}`] ? 'border-[#ff8a80]' : 'border-[#2e2b22]'
+                                        }`}
+                                      />
+                                      {errors[`projectTitle_${event.id}`] && (
+                                        <p className="text-[11px] text-[#ff8a80] mt-1">{errors[`projectTitle_${event.id}`]}</p>
+                                      )}
+                                    </div>
+                                  )}
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Right Column: Checkout Summary & Proceed Button */}
+                  <div className="lg:col-span-4 space-y-6 lg:sticky lg:top-24">
+                    <div className="bg-[#131318] p-6 rounded-2xl border border-[#2e2b22] space-y-6 shadow-xl">
+                      <div className="flex items-center justify-between border-b border-[#2e2b22] pb-4">
+                        <h4 className="font-serif-title text-xl font-bold text-[#ffffff]">
+                          Registration Summary
+                        </h4>
+                        <span className="text-xs font-mono text-[#a79f8b]">1 Delegate Pass</span>
+                      </div>
+
+                      {/* Participant Preview Pill */}
+                      <div className="p-3 rounded-xl bg-[#0a0a0d] border border-[#2e2b22] text-xs space-y-1">
+                        <div className="flex items-center justify-between">
+                          <span className="text-[#a79f8b]">Participant:</span>
+                          <span className="font-semibold text-[#f3ecd9]">{name || 'Your Name'}</span>
+                        </div>
+                        <div className="flex items-center justify-between text-[#a79f8b]">
+                          <span>Roll & Phone:</span>
+                          <span className="font-mono text-[#f2c14e]">{roll || '---'} · {phone || '---'}</span>
+                        </div>
+                        <div className="flex items-center justify-between text-[#a79f8b]">
+                          <span>Class & Sec:</span>
+                          <span>{classNameVal} {sectionVal ? `(${sectionVal})` : ''} · {dept || 'Branch'}</span>
+                        </div>
+                      </div>
+
+                      {/* Line Item for Selected Event */}
+                      <div className="space-y-3">
+                        {selectedEvents.map(id => {
+                          const ev = EVENTS.find(e => e.id === id);
+                          if (!ev) return null;
+                          const details = teamDetails[id] || { teamName: '', members: [] };
+                          const totalHeads = 1 + (ev.max > 1 ? (details.members?.length || 0) : 0);
+                          const leaderFee = isIeeeMember ? ev.feeMember : ev.feeNonMember;
+                          const teammatesFee = (details.members || []).reduce((mSum, m) => {
+                            return mSum + (m.isIeeeMember ? ev.feeMember : ev.feeNonMember);
+                          }, 0);
+                          const evTotal = leaderFee + teammatesFee;
+
+                          return (
+                            <div key={id} className="p-3 rounded-xl bg-[#0a0a0d] border border-[#2e2b22] space-y-1.5 text-xs">
+                              <div className="flex items-start justify-between gap-3">
+                                <div>
+                                  <span className="font-semibold text-[#f3ecd9] block">{ev.name}</span>
+                                  <span className="text-[#a79f8b] text-[11px] block">{ev.slot} · {ev.teamLabel}</span>
+                                </div>
+                                <span className="font-mono font-bold text-[#f2c14e] text-sm">₹{evTotal}</span>
+                              </div>
+                              <div className="pt-1.5 border-t border-[#2e2b22]/60 flex items-center justify-between text-[11px] text-[#a79f8b]">
+                                <span>{totalHeads} {totalHeads === 1 ? 'Head (1 Participant)' : `Heads (${totalHeads} Participants)`}</span>
+                                <span className="font-mono">₹{isIeeeMember ? ev.feeMember : ev.feeNonMember} / head</span>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+
+                      {/* Promo Code Box */}
+                      <div className="pt-2 border-t border-[#2e2b22]">
+                        <label className="block text-xs font-semibold text-[#f3ecd9] mb-1.5">
+                          Promo Code (Optional)
+                        </label>
+                        <div className="flex gap-2">
+                          <input
+                            type="text"
+                            value={promoCode}
+                            onChange={(e) => setPromoCode(e.target.value.toUpperCase())}
+                            placeholder="e.g. IEEE10, NEXUS20"
+                            className="flex-1 px-3 py-2 text-xs font-mono rounded-xl bg-[#0a0a0d] border border-[#2e2b22] text-[#f3ecd9] uppercase focus:outline-none focus:border-[#d4a935]"
+                          />
+                        </div>
+                        {promoMessage && (
+                          <p className={`text-[11px] mt-1.5 ${promoMessage.valid ? 'text-[#4cc38a]' : 'text-[#ff8a80]'}`}>
+                            {promoMessage.text}
+                          </p>
+                        )}
+                      </div>
+
+                      {/* Cost Breakdown */}
+                      <div className="space-y-2 pt-2 border-t border-[#2e2b22] text-xs">
+                        <div className="flex justify-between text-[#a79f8b]">
+                          <span>Subtotal</span>
+                          <span className="font-mono text-[#f3ecd9]">₹{subtotal}</span>
+                        </div>
+                        {discountAmount > 0 && (
+                          <div className="flex justify-between text-[#4cc38a]">
+                            <span>Discount ({discountPercent}%)</span>
+                            <span className="font-mono">-₹{discountAmount}</span>
+                          </div>
+                        )}
+                        <div className="flex justify-between items-baseline pt-2 border-t border-[#2e2b22] font-bold text-sm text-[#ffffff]">
+                          <span>Total Payable</span>
+                          <div className="text-right">
+                            <span className="font-mono tabular-nums text-2xl text-[#f2c14e]">₹{total}</span>
+                            <span className="text-[10px] text-[#a79f8b] font-normal block">Razorpay Protected</span>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Terms and Conditions Checkbox */}
+                      <div className="pt-2">
+                        <label className="flex items-start gap-2.5 text-xs text-[#a79f8b] cursor-pointer">
+                          <input
+                            type="checkbox"
+                            checked={termsAccepted}
+                            onChange={(e) => {
+                              setTermsAccepted(e.target.checked);
+                              if (errors.terms) setErrors(prev => ({ ...prev, terms: '' }));
+                            }}
+                            className="mt-0.5 rounded border-[#2e2b22] bg-[#0a0a0d] text-[#d4a935] accent-[#d4a935] cursor-pointer"
+                          />
+                          <span>
+                            I agree to the NexusVerse 2K26 symposium guidelines and code of conduct.
+                          </span>
+                        </label>
+                        {errors.terms && <p className="text-xs text-[#ff8a80] mt-1">{errors.terms}</p>}
+                      </div>
+
+                      {/* Submit / Proceed to Payment Button */}
+                      {isRegClosed ? (
+                        <div className="p-4 rounded-xl bg-[#2a1315] border border-[#ff8a80]/30 text-center space-y-1.5">
+                          <span className="font-bold text-sm text-[#ff8a80] block">Registration Closed</span>
+                          <p className="text-[11px] text-[#ffb4ab] leading-relaxed">
+                            {closedMessage}
+                          </p>
+                        </div>
+                      ) : (
+                        <button
+                          type="submit"
+                          className="w-full py-4 px-6 rounded-xl font-bold text-base bg-gradient-to-r from-[#f2c14e] to-[#d4a935] text-[#1a1300] hover:brightness-105 active:scale-[0.99] transition-all flex items-center justify-center gap-2 shadow-xl shadow-[#f2c14e]/20 cursor-pointer"
+                        >
+                          <span>Proceed to Payment</span>
+                          <ChevronRight className="w-5 h-5" />
+                        </button>
+                      )}
+
+                      <div className="flex items-center justify-center gap-1.5 text-[11px] text-[#a79f8b]">
+                        <ShieldCheck className="w-4 h-4 text-[#4cc38a]" />
+                        <span>Automatic QR & Razorpay Checkout</span>
+                      </div>
+                    </div>
+                  </div>
+                </form>
+              </div>
+            </section>
+
+            {/* Timeline, FAQ, and Contact Sections */}
+            <TimelineSection />
+            <FaqSection />
+            <ContactSection />
+          </>
+        )}
+      </main>
+
+      {/* Footer */}
+      <Footer />
+
+      {/* Event Details Modal */}
+      <EventModal
+        event={inspectEvent}
+        onClose={() => setInspectEvent(null)}
+        isIeeeMember={isIeeeMember}
+        isSelected={inspectEvent ? selectedEvents.includes(inspectEvent.id) : false}
+        onToggleSelect={selectEvent}
+      />
+
+      {/* Razorpay & Automatic Dynamic QR Payment Modal */}
+      <PaymentModal
+        isOpen={isPaymentOpen}
+        onClose={() => setIsPaymentOpen(false)}
+        amount={total}
+        attendeeName={name}
+        email={email}
+        phone={phone}
+        college={college}
+        classNameVal={classNameVal}
+        sectionVal={sectionVal}
+        dept={dept}
+        roll={roll}
+        year={year}
+        eventName={selectedEvents.map(id => EVENTS.find(e => e.id === id)?.name).filter(Boolean).join(', ')}
+        onSuccess={handlePaymentSuccess}
+      />
+
+      {/* Find My Pass Lookup Modal */}
+      <PassLookupModal
+        isOpen={isLookupOpen}
+        onClose={() => setIsLookupOpen(false)}
+        savedRecords={savedRecords}
+        onSelectRecord={(rec) => {
+          setConfirmedRecord(rec);
+          window.scrollTo({ top: 0, behavior: 'smooth' });
+        }}
+      />
+
+      {/* Admin Operations & Executive Control Modal */}
+      <AdminModal
+        isOpen={isAdminOpen}
+        onClose={() => setIsAdminOpen(false)}
+        savedRecords={savedRecords}
+        onUpdateRecord={handleUpdateRecord}
+        onDeleteRecord={handleDeleteRecord}
+        onAddManualRecord={(rec) => saveRegistration(rec)}
+        onViewPass={(rec) => {
+          setConfirmedRecord(rec);
+          setIsAdminOpen(false);
+          window.scrollTo({ top: 0, behavior: 'smooth' });
+        }}
+        isRegClosed={isRegClosed}
+        onToggleRegClosed={handleToggleRegClosed}
+        closedMessage={closedMessage}
+        onUpdateClosedMessage={handleUpdateClosedMessage}
+        leftLogo={leftLogo}
+        rightLogo={rightLogo}
+        onUpdateLeftLogo={handleUpdateLeftLogo}
+        onUpdateRightLogo={handleUpdateRightLogo}
+        initialTab={adminInitialTab}
+      />
+    </div>
+  );
+}

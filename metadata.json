@@ -1,0 +1,7 @@
+{
+  "name": "NexusVerse 2K26",
+  "description": "National level technical symposium registration and event hub presented by IEEE-SB NBKRIST on 29 October 2026.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
+
