@@ -32,7 +32,7 @@ export const SYMPOSIUM_CONFIG = {
   date: "29 October 2026",
   time: "9:00 AM IST",
   email: "nexusverse@nbkrist.org",
-  totalPrizePool: "Trophies, Shields & Certificates",
+  totalPrizePool: "Exciting Cash Prizes & Awards (Revealing Soon!)",
   gstPercent: 0,
   promoCodes: {
     "IEEE10": 10,
@@ -84,8 +84,8 @@ export const EVENTS: SymposiumEvent[] = [
     time: "10:00 AM – 12:00 PM",
     venue: "Advanced Computing Lab 1",
     prizes: {
-      first: "Winner Trophy & Merit Certificate",
-      second: "Runner-up Trophy & Merit Certificate"
+      first: "Cash Prize (Revealing Soon) + Winner Trophy & Merit Certificate",
+      second: "Cash Prize (Revealing Soon) + Runner-up Trophy & Merit Certificate"
     },
     highlights: [
       "Cybersecurity challenges: Web Exploitation, Cryptography, Security Tasks",
@@ -122,8 +122,8 @@ export const EVENTS: SymposiumEvent[] = [
     venue: "Central Innovation Pavilion",
     project: true,
     prizes: {
-      first: "Winner Shield & Merit Certificate",
-      second: "Runner-up Shield & Merit Certificate"
+      first: "Cash Prize (Revealing Soon) + Winner Shield & Merit Certificate",
+      second: "Cash Prize (Revealing Soon) + Runner-up Shield & Merit Certificate"
     },
     highlights: [
       "10 minutes to analyze & understand announced problem statements",
@@ -161,8 +161,8 @@ export const EVENTS: SymposiumEvent[] = [
     time: "10:00 AM – 12:00 PM",
     venue: "Main Computer Centre",
     prizes: {
-      first: "Winner Trophy & Merit Certificate",
-      second: "Runner-up Trophy & Merit Certificate"
+      first: "Cash Prize (Revealing Soon) + Winner Trophy & Merit Certificate",
+      second: "Cash Prize (Revealing Soon) + Runner-up Trophy & Merit Certificate"
     },
     highlights: [
       "Simple DSA problems paired with unique special constraints",
@@ -200,8 +200,8 @@ export const EVENTS: SymposiumEvent[] = [
     venue: "ECE Seminar Hall",
     project: true,
     prizes: {
-      first: "Winner Trophy & Certificate",
-      second: "Runner-up Trophy & Certificate"
+      first: "Cash Prize (Revealing Soon) + Winner Trophy & Certificate",
+      second: "Cash Prize (Revealing Soon) + Runner-up Trophy & Certificate"
     },
     highlights: [
       "Present either a PowerPoint presentation (PPT) or a working prototype",
@@ -239,8 +239,8 @@ export const EVENTS: SymposiumEvent[] = [
     time: "10:00 AM – 12:00 PM",
     venue: "Design & Multimedia Studio",
     prizes: {
-      first: "Winner Trophy & Certificate",
-      second: "Runner-up Trophy & Certificate"
+      first: "Cash Prize (Revealing Soon) + Winner Trophy & Certificate",
+      second: "Cash Prize (Revealing Soon) + Runner-up Trophy & Certificate"
     },
     highlights: [
       "Theme revealed at the start of the challenge by organizers",
@@ -321,8 +321,8 @@ export const FAQS = [
     a: "One team lead registers and completes the payment for the entire team. In the event card, provide your official Team Name and list each member's full name. Individual registration passes and certificates will be prepared for all team members."
   },
   {
-    q: "Will everyone receive a certificate?",
-    a: "Yes! All registered participants will receive an official physical Certificate of Participation endorsed by IEEE-SB NBKRIST. Winners receive prestigious IEEE merit certificates, trophies, and shields."
+    q: "Will everyone receive a certificate or prize?",
+    a: "Yes! All registered participants will receive an official physical Certificate of Participation endorsed by IEEE-SB NBKRIST. Winners and runner-ups will receive exciting Cash Prizes (amounts to be revealed at the symposium!), prestigious IEEE trophies, and merit certificates."
   },
   {
     q: "What is included with the registration fee?",

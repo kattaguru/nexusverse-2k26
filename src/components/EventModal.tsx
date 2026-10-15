@@ -126,13 +126,13 @@ export const EventModal: React.FC<EventModalProps> = ({
               <span>Event Awards & Recognition</span>
             </h4>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-sm">
-              <div className="flex items-center justify-between p-2 rounded bg-[#131318] border border-[#2e2b22]">
-                <span className="text-xs text-[#a79f8b]">1st Place Winner</span>
-                <span className="font-semibold text-xs text-[#f3ecd9]">{event.prizes.first}</span>
+              <div className="p-2.5 rounded bg-[#131318] border border-[#2e2b22] space-y-1">
+                <span className="text-[11px] font-medium text-[#a79f8b] uppercase tracking-wider block">1st Place Winner</span>
+                <span className="font-semibold text-xs text-[#f3ecd9] leading-snug block">{event.prizes.first}</span>
               </div>
-              <div className="flex items-center justify-between p-2 rounded bg-[#131318] border border-[#2e2b22]">
-                <span className="text-xs text-[#a79f8b]">2nd Place Runner-Up</span>
-                <span className="font-semibold text-xs text-[#f3ecd9]">{event.prizes.second}</span>
+              <div className="p-2.5 rounded bg-[#131318] border border-[#2e2b22] space-y-1">
+                <span className="text-[11px] font-medium text-[#a79f8b] uppercase tracking-wider block">2nd Place Runner-Up</span>
+                <span className="font-semibold text-xs text-[#f3ecd9] leading-snug block">{event.prizes.second}</span>
               </div>
             </div>
           </div>

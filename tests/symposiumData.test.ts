@@ -8,7 +8,16 @@ describe('Symposium Data & Configuration Unit Tests', () => {
     assert.equal(SYMPOSIUM_CONFIG.organizer, 'IEEE-SB NBKRIST');
     assert.equal(SYMPOSIUM_CONFIG.institution, 'N.B.K.R. Institute of Science & Technology');
     assert.equal(SYMPOSIUM_CONFIG.date, '29 October 2026');
-    assert.equal(SYMPOSIUM_CONFIG.totalPrizePool, 'Trophies, Shields & Certificates');
+    assert.equal(SYMPOSIUM_CONFIG.totalPrizePool, 'Exciting Cash Prizes & Awards (Revealing Soon!)');
+  });
+
+  it('should include cash prizes for all events without exposing numeric amounts', () => {
+    for (const event of EVENTS) {
+      assert.ok(event.prizes.first.includes('Cash Prize'), `${event.name} 1st prize should include Cash Prize`);
+      assert.ok(event.prizes.second.includes('Cash Prize'), `${event.name} 2nd prize should include Cash Prize`);
+      assert.ok(!event.prizes.first.includes('₹'), `${event.name} 1st prize must not reveal specific cash amounts`);
+      assert.ok(!event.prizes.second.includes('₹'), `${event.name} 2nd prize must not reveal specific cash amounts`);
+    }
   });
 
   it('should have valid Razorpay.me UPI handle configured', () => {
