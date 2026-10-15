@@ -20,7 +20,7 @@ export interface EmailTicketPayload {
 // Check if SMTP is configured
 export function isEmailConfigured(): boolean {
   const user = (process.env.SMTP_USER || '').trim();
-  const pass = (process.env.SMTP_PASS || '').trim();
+  const pass = (process.env.SMTP_PASS || '').replace(/\s+/g, '').trim();
   return Boolean(user && pass && !user.includes('your-email') && !pass.includes('your-app-password'));
 }
 
@@ -30,7 +30,7 @@ function getTransporter() {
   const port = Number(process.env.SMTP_PORT || 465);
   const secure = port === 465;
   const user = (process.env.SMTP_USER || '').trim();
-  const pass = (process.env.SMTP_PASS || '').trim();
+  const pass = (process.env.SMTP_PASS || '').replace(/\s+/g, '').trim();
 
   return nodemailer.createTransport({
     host,
