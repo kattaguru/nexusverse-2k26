@@ -67,7 +67,7 @@ const DEFAULT_DB: DatabaseSchema = {
     {
       id: 'symp-6',
       url: 'https://images.unsplash.com/photo-1523240795612-9a054b0db644?w=1200&auto=format&fit=crop&q=80',
-      title: 'Grand Cash Prize Felicitation & Award Ceremony',
+      title: 'Grand Award Felicitation & Valedictory Ceremony',
       category: 'Symposium Highlights',
       uploadedAt: '2026-10-13T17:30:00Z'
     },

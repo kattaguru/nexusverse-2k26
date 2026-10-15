@@ -8,7 +8,7 @@ describe('Symposium Data & Configuration Unit Tests', () => {
     assert.equal(SYMPOSIUM_CONFIG.organizer, 'IEEE-SB NBKRIST');
     assert.equal(SYMPOSIUM_CONFIG.institution, 'N.B.K.R. Institute of Science & Technology');
     assert.equal(SYMPOSIUM_CONFIG.date, '29 October 2026');
-    assert.equal(SYMPOSIUM_CONFIG.totalPrizePool, '₹25,000+');
+    assert.equal(SYMPOSIUM_CONFIG.totalPrizePool, 'Trophies, Shields & Certificates');
   });
 
   it('should have valid Razorpay.me UPI handle configured', () => {

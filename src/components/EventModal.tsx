@@ -119,11 +119,11 @@ export const EventModal: React.FC<EventModalProps> = ({
             </div>
           </div>
 
-          {/* Prize Pool */}
+          {/* Awards & Recognition */}
           <div className="p-4 rounded-xl bg-[#1f1b0e]/70 border border-[#d4a935]/30">
             <h4 className="text-xs font-semibold text-[#f2c14e] uppercase tracking-wider flex items-center gap-1.5 mb-2">
               <Trophy className="w-4 h-4 text-[#f2c14e]" />
-              <span>Event Prizes & Accolades</span>
+              <span>Event Awards & Recognition</span>
             </h4>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-sm">
               <div className="flex items-center justify-between p-2 rounded bg-[#131318] border border-[#2e2b22]">

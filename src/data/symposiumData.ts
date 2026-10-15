@@ -32,7 +32,7 @@ export const SYMPOSIUM_CONFIG = {
   date: "29 October 2026",
   time: "9:00 AM IST",
   email: "nexusverse@nbkrist.org",
-  totalPrizePool: "₹25,000+",
+  totalPrizePool: "Trophies, Shields & Certificates",
   gstPercent: 0,
   promoCodes: {
     "IEEE10": 10,
@@ -84,8 +84,8 @@ export const EVENTS: SymposiumEvent[] = [
     time: "10:00 AM – 12:00 PM",
     venue: "Advanced Computing Lab 1",
     prizes: {
-      first: "₹5,000 + Certificate",
-      second: "₹3,000 + Certificate"
+      first: "Winner Trophy & Merit Certificate",
+      second: "Runner-up Trophy & Merit Certificate"
     },
     highlights: [
       "Cybersecurity challenges: Web Exploitation, Cryptography, Security Tasks",
@@ -122,8 +122,8 @@ export const EVENTS: SymposiumEvent[] = [
     venue: "Central Innovation Pavilion",
     project: true,
     prizes: {
-      first: "₹6,000 + IEEE Shield",
-      second: "₹4,000 + IEEE Shield"
+      first: "Winner Shield & Merit Certificate",
+      second: "Runner-up Shield & Merit Certificate"
     },
     highlights: [
       "10 minutes to analyze & understand announced problem statements",
@@ -161,8 +161,8 @@ export const EVENTS: SymposiumEvent[] = [
     time: "10:00 AM – 12:00 PM",
     venue: "Main Computer Centre",
     prizes: {
-      first: "₹3,000 + Certificate",
-      second: "₹1,500 + Certificate"
+      first: "Winner Trophy & Merit Certificate",
+      second: "Runner-up Trophy & Merit Certificate"
     },
     highlights: [
       "Simple DSA problems paired with unique special constraints",
@@ -200,8 +200,8 @@ export const EVENTS: SymposiumEvent[] = [
     venue: "ECE Seminar Hall",
     project: true,
     prizes: {
-      first: "₹4,000 + Certificate",
-      second: "₹2,000 + Certificate"
+      first: "Winner Trophy & Certificate",
+      second: "Runner-up Trophy & Certificate"
     },
     highlights: [
       "Present either a PowerPoint presentation (PPT) or a working prototype",
@@ -239,8 +239,8 @@ export const EVENTS: SymposiumEvent[] = [
     time: "10:00 AM – 12:00 PM",
     venue: "Design & Multimedia Studio",
     prizes: {
-      first: "₹3,000 + Certificate",
-      second: "₹1,500 + Certificate"
+      first: "Winner Trophy & Certificate",
+      second: "Runner-up Trophy & Certificate"
     },
     highlights: [
       "Theme revealed at the start of the challenge by organizers",
@@ -299,7 +299,7 @@ export const TIMELINE = [
     time: "03:30 PM – 04:00 PM", 
     title: "Prize Distribution & Valedictory", 
     venue: "Seminar Hall, NBKRIST", 
-    note: "Felicitation ceremony, cash prizes, IEEE shields & certificate presentation" 
+    note: "Felicitation ceremony, IEEE shields, trophies & merit certificate presentation" 
   }
 ];
 
@@ -322,7 +322,7 @@ export const FAQS = [
   },
   {
     q: "Will everyone receive a certificate?",
-    a: "Yes! All registered participants will receive an official physical Certificate of Participation endorsed by IEEE-SB NBKRIST. Winners receive merit certificates, trophies, and cash prizes."
+    a: "Yes! All registered participants will receive an official physical Certificate of Participation endorsed by IEEE-SB NBKRIST. Winners receive prestigious IEEE merit certificates, trophies, and shields."
   },
   {
     q: "What is included with the registration fee?",

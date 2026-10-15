@@ -136,7 +136,7 @@ export const Hero: React.FC<HeroProps> = ({
             </h1>
 
             <p className="text-base sm:text-lg text-[#b9ae94] leading-relaxed max-w-xl">
-              A premier national-level technical symposium gathering visionary engineering minds on <span className="text-[#f3ecd9] font-medium">29 October 2026</span> at 9:00 AM. Compete across 5 flagship challenges, present breakthrough innovations, and compete for a prize pool exceeding ₹25,000.
+              A premier national-level technical symposium gathering visionary engineering minds on <span className="text-[#f3ecd9] font-medium">29 October 2026</span> at 9:00 AM. Compete across 5 flagship challenges, present breakthrough innovations, and earn prestigious IEEE awards, shields, and certificates.
             </p>
 
             <div className="flex flex-wrap gap-3 pt-2">
