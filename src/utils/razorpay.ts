@@ -304,7 +304,8 @@ export async function triggerRazorpayCheckout({
             name: 'Pay using UPI / QR (PhonePe, GPay, Paytm, BHIM)',
             instruments: [
               {
-                method: 'upi'
+                method: 'upi',
+                flows: ['qr', 'intent', 'collect']
               }
             ]
           },
@@ -323,7 +324,7 @@ export async function triggerRazorpayCheckout({
             ]
           }
         },
-        sequence: ['block.upi', 'block.other'],
+        sequence: preferredMethod === 'card' ? ['block.other', 'block.upi'] : ['block.upi', 'block.other'],
         preferences: {
           show_default_blocks: true
         }
