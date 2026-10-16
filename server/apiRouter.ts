@@ -2,8 +2,35 @@ import { Router, Request, Response } from 'express';
 import crypto from 'crypto';
 import dotenv from 'dotenv';
 import { createClient } from '@supabase/supabase-js';
-import { readDatabase, writeDatabase } from './db.js';
+import { readDatabase, writeDatabase, ParticipantUser } from './db.js';
 import { sendTicketConfirmationEmail, isEmailConfigured, EmailTicketPayload } from './emailService.js';
+
+const NEXUS_AUTH_SALT = 'nexusverse_2k26_secure_participant_salt';
+function hashPassword(password: string): string {
+  return crypto.createHash('sha256').update(password + NEXUS_AUTH_SALT).digest('hex');
+}
+function sanitizeUser(user: ParticipantUser) {
+  const { passwordHash, ...safe } = user;
+  return safe;
+}
+function findUserRegistrations(email?: string, roll?: string, phone?: string) {
+  const db = readDatabase();
+  const cleanEmail = (email || '').toLowerCase().trim();
+  const cleanRoll = (roll || '').toUpperCase().trim();
+  const cleanPhone = (phone || '').replace(/\s+/g, '');
+
+  return db.registrations.filter((r: any) => {
+    const rEmail = (r.email || '').toLowerCase().trim();
+    const rRoll = (r.roll || '').toUpperCase().trim();
+    const rPhone = (r.phone || '').replace(/\s+/g, '');
+
+    return (
+      (cleanEmail && rEmail === cleanEmail) ||
+      (cleanRoll && rRoll === cleanRoll) ||
+      (cleanPhone && cleanPhone.length > 5 && rPhone === cleanPhone)
+    );
+  });
+}
 
 dotenv.config();
 
@@ -639,6 +666,237 @@ apiRouter.post('/email/test', async (req: Request, res: Response) => {
 
     const result = await sendTicketConfirmationEmail(testPayload);
     res.json(result);
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// 20. Participant Auth: Register
+apiRouter.post('/auth/register', (req: Request, res: Response) => {
+  try {
+    const { name, email, username, password, phone, college, roll, branch, year, isIeeeMember, ieeeId } = req.body;
+    if (!name || !name.trim()) {
+      return res.status(400).json({ success: false, error: 'Full name is required.' });
+    }
+    if (!email || !email.includes('@')) {
+      return res.status(400).json({ success: false, error: 'Valid email address is required.' });
+    }
+    if (!password || password.length < 4) {
+      return res.status(400).json({ success: false, error: 'Password must be at least 4 characters long.' });
+    }
+
+    const db = readDatabase();
+    if (!db.users) db.users = [];
+
+    const cleanEmail = email.trim().toLowerCase();
+    const cleanUsername = (username && username.trim()) ? username.trim().toLowerCase() : cleanEmail.split('@')[0];
+
+    // Check existing
+    const existing = db.users.find(u => u.email.toLowerCase() === cleanEmail || u.username.toLowerCase() === cleanUsername);
+    if (existing) {
+      return res.status(400).json({ 
+        success: false, 
+        error: existing.email.toLowerCase() === cleanEmail 
+          ? 'An account with this email already exists. Please sign in.' 
+          : 'This username is already taken. Please choose another username.' 
+      });
+    }
+
+    const newUser: ParticipantUser = {
+      id: 'usr_' + crypto.randomBytes(6).toString('hex'),
+      name: name.trim(),
+      email: cleanEmail,
+      username: cleanUsername,
+      passwordHash: hashPassword(password),
+      phone: phone?.trim() || '',
+      college: college?.trim() || 'N.B.K.R. Institute of Science & Technology',
+      roll: roll?.trim().toUpperCase() || '',
+      branch: branch?.trim() || '',
+      year: year?.trim() || '',
+      isIeeeMember: Boolean(isIeeeMember),
+      ieeeId: ieeeId?.trim() || '',
+      authProvider: 'local',
+      createdAt: new Date().toISOString()
+    };
+
+    db.users.push(newUser);
+    writeDatabase(db);
+
+    const userRegistrations = findUserRegistrations(newUser.email, newUser.roll, newUser.phone);
+
+    res.json({
+      success: true,
+      message: 'Participant account created successfully!',
+      user: sanitizeUser(newUser),
+      registrations: userRegistrations
+    });
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// 21. Participant Auth: Login (Email or Username + Password)
+apiRouter.post('/auth/login', (req: Request, res: Response) => {
+  try {
+    const { identifier, password } = req.body;
+    if (!identifier || !identifier.trim()) {
+      return res.status(400).json({ success: false, error: 'Email or username is required.' });
+    }
+    if (!password) {
+      return res.status(400).json({ success: false, error: 'Password is required.' });
+    }
+
+    const cleanId = identifier.trim().toLowerCase();
+    const db = readDatabase();
+    if (!db.users) db.users = [];
+
+    const user = db.users.find(u => u.email.toLowerCase() === cleanId || u.username.toLowerCase() === cleanId);
+    if (!user) {
+      return res.status(401).json({ success: false, error: 'Invalid email/username or password.' });
+    }
+
+    if (user.authProvider === 'google' && !user.passwordHash) {
+      return res.status(400).json({ success: false, error: 'This account was created with Google. Please use Continue with Google to sign in.' });
+    }
+
+    const expectedHash = hashPassword(password);
+    if (user.passwordHash !== expectedHash) {
+      return res.status(401).json({ success: false, error: 'Invalid email/username or password.' });
+    }
+
+    const userRegistrations = findUserRegistrations(user.email, user.roll, user.phone);
+
+    res.json({
+      success: true,
+      message: `Welcome back, ${user.name}!`,
+      user: sanitizeUser(user),
+      registrations: userRegistrations
+    });
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// 22. Participant Auth: Google Login / OAuth Callback
+apiRouter.post('/auth/google', (req: Request, res: Response) => {
+  try {
+    const { email, name, avatarUrl, roll, college, phone } = req.body;
+    if (!email || !email.includes('@')) {
+      return res.status(400).json({ success: false, error: 'Valid Google email is required.' });
+    }
+
+    const cleanEmail = email.trim().toLowerCase();
+    const db = readDatabase();
+    if (!db.users) db.users = [];
+
+    let user = db.users.find(u => u.email.toLowerCase() === cleanEmail);
+
+    if (user) {
+      // Update info if provided
+      if (name && (!user.name || user.name.startsWith('User '))) user.name = name.trim();
+      if (avatarUrl && !user.avatarUrl) user.avatarUrl = avatarUrl;
+      if (roll && !user.roll) user.roll = roll.trim().toUpperCase();
+      if (college && !user.college) user.college = college.trim();
+      if (phone && !user.phone) user.phone = phone.trim();
+      user.updatedAt = new Date().toISOString();
+    } else {
+      const cleanUsername = cleanEmail.split('@')[0];
+      user = {
+        id: 'usr_' + crypto.randomBytes(6).toString('hex'),
+        name: name ? name.trim() : cleanUsername,
+        email: cleanEmail,
+        username: cleanUsername,
+        avatarUrl: avatarUrl || '',
+        phone: phone?.trim() || '',
+        college: college?.trim() || 'N.B.K.R. Institute of Science & Technology',
+        roll: roll?.trim().toUpperCase() || '',
+        authProvider: 'google',
+        createdAt: new Date().toISOString()
+      };
+      db.users.push(user);
+    }
+
+    writeDatabase(db);
+    const userRegistrations = findUserRegistrations(user.email, user.roll, user.phone);
+
+    res.json({
+      success: true,
+      message: `Logged in via Google as ${user.name}`,
+      user: sanitizeUser(user),
+      registrations: userRegistrations
+    });
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// 23. Participant Auth: Get Current Profile and Registrations
+apiRouter.get('/auth/me', (req: Request, res: Response) => {
+  try {
+    const userId = (req.headers['x-user-id'] as string) || (req.query.id as string) || '';
+    const email = (req.query.email as string) || '';
+
+    const db = readDatabase();
+    if (!db.users) db.users = [];
+
+    let user: ParticipantUser | undefined;
+    if (userId) {
+      user = db.users.find(u => u.id === userId);
+    } else if (email) {
+      user = db.users.find(u => u.email.toLowerCase() === email.trim().toLowerCase());
+    }
+
+    if (!user) {
+      return res.status(404).json({ success: false, error: 'Participant session not found.' });
+    }
+
+    const userRegistrations = findUserRegistrations(user.email, user.roll, user.phone);
+
+    res.json({
+      success: true,
+      user: sanitizeUser(user),
+      registrations: userRegistrations
+    });
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// 24. Participant Auth: Update Profile
+apiRouter.put('/auth/profile', (req: Request, res: Response) => {
+  try {
+    const { id, name, phone, college, roll, branch, year, isIeeeMember, ieeeId } = req.body;
+    if (!id) {
+      return res.status(400).json({ success: false, error: 'User ID is required.' });
+    }
+
+    const db = readDatabase();
+    if (!db.users) db.users = [];
+
+    const user = db.users.find(u => u.id === id);
+    if (!user) {
+      return res.status(404).json({ success: false, error: 'Participant not found.' });
+    }
+
+    if (name) user.name = name.trim();
+    if (phone !== undefined) user.phone = phone.trim();
+    if (college) user.college = college.trim();
+    if (roll !== undefined) user.roll = roll.trim().toUpperCase();
+    if (branch !== undefined) user.branch = branch.trim();
+    if (year !== undefined) user.year = year.trim();
+    if (isIeeeMember !== undefined) user.isIeeeMember = Boolean(isIeeeMember);
+    if (ieeeId !== undefined) user.ieeeId = ieeeId.trim();
+    user.updatedAt = new Date().toISOString();
+
+    writeDatabase(db);
+    const userRegistrations = findUserRegistrations(user.email, user.roll, user.phone);
+
+    res.json({
+      success: true,
+      message: 'Profile updated successfully!',
+      user: sanitizeUser(user),
+      registrations: userRegistrations
+    });
   } catch (err: any) {
     res.status(500).json({ success: false, error: err.message });
   }

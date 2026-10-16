@@ -8,6 +8,25 @@ const __dirname = path.dirname(__filename);
 const DATA_DIR = path.resolve(__dirname, 'data');
 const DB_FILE = path.resolve(DATA_DIR, 'database.json');
 
+export interface ParticipantUser {
+  id: string;
+  name: string;
+  email: string;
+  username: string;
+  passwordHash?: string;
+  phone?: string;
+  college?: string;
+  roll?: string;
+  branch?: string;
+  year?: string;
+  isIeeeMember?: boolean;
+  ieeeId?: string;
+  avatarUrl?: string;
+  authProvider: 'local' | 'google';
+  createdAt: string;
+  updatedAt?: string;
+}
+
 export interface DatabaseSchema {
   registrations: any[];
   settings: {
@@ -20,6 +39,7 @@ export interface DatabaseSchema {
     razorpayMeName?: string;
   };
   photos: any[];
+  users: ParticipantUser[];
 }
 
 const DEFAULT_DB: DatabaseSchema = {
@@ -85,7 +105,8 @@ const DEFAULT_DB: DatabaseSchema = {
       category: 'Technical Events',
       uploadedAt: '2026-10-14T11:00:00Z'
     }
-  ]
+  ],
+  users: []
 };
 
 const IS_VERCEL = !!process.env.VERCEL;
@@ -115,6 +136,7 @@ function ensureDbExists() {
 
 export function readDatabase(): DatabaseSchema {
   if (memoryDb) {
+    if (!memoryDb.users) memoryDb.users = [];
     return memoryDb;
   }
   try {
@@ -122,19 +144,21 @@ export function readDatabase(): DatabaseSchema {
     if (fs.existsSync(targetFile)) {
       const data = fs.readFileSync(targetFile, 'utf-8');
       memoryDb = JSON.parse(data);
+      if (!memoryDb!.users) memoryDb!.users = [];
       return memoryDb!;
     }
     ensureDbExists();
     if (fs.existsSync(DB_FILE)) {
       const data = fs.readFileSync(DB_FILE, 'utf-8');
       memoryDb = JSON.parse(data);
+      if (!memoryDb!.users) memoryDb!.users = [];
       return memoryDb!;
     }
-    memoryDb = { ...DEFAULT_DB };
+    memoryDb = { ...DEFAULT_DB, users: [] };
     return memoryDb;
   } catch (err) {
     console.error('Error reading database file:', err);
-    memoryDb = { ...DEFAULT_DB };
+    memoryDb = { ...DEFAULT_DB, users: [] };
     return memoryDb;
   }
 }

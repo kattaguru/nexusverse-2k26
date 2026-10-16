@@ -8,6 +8,13 @@ import { PaymentModal } from './components/PaymentModal';
 import { TicketPass, RegistrationRecord, TeamMemberInfo } from './components/TicketPass';
 import { PassLookupModal } from './components/PassLookupModal';
 import { AdminModal } from './components/AdminModal';
+import { ParticipantSpaceModal } from './components/ParticipantSpaceModal';
+import { 
+  ParticipantUser, 
+  getStoredParticipant, 
+  saveStoredParticipant, 
+  fetchCurrentParticipant 
+} from './services/auth';
 import { getLeftLogo, getRightLogo, setLeftLogo, setRightLogo } from './utils/logoManager';
 import { TimelineSection } from './components/TimelineSection';
 import { FaqSection } from './components/FaqSection';
@@ -117,6 +124,39 @@ export default function App() {
   const [isLookupOpen, setIsLookupOpen] = useState(false);
   const [confirmedRecord, setConfirmedRecord] = useState<RegistrationRecord | null>(null);
   const [savedRecords, setSavedRecords] = useState<RegistrationRecord[]>([]);
+
+  // Participant User Session & Space Modal State
+  const [currentUser, setCurrentUser] = useState<ParticipantUser | null>(() => getStoredParticipant());
+  const [isParticipantSpaceOpen, setIsParticipantSpaceOpen] = useState(false);
+
+  // Sync fresh participant data on mount if logged in
+  useEffect(() => {
+    const user = getStoredParticipant();
+    if (user?.id) {
+      fetchCurrentParticipant(user.id).then(res => {
+        if (res.success && res.user) {
+          setCurrentUser(res.user);
+        }
+      }).catch(() => {});
+    }
+  }, []);
+
+  // Pre-fill form from user space profile
+  const handlePrefillFromUser = (user: Partial<ParticipantUser>) => {
+    if (user.name) setName(user.name);
+    if (user.email) setEmail(user.email);
+    if (user.phone) setPhone(user.phone);
+    if (user.college) setCollege(user.college);
+    if (user.roll) setRoll(user.roll);
+    if (user.branch) setDept(user.branch);
+    if (user.year) setYear(user.year);
+    if (user.isIeeeMember) {
+      setIsIeeeMember(true);
+      if (user.ieeeId) setIeeeId(user.ieeeId);
+    }
+    const el = document.getElementById('register-section') || document.getElementById('events-section');
+    if (el) el.scrollIntoView({ behavior: 'smooth' });
+  };
 
   // Dedicated /admin Route Detection (Only opens when visiting /admin)
   const [isAdminRoute, setIsAdminRoute] = useState(() => {
@@ -584,6 +624,27 @@ export default function App() {
     saveRegistration(newRecord);
     setConfirmedRecord(newRecord);
 
+    // If participant is not yet logged in, auto-initialize their Participant Space session
+    if (!currentUser) {
+      const autoUser: ParticipantUser = {
+        id: 'usr_' + Math.random().toString(36).slice(2, 8),
+        name: newRecord.name,
+        email: newRecord.email,
+        username: newRecord.email.split('@')[0],
+        phone: newRecord.phone,
+        college: newRecord.college,
+        roll: newRecord.roll,
+        branch: newRecord.dept,
+        year: newRecord.year,
+        isIeeeMember: newRecord.isIeeeMember,
+        ieeeId: newRecord.ieeeId,
+        authProvider: 'local',
+        createdAt: new Date().toISOString()
+      };
+      saveStoredParticipant(autoUser);
+      setCurrentUser(autoUser);
+    }
+
     // Automatically dispatch pass confirmation email
     if (newRecord.email) {
       sendTicketEmailApi(newRecord).catch(() => {});
@@ -643,6 +704,8 @@ export default function App() {
           document.getElementById('register-section')?.scrollIntoView({ behavior: 'smooth' });
         }}
         onOpenAdmin={() => setIsAdminOpen(true)}
+        onOpenParticipantSpace={() => setIsParticipantSpaceOpen(true)}
+        currentUser={currentUser}
         leftLogo={leftLogo}
         rightLogo={rightLogo}
         isRegClosed={isRegClosed}
@@ -1611,6 +1674,20 @@ export default function App() {
         onUpdateLeftLogo={handleUpdateLeftLogo}
         onUpdateRightLogo={handleUpdateRightLogo}
         initialTab={adminInitialTab}
+      />
+
+      {/* Participant Space Modal */}
+      <ParticipantSpaceModal
+        isOpen={isParticipantSpaceOpen}
+        onClose={() => setIsParticipantSpaceOpen(false)}
+        currentUser={currentUser}
+        onUserChange={(usr) => setCurrentUser(usr)}
+        savedRecords={savedRecords}
+        onOpenTicketPass={(rec) => {
+          setConfirmedRecord(rec);
+          window.scrollTo({ top: 0, behavior: 'smooth' });
+        }}
+        onNavigateToRegister={handlePrefillFromUser}
       />
     </div>
   );

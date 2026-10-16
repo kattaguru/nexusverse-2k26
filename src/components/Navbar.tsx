@@ -1,10 +1,13 @@
 import React, { useState } from 'react';
-import { Ticket, Menu, X, Shield, Lock, Sun, Moon } from 'lucide-react';
+import { Ticket, Menu, X, Shield, Lock, Sun, Moon, User } from 'lucide-react';
+import { ParticipantUser } from '../services/auth';
 
 interface NavbarProps {
   onOpenLookup: () => void;
   onRegisterClick: () => void;
   onOpenAdmin: () => void;
+  onOpenParticipantSpace: () => void;
+  currentUser?: ParticipantUser | null;
   leftLogo: string;
   rightLogo: string;
   isRegClosed?: boolean;
@@ -16,6 +19,8 @@ export const Navbar: React.FC<NavbarProps> = ({
   onOpenLookup, 
   onRegisterClick, 
   onOpenAdmin,
+  onOpenParticipantSpace,
+  currentUser = null,
   leftLogo,
   rightLogo,
   isRegClosed = false,
@@ -109,8 +114,25 @@ export const Navbar: React.FC<NavbarProps> = ({
             </button>
           )}
 
-
-          {/* Registration Button or Closed Badge */}
+          {/* Participant Space Button */}
+          <button
+            type="button"
+            onClick={onOpenParticipantSpace}
+            className={`px-2.5 sm:px-3 py-1.5 text-xs font-semibold rounded-lg border transition-all flex items-center gap-1.5 cursor-pointer shadow-sm ${
+              currentUser
+                ? 'bg-[#1f1b0e] text-[#f2c14e] border-[#d4a935]/50 hover:bg-[#2b2413]'
+                : 'bg-[#181820] text-[#d4a935] hover:text-[#f2c14e] border-[#2e2b22] hover:border-[#d4a935]/50'
+            }`}
+            title={currentUser ? `Participant Space (${currentUser.name})` : 'Participant Space Login / Dashboard'}
+          >
+            <User className="w-3.5 h-3.5 text-[#f2c14e]" />
+            <span className="hidden sm:inline">
+              {currentUser ? `${currentUser.name.split(' ')[0]}'s Space` : 'Participant Space'}
+            </span>
+            <span className="sm:hidden">
+              {currentUser ? 'Space' : 'Login'}
+            </span>
+          </button>
           {isRegClosed ? (
             <span className="px-3 py-1.5 text-xs font-bold rounded-lg bg-[#2a1315] border border-[#ff8a80]/40 text-[#ff8a80]">
               Closed
@@ -193,6 +215,17 @@ export const Navbar: React.FC<NavbarProps> = ({
           >
             Contact
           </a>
+          <button
+            type="button"
+            onClick={() => {
+              setMobileMenuOpen(false);
+              onOpenParticipantSpace();
+            }}
+            className="w-full text-left py-2 text-sm text-[#f2c14e] flex items-center gap-2 font-semibold"
+          >
+            <User className="w-4 h-4 text-[#f2c14e]" />
+            <span>{currentUser ? `${currentUser.name}'s Participant Space` : 'Participant Space (Login / Sign Up)'}</span>
+          </button>
           <button
             type="button"
             onClick={() => {
