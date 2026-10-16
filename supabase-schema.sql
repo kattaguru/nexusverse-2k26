@@ -71,14 +71,47 @@ VALUES
   ('photo-3', 'https://images.unsplash.com/photo-1531482615713-2afd69097998?w=800&auto=format&fit=crop&q=80', 'Project Expo Prototype Demonstrations', 'Expo & Projects', NOW())
 ON CONFLICT (id) DO NOTHING;
 
+-- 4. PARTICIPANT USERS TABLE (Student accounts for Google, username/email + password)
+CREATE TABLE IF NOT EXISTS public.participant_users (
+  id TEXT PRIMARY KEY,
+  name TEXT NOT NULL,
+  email TEXT UNIQUE NOT NULL,
+  username TEXT UNIQUE NOT NULL,
+  password_hash TEXT DEFAULT '',
+  phone TEXT DEFAULT '',
+  college TEXT DEFAULT '',
+  roll TEXT DEFAULT '',
+  branch TEXT DEFAULT '',
+  year TEXT DEFAULT '',
+  is_ieee_member BOOLEAN DEFAULT false,
+  ieee_id TEXT DEFAULT '',
+  avatar_url TEXT DEFAULT '',
+  auth_provider TEXT DEFAULT 'local',
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_participant_users_email ON public.participant_users(email);
+CREATE INDEX IF NOT EXISTS idx_participant_users_username ON public.participant_users(username);
+CREATE INDEX IF NOT EXISTS idx_participant_users_roll ON public.participant_users(roll);
+
 -- ==============================================================================
--- 4. ROW LEVEL SECURITY (RLS) POLICIES
+-- 5. ROW LEVEL SECURITY (RLS) POLICIES
 -- ==============================================================================
 
 -- Enable RLS on all tables
 ALTER TABLE public.registrations ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.portal_settings ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.gallery_photos ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.participant_users ENABLE ROW LEVEL SECURITY;
+
+-- PARTICIPANT USERS POLICIES:
+DROP POLICY IF EXISTS "Public can manage participant users" ON public.participant_users;
+CREATE POLICY "Public can manage participant users" 
+  ON public.participant_users FOR ALL 
+  TO public 
+  USING (true) 
+  WITH CHECK (true);
 
 -- REGISTRATIONS POLICIES:
 -- Allow anyone to lookup tickets and registrations

@@ -64,7 +64,7 @@ apiRouter.get('/registrations', (_req: Request, res: Response) => {
 });
 
 // 3. Create new registration
-apiRouter.post('/registrations', (req: Request, res: Response) => {
+apiRouter.post('/registrations', async (req: Request, res: Response) => {
   try {
     const record = req.body;
     if (!record || !record.name || !record.roll) {
@@ -90,6 +90,35 @@ apiRouter.post('/registrations', (req: Request, res: Response) => {
     }
 
     writeDatabase(db);
+
+    // Sync to Supabase Cloud PostgreSQL
+    if (supabaseServer) {
+      try {
+        await supabaseServer.from('registrations').upsert({
+          reg_id: record.regId,
+          payment_id: record.paymentId || '',
+          name: record.name,
+          email: record.email || '',
+          phone: record.phone || '',
+          college: record.college || '',
+          class_name: record.className || '',
+          section: record.section || '',
+          dept: record.dept || '',
+          year: record.year || '',
+          roll: record.roll,
+          is_ieee_member: Boolean(record.isIeeeMember),
+          ieee_id: record.ieeeId || '',
+          event_ids: record.eventIds || [],
+          team_details: record.teamDetails || {},
+          total_paid: Number(record.totalPaid || 0),
+          promo_code: record.promoCode || '',
+          timestamp: record.timestamp || new Date().toISOString(),
+        }, { onConflict: 'reg_id' });
+      } catch (cloudErr) {
+        // Safe fallback to primary database
+      }
+    }
+
     res.status(201).json({
       success: true,
       message: 'Registration saved successfully.',
@@ -672,7 +701,7 @@ apiRouter.post('/email/test', async (req: Request, res: Response) => {
 });
 
 // 20. Participant Auth: Register
-apiRouter.post('/auth/register', (req: Request, res: Response) => {
+apiRouter.post('/auth/register', async (req: Request, res: Response) => {
   try {
     const { name, email, username, password, phone, college, roll, branch, year, isIeeeMember, ieeeId } = req.body;
     if (!name || !name.trim()) {
@@ -721,6 +750,31 @@ apiRouter.post('/auth/register', (req: Request, res: Response) => {
 
     db.users.push(newUser);
     writeDatabase(db);
+
+    // Sync user to Supabase Cloud PostgreSQL
+    if (supabaseServer) {
+      try {
+        await supabaseServer.from('participant_users').upsert({
+          id: newUser.id,
+          name: newUser.name,
+          email: newUser.email,
+          username: newUser.username,
+          password_hash: newUser.passwordHash,
+          phone: newUser.phone || '',
+          college: newUser.college || '',
+          roll: newUser.roll || '',
+          branch: newUser.branch || '',
+          year: newUser.year || '',
+          is_ieee_member: Boolean(newUser.isIeeeMember),
+          ieee_id: newUser.ieeeId || '',
+          auth_provider: newUser.authProvider,
+          created_at: newUser.createdAt,
+          updated_at: new Date().toISOString()
+        }, { onConflict: 'email' });
+      } catch (cloudErr) {
+        // Safe fallback
+      }
+    }
 
     const userRegistrations = findUserRegistrations(newUser.email, newUser.roll, newUser.phone);
 
@@ -778,7 +832,7 @@ apiRouter.post('/auth/login', (req: Request, res: Response) => {
 });
 
 // 22. Participant Auth: Google Login / OAuth Callback
-apiRouter.post('/auth/google', (req: Request, res: Response) => {
+apiRouter.post('/auth/google', async (req: Request, res: Response) => {
   try {
     const { email, name, avatarUrl, roll, college, phone } = req.body;
     if (!email || !email.includes('@')) {
@@ -817,6 +871,28 @@ apiRouter.post('/auth/google', (req: Request, res: Response) => {
     }
 
     writeDatabase(db);
+
+    // Sync Google user to Supabase Cloud PostgreSQL
+    if (supabaseServer) {
+      try {
+        await supabaseServer.from('participant_users').upsert({
+          id: user.id,
+          name: user.name,
+          email: user.email,
+          username: user.username,
+          avatar_url: user.avatarUrl || '',
+          phone: user.phone || '',
+          college: user.college || '',
+          roll: user.roll || '',
+          auth_provider: 'google',
+          created_at: user.createdAt,
+          updated_at: new Date().toISOString()
+        }, { onConflict: 'email' });
+      } catch (cloudErr) {
+        // Safe fallback
+      }
+    }
+
     const userRegistrations = findUserRegistrations(user.email, user.roll, user.phone);
 
     res.json({
