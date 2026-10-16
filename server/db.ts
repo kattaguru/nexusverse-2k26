@@ -42,7 +42,7 @@ export interface DatabaseSchema {
   users: ParticipantUser[];
 }
 
-const DEFAULT_DB: DatabaseSchema = {
+export const DEFAULT_DB: DatabaseSchema = {
   registrations: [],
   settings: {
     isRegClosed: false,
