@@ -132,17 +132,18 @@ export async function googleLoginParticipant(googleData: {
 /**
  * Trigger Supabase OAuth Google Sign-in if configured
  */
-export async function initiateSupabaseGoogleAuth(): Promise<{ success: boolean; error?: string }> {
+export async function initiateSupabaseGoogleAuth(): Promise<{ success: boolean; url?: string; error?: string }> {
   try {
     if (isSupabaseConfigured() && supabase) {
-      const { error } = await supabase.auth.signInWithOAuth({
+      const { data, error } = await supabase.auth.signInWithOAuth({
         provider: 'google',
         options: {
           redirectTo: window.location.origin,
+          skipBrowserRedirect: true,
         },
       });
       if (error) return { success: false, error: error.message };
-      return { success: true };
+      return { success: true, url: data?.url };
     }
     return { success: false, error: 'Supabase OAuth is not active.' };
   } catch (err: any) {

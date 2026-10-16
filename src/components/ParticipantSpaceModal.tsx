@@ -195,16 +195,12 @@ export const ParticipantSpaceModal: React.FC<ParticipantSpaceModalProps> = ({
   };
 
   // Handle Google Sign-In Click
-  const handleGoogleClick = async () => {
+  const handleGoogleClick = () => {
     setErrorMsg('');
-    setLoading(true);
-    // Attempt Supabase Google OAuth
-    const oAuthRes = await initiateSupabaseGoogleAuth();
-    if (!oAuthRes.success) {
-      // Show instant Google email fallback popup for local/sandboxed test
-      setGooglePromptOpen(true);
+    if (identifier.includes('@')) {
+      setGoogleSimEmail(identifier.trim());
     }
-    setLoading(false);
+    setGooglePromptOpen(true);
   };
 
   // Complete Google simulation login
@@ -881,55 +877,75 @@ export const ParticipantSpaceModal: React.FC<ParticipantSpaceModalProps> = ({
           </div>
         )}
 
-        {/* Fallback Google Prompt Simulator */}
+        {/* In-App Direct Google Account Sign-In Prompt */}
         {googlePromptOpen && (
-          <div className="absolute inset-0 bg-black/90 backdrop-blur-md p-6 flex flex-col justify-center items-center z-20 animate-in fade-in">
-            <div className="w-full max-w-sm bg-[#131318] border border-[#d4a935]/40 p-5 rounded-2xl shadow-2xl space-y-4 text-center">
-              <div className="w-10 h-10 rounded-full bg-white p-2 mx-auto flex items-center justify-center shadow">
-                <svg className="w-6 h-6" viewBox="0 0 24 24">
+          <div className="absolute inset-0 bg-black/90 backdrop-blur-md p-4 sm:p-6 flex flex-col justify-center items-center z-30 animate-in fade-in">
+            <div className="w-full max-w-sm bg-[#181820] border border-[#d4a935]/40 p-6 rounded-2xl shadow-2xl space-y-4 text-center relative">
+              <button
+                type="button"
+                onClick={() => setGooglePromptOpen(false)}
+                className="absolute right-3.5 top-3.5 p-1.5 text-[#a79f8b] hover:text-[#f3ecd9] rounded-lg cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+
+              <div className="w-12 h-12 rounded-full bg-white p-2.5 mx-auto flex items-center justify-center shadow-lg">
+                <svg className="w-full h-full" viewBox="0 0 24 24">
                   <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
                   <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
                   <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z"/>
                   <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"/>
                 </svg>
               </div>
+
               <div>
-                <h4 className="font-bold text-sm text-[#ffffff]">Sign in with Google</h4>
-                <p className="text-xs text-[#a79f8b] mt-1">Enter your Google account details to proceed.</p>
+                <h4 className="font-bold text-base text-[#ffffff]">Sign in with Google</h4>
+                <p className="text-xs text-[#a79f8b] mt-1">
+                  Connect your Google account to access your Participant Space & tickets instantly.
+                </p>
               </div>
-              <form onSubmit={handleGoogleSimSubmit} className="space-y-3 text-left">
+
+              <form onSubmit={handleGoogleSimSubmit} className="space-y-3.5 text-left pt-1">
                 <div>
-                  <label className="block text-[11px] text-[#a79f8b] mb-1">Google Email Address</label>
+                  <label className="block text-xs font-medium text-[#a79f8b] mb-1">
+                    Google Email Address *
+                  </label>
                   <input
                     type="email"
                     value={googleSimEmail}
                     onChange={(e) => setGoogleSimEmail(e.target.value)}
-                    placeholder="student@gmail.com"
+                    placeholder="e.g. yourname@gmail.com"
                     required
-                    className="w-full px-3 py-2 rounded-lg bg-[#0a0a0d] border border-[#2e2b22] text-[#f3ecd9] text-xs"
+                    autoFocus
+                    className="w-full px-3.5 py-2.5 rounded-xl bg-[#0a0a0d] border border-[#2e2b22] text-[#f3ecd9] placeholder-[#575347] focus:outline-none focus:border-[#d4a935] text-xs sm:text-sm"
                   />
                 </div>
+
                 <div>
-                  <label className="block text-[11px] text-[#a79f8b] mb-1">Your Full Name</label>
+                  <label className="block text-xs font-medium text-[#a79f8b] mb-1">
+                    Display Name
+                  </label>
                   <input
                     type="text"
                     value={googleSimName}
                     onChange={(e) => setGoogleSimName(e.target.value)}
                     placeholder="e.g. Vamsi Krishna"
-                    className="w-full px-3 py-2 rounded-lg bg-[#0a0a0d] border border-[#2e2b22] text-[#f3ecd9] text-xs"
+                    className="w-full px-3.5 py-2.5 rounded-xl bg-[#0a0a0d] border border-[#2e2b22] text-[#f3ecd9] placeholder-[#575347] focus:outline-none focus:border-[#d4a935] text-xs sm:text-sm"
                   />
                 </div>
-                <div className="flex items-center gap-2 pt-1">
+
+                <div className="flex items-center gap-2 pt-2">
                   <button
                     type="submit"
-                    className="flex-1 py-2 rounded-lg bg-[#f2c14e] text-[#1a1300] font-bold text-xs hover:bg-[#d4a935] cursor-pointer"
+                    disabled={loading}
+                    className="flex-1 py-2.5 rounded-xl bg-[#f2c14e] text-[#1a1300] font-bold text-xs hover:bg-[#d4a935] transition-all cursor-pointer shadow-md"
                   >
-                    Confirm & Enter Space
+                    {loading ? 'Connecting...' : 'Continue to My Space'}
                   </button>
                   <button
                     type="button"
                     onClick={() => setGooglePromptOpen(false)}
-                    className="px-3 py-2 rounded-lg bg-[#2e2b22] text-xs text-[#a79f8b] hover:text-[#f3ecd9] cursor-pointer"
+                    className="px-4 py-2.5 rounded-xl bg-[#2e2b22] text-xs text-[#a79f8b] hover:text-[#f3ecd9] cursor-pointer"
                   >
                     Cancel
                   </button>
