@@ -21,7 +21,13 @@ import {
   RefreshCw,
   Clock,
   ChevronRight,
-  Info
+  Info,
+  Upload,
+  Image as ImageIcon,
+  Trash2,
+  FileCheck,
+  CheckCheck,
+  Mail
 } from 'lucide-react';
 import { 
   triggerRazorpayCheckout, 
@@ -46,7 +52,7 @@ interface PaymentModalProps {
   roll?: string;
   year?: string;
   eventName?: string;
-  onSuccess: (paymentId: string) => void;
+  onSuccess: (paymentId: string, paymentScreenshot?: string, paymentModeUsed?: 'upi' | 'razorpay') => void;
 }
 
 export const PaymentModal: React.FC<PaymentModalProps> = ({
@@ -89,6 +95,12 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
   const [copiedDetails, setCopiedDetails] = useState<boolean>(false);
   const [copiedLink, setCopiedLink] = useState<boolean>(false);
   const [isConfirming, setIsConfirming] = useState<boolean>(false);
+
+  // UPI Mode Screenshot Upload States
+  const [screenshotFile, setScreenshotFile] = useState<File | null>(null);
+  const [screenshotPreview, setScreenshotPreview] = useState<string | null>(null);
+  const [isCompressingScreenshot, setIsCompressingScreenshot] = useState<boolean>(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   
   // Session countdown timer (12 minutes standard QR expiry)
   const [timeLeft, setTimeLeft] = useState<number>(720); // 12 minutes in seconds
@@ -102,10 +114,13 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
   const upiIntentString = `upi://pay?pa=${encodeURIComponent(upiVpa)}&pn=${encodeURIComponent(effectivePayeeName)}&am=${amount}&cu=INR&tn=${encodeURIComponent(`NexusVerse 2K26 - ${roll || attendeeName}`)}`;
   const activeQrPayload = (paymentMode === 'razorpay' && qrDisplayMode === 'rzp_link') ? razorpayMeUrl : upiIntentString;
 
-  // Initialize and load Razorpay configuration
+  // Initialize and load Razorpay / UPI configuration
   useEffect(() => {
     if (!isOpen) {
       setPaymentRefInput('');
+      setScreenshotFile(null);
+      setScreenshotPreview(null);
+      setIsCompressingScreenshot(false);
       setErrorMessage(null);
       setIsProcessingRazorpay(false);
       setIsConfirming(false);
@@ -182,12 +197,88 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
         errorCorrectionLevel: 'H'
       },
       (error) => {
-        if (error) console.error('Failed to generate Razorpay QR Code:', error);
+        if (error) console.error('Failed to generate QR Code:', error);
       }
     );
   }, [isOpen, activeQrPayload, activeTab, qrDisplayMode, sessionKey]);
 
   if (!isOpen) return null;
+
+  // Client-Side Canvas Screenshot Compressor (~40KB - 60KB data URL)
+  const compressScreenshot = (file: File): Promise<string> => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onerror = reject;
+      reader.onload = () => {
+        const img = new Image();
+        img.onerror = reject;
+        img.onload = () => {
+          const maxDim = 1200;
+          let width = img.width;
+          let height = img.height;
+          if (width > maxDim || height > maxDim) {
+            if (width > height) {
+              height = Math.round((height * maxDim) / width);
+              width = maxDim;
+            } else {
+              width = Math.round((width * maxDim) / height);
+              height = maxDim;
+            }
+          }
+          const canvas = document.createElement('canvas');
+          canvas.width = width;
+          canvas.height = height;
+          const ctx = canvas.getContext('2d');
+          if (!ctx) {
+            resolve(reader.result as string);
+            return;
+          }
+          ctx.drawImage(img, 0, 0, width, height);
+          const dataUrl = canvas.toDataURL('image/jpeg', 0.72);
+          resolve(dataUrl);
+        };
+        img.src = reader.result as string;
+      };
+      reader.readAsDataURL(file);
+    });
+  };
+
+  // Handle Screenshot file selection
+  const handleScreenshotChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (!file.type.startsWith('image/')) {
+      setErrorMessage('Please select a valid screenshot image file (PNG, JPG, JPEG, WEBP).');
+      return;
+    }
+
+    if (file.size > 15 * 1024 * 1024) {
+      setErrorMessage('Screenshot file is too large (max 15MB). Please upload a standard phone screenshot.');
+      return;
+    }
+
+    setIsCompressingScreenshot(true);
+    setErrorMessage(null);
+    try {
+      const compressed = await compressScreenshot(file);
+      setScreenshotFile(file);
+      setScreenshotPreview(compressed);
+    } catch (err) {
+      console.error('Failed to process screenshot:', err);
+      setErrorMessage('Could not process screenshot image. Please try selecting the file again.');
+    } finally {
+      setIsCompressingScreenshot(false);
+    }
+  };
+
+  const handleRemoveScreenshot = () => {
+    setScreenshotFile(null);
+    setScreenshotPreview(null);
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
+  };
 
   // Copy helper for VPA
   const handleCopyVpa = () => {
@@ -196,22 +287,10 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
     setTimeout(() => setCopiedVpa(false), 2200);
   };
 
-  // Copy helper for Roll number and amount
-  const handleCopyDetails = () => {
-    const textToCopy = `NexusVerse 2K26 Registration | Name: ${attendeeName} | Roll: ${roll || 'N/A'} | Amount: ₹${amount} | UPI: ${upiVpa}`;
-    navigator.clipboard.writeText(textToCopy);
-    setCopiedDetails(true);
-    setTimeout(() => setCopiedDetails(false), 2200);
-  };
-
   const handleCopyLink = () => {
     navigator.clipboard.writeText(razorpayMeUrl);
     setCopiedLink(true);
     setTimeout(() => setCopiedLink(false), 2200);
-  };
-
-  const handleOpenRazorpayMe = () => {
-    window.open(razorpayMeUrl, '_blank', 'noopener,noreferrer');
   };
 
   // Mobile App Deep Link Intent Launchers
@@ -240,38 +319,61 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
     window.location.href = upiIntentString;
   };
 
-  // Strictly verify Payment with backend (Razorpay API or Direct UPI UTR)
+  // Verification Handler
   const handleVerifyManualPayment = async () => {
     const rawId = paymentRefInput.trim();
+
+    // 1. UPI MODE: Strict requirement - BOTH Transaction ID (UTR) and Screenshot are mandatory!
+    if (paymentMode === 'upi') {
+      if (!rawId) {
+        setErrorMessage('Please enter your 12-digit UPI Transaction Reference Number (UTR) from your payment receipt.');
+        return;
+      }
+      if (!screenshotPreview) {
+        setErrorMessage('Please upload your payment screenshot (from Google Pay, PhonePe, or Paytm) to confirm payment.');
+        return;
+      }
+
+      setIsConfirming(true);
+      setErrorMessage(null);
+
+      const verifyResult = await verifyPaymentOnServer(rawId, undefined, undefined, amount, 'upi');
+      setIsConfirming(false);
+
+      if (verifyResult.verified) {
+        onSuccess(rawId, screenshotPreview, 'upi');
+      } else {
+        setErrorMessage(
+          verifyResult.error || 
+          'UPI payment verification failed. Please ensure you entered the complete 12-digit UTR from your payment receipt.'
+        );
+      }
+      return;
+    }
+
+    // 2. RAZORPAY MODE: Verify payment ID (no screenshot required)
     if (!rawId) {
-      setErrorMessage(
-        paymentMode === 'upi'
-          ? 'Please enter your 12-digit UPI Transaction Reference Number (UTR) from your Google Pay, PhonePe, or Paytm receipt.'
-          : 'Please enter the official Razorpay Payment ID (starts with pay_...) from your Razorpay receipt.'
-      );
+      setErrorMessage('Please enter the official Razorpay Payment ID (starts with pay_...) from your Razorpay receipt.');
       return;
     }
 
     setIsConfirming(true);
     setErrorMessage(null);
 
-    const verifyResult = await verifyPaymentOnServer(rawId, undefined, undefined, amount, paymentMode);
-
+    const verifyResult = await verifyPaymentOnServer(rawId, undefined, undefined, amount, 'razorpay');
     setIsConfirming(false);
 
     if (verifyResult.verified) {
-      onSuccess(rawId);
+      onSuccess(rawId, undefined, 'razorpay');
     } else {
       setErrorMessage(
         verifyResult.error || 
-        (paymentMode === 'upi'
-          ? 'UPI payment verification failed. Please ensure you entered the complete 12-digit UTR from your payment receipt.'
-          : 'Razorpay payment verification failed. Payment ID could not be found or is not captured in Razorpay. Please complete payment via Razorpay first.')
+        'Razorpay payment verification failed. Payment ID could not be found or is not captured in Razorpay. Please complete payment via Razorpay first.'
       );
     }
   };
 
-  // Trigger Razorpay Checkout SDK popup with prioritized UPI QR flow
+  // Trigger Razorpay Checkout SDK popup with prioritized UPI flow
   const handleLaunchSdk = async (preferredMethod: 'upi' | 'card' = 'upi') => {
     const keyToUse = (activeKey || getRazorpayKey()).trim();
 
@@ -297,7 +399,8 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
       },
       onSuccess: (paymentId) => {
         setIsProcessingRazorpay(false);
-        onSuccess(paymentId);
+        // Razorpay mode: Ticket pass is automatically generated, emailed, and saved to Participant Space (NO screenshot needed!)
+        onSuccess(paymentId, undefined, 'razorpay');
       },
       onError: (err) => {
         setIsProcessingRazorpay(false);
@@ -364,7 +467,7 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
                 </span>
                 <span className="w-1.5 h-1.5 rounded-full bg-[#4cc38a] animate-pulse" />
                 <span className="text-[10px] font-mono px-1.5 py-0.2 rounded bg-black/40 text-[#4cc38a] border border-[#4cc38a]/30">
-                  NPCI Verified
+                  {paymentMode === 'upi' ? 'NPCI Verified' : 'Instant Auto-Pass'}
                 </span>
               </div>
               <h3 id="payment-modal-heading" className="text-sm sm:text-base font-bold text-white tracking-wide">
@@ -405,15 +508,15 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
           </div>
         </div>
 
-        {/* Tab Navigation / Direct UPI Mode Banner */}
+        {/* Payment Mode Banner */}
         {paymentMode === 'upi' ? (
           <div className="flex border-b border-[#1d442b] bg-[#081810] px-4 py-2.5 items-center justify-between shrink-0 text-xs">
             <div className="flex items-center gap-2 text-[#a3e8c0] font-semibold">
               <QrCode className="w-4 h-4 text-[#4cc38a]" />
-              <span>Direct Bank UPI Scanner & Quick Apps</span>
+              <span>Direct Bank UPI Scanner (UTR & Screenshot Required)</span>
             </div>
             <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-[#4cc38a]/20 text-[#4cc38a] border border-[#4cc38a]/40 font-bold">
-              Instant Bank Credit
+              Direct Settlement
             </span>
           </div>
         ) : (
@@ -427,10 +530,10 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
                   : 'border-transparent text-[#7ea0c4] hover:text-white'
               }`}
             >
-              <QrCode className="w-4 h-4 text-[#4cc38a]" />
-              <span>Razorpay UPI QR Scanner</span>
+              <Sparkles className="w-4 h-4 text-[#70baff]" />
+              <span>Razorpay Instant Checkout</span>
               <span className="text-[9px] px-1.5 py-0.2 rounded-full bg-[#4cc38a]/20 text-[#4cc38a] border border-[#4cc38a]/40 font-mono">
-                Live
+                Auto-Pass
               </span>
             </button>
             <button
@@ -461,79 +564,40 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
             </div>
           )}
 
-          {activeTab === 'upi_qr' ? (
-            /* TAB 1: RAZORPAY UPI QR SCANNER TERMINAL */
+          {/* ========================================================================= */}
+          {/* CASE 1: DIRECT UPI MODE (Requires Transaction ID + Screenshot Upload)     */}
+          {/* ========================================================================= */}
+          {paymentMode === 'upi' ? (
             <div className="space-y-4">
               
-              {/* PRIMARY SCANNER TERMINAL CARD */}
-              <div className="p-4 sm:p-5 rounded-2xl bg-gradient-to-b from-[#0b1726] via-[#0d1e34] to-[#080d15] border border-[#00629b]/60 shadow-xl space-y-4 relative overflow-hidden">
-                
-                {/* Mode Selector Pill Buttons */}
-                <div className="flex flex-wrap items-center justify-between gap-2 border-b border-[#1b324d] pb-3">
+              {/* STEP 1: SCANNER & UPI APPS CARD */}
+              <div className="p-4 sm:p-5 rounded-2xl bg-gradient-to-b from-[#081810] via-[#0d2417] to-[#07130c] border border-[#1d442b] shadow-xl space-y-4 relative overflow-hidden">
+                <div className="flex items-center justify-between border-b border-[#1b3d27] pb-3">
                   <div className="flex items-center gap-2">
                     <span className="w-2.5 h-2.5 rounded-full bg-[#4cc38a] animate-pulse" />
-                    <span className="text-xs font-bold text-white tracking-wide flex items-center gap-1">
-                      <span>Dynamic UPI QR Scanner</span>
+                    <span className="text-xs font-bold text-white tracking-wide">
+                      Step 1: Scan QR or Pay with UPI App
                     </span>
                   </div>
-
-                  {/* Mode switcher tabs */}
-                  <div className="flex items-center bg-[#060b12] p-1 rounded-xl border border-[#1b324d] text-[11px]">
-                    <button
-                      type="button"
-                      onClick={() => setQrDisplayMode('upi_apps')}
-                      className={`px-2.5 py-1 rounded-lg font-semibold transition-all cursor-pointer flex items-center gap-1 ${
-                        qrDisplayMode === 'upi_apps'
-                          ? 'bg-[#00629b] text-white shadow'
-                          : 'text-[#8ea8c9] hover:text-white'
-                      }`}
-                    >
-                      <QrCode className="w-3.5 h-3.5" />
-                      <span>Scan & Pay</span>
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setQrDisplayMode('rzp_link')}
-                      className={`px-2.5 py-1 rounded-lg font-semibold transition-all cursor-pointer flex items-center gap-1 ${
-                        qrDisplayMode === 'rzp_link'
-                          ? 'bg-[#00629b] text-white shadow'
-                          : 'text-[#8ea8c9] hover:text-white'
-                      }`}
-                    >
-                      <ExternalLink className="w-3.5 h-3.5" />
-                      <span>Razorpay.me</span>
-                    </button>
-                  </div>
+                  <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-[#4cc38a]/15 text-[#4cc38a] border border-[#4cc38a]/30">
+                    Amount: ₹{amount}
+                  </span>
                 </div>
 
-                {/* ON-SCREEN UPI QR CODE SCANNER VIEW */}
                 <div className="flex flex-col sm:flex-row items-center gap-5">
-                  
-                  {/* The QR Code with Viewfinder & Laser Animation */}
-                  <div className="relative p-3.5 bg-white rounded-2xl shadow-2xl shrink-0 flex items-center justify-center border-4 border-[#00629b]/40">
-                    
-                    {/* Corner Target Reticles */}
-                    <div className="absolute -top-1.5 -left-1.5 w-5 h-5 border-t-3 border-l-3 border-[#00629b] rounded-tl-lg" />
-                    <div className="absolute -top-1.5 -right-1.5 w-5 h-5 border-t-3 border-r-3 border-[#00629b] rounded-tr-lg" />
-                    <div className="absolute -bottom-1.5 -left-1.5 w-5 h-5 border-b-3 border-l-3 border-[#00629b] rounded-bl-lg" />
-                    <div className="absolute -bottom-1.5 -right-1.5 w-5 h-5 border-b-3 border-r-3 border-[#00629b] rounded-br-lg" />
-
-                    {/* Canvas */}
+                  {/* Dynamic QR Code Canvas */}
+                  <div className="relative p-3.5 bg-white rounded-2xl shadow-2xl shrink-0 flex items-center justify-center border-4 border-[#27ae60]/40">
                     <canvas 
                       ref={qrCanvasRef} 
-                      className="rounded-xl w-[190px] h-[190px] sm:w-[200px] sm:h-[200px] block" 
+                      className="rounded-xl w-[180px] h-[180px] sm:w-[190px] sm:h-[190px] block" 
                     />
-
-                    {/* Animated Scanning Laser Line */}
-                    <div className="absolute left-3.5 right-3.5 h-1 bg-gradient-to-r from-transparent via-[#00a6fb] to-transparent razorpay-scan-laser-anim shadow-[0_0_10px_#00a6fb] pointer-events-none rounded" />
+                    <div className="absolute left-3.5 right-3.5 h-1 bg-gradient-to-r from-transparent via-[#27ae60] to-transparent razorpay-scan-laser-anim shadow-[0_0_10px_#27ae60] pointer-events-none rounded" />
                   </div>
 
-                  {/* QR Details & App Icons */}
+                  {/* QR Details */}
                   <div className="space-y-3 text-center sm:text-left flex-1 min-w-0">
-                    
-                    {/* Timer & Session State */}
                     <div className="flex items-center justify-center sm:justify-start gap-2">
-                      <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-[#071321] border border-[#183659] text-[11px] font-mono text-[#70baff]">
+                      <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-[#05140b] border border-[#173b23] text-[11px] font-mono text-[#a3e8c0]">
                         <Clock className="w-3.5 h-3.5 text-[#f2c14e]" />
                         <span>Expires in: <strong>{formatTimer(timeLeft)}</strong></span>
                       </div>
@@ -541,57 +605,45 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
                         type="button"
                         onClick={handleRefreshSession}
                         className="p-1 rounded-lg hover:bg-white/10 text-[#a79f8b] hover:text-white transition-colors cursor-pointer"
-                        title="Refresh QR session"
+                        title="Refresh session"
                       >
                         <RefreshCw className="w-3.5 h-3.5" />
                       </button>
                     </div>
 
-                    {/* Title & Payee Info */}
                     <div>
                       <h4 className="text-sm font-bold text-white flex items-center justify-center sm:justify-start gap-1.5">
                         <span>Scan with Any UPI App</span>
-                        <span className="text-[10px] text-[#4cc38a] font-mono font-normal">
-                          (₹{amount})
-                        </span>
+                        <span className="text-[10px] text-[#4cc38a] font-mono font-normal">(₹{amount})</span>
                       </h4>
-                      <p className="text-[11px] text-[#8ea8c9] mt-0.5 leading-relaxed">
-                        Scan using <strong className="text-white">Google Pay, PhonePe, Paytm, or BHIM</strong>. Payment is credited directly to <strong className="text-white">{effectivePayeeName}</strong>.
+                      <p className="text-[11px] text-[#a3e8c0] mt-0.5 leading-relaxed">
+                        Scan using <strong className="text-white">Google Pay, PhonePe, Paytm, or BHIM</strong>.
                       </p>
                     </div>
 
-                    {/* Official VPA Display & Copy */}
-                    <div className="p-2.5 rounded-xl bg-[#07101c] border border-[#183659] flex items-center justify-between gap-2 text-xs">
+                    {/* VPA Display & Copy */}
+                    <div className="p-2.5 rounded-xl bg-[#05140b] border border-[#1b3d27] flex items-center justify-between gap-2 text-xs">
                       <div className="min-w-0">
-                        <span className="text-[10px] uppercase tracking-wider text-[#6484a6] block font-semibold">
-                          {paymentMode === 'upi' ? 'Direct UPI ID (VPA)' : 'Razorpay UPI ID (VPA)'}
+                        <span className="text-[9px] uppercase tracking-wider text-[#7ea0c4] block font-semibold">
+                          Official Direct UPI ID (VPA)
                         </span>
                         <span className="font-mono text-white font-bold truncate block">{upiVpa}</span>
                       </div>
                       <button
                         type="button"
                         onClick={handleCopyVpa}
-                        className="py-1 px-2.5 rounded-lg bg-[#00629b] hover:bg-[#0077bc] text-white font-semibold text-[11px] transition-colors flex items-center gap-1 cursor-pointer shrink-0"
+                        className="py-1 px-2.5 rounded-lg bg-[#1b5e39] hover:bg-[#27ae60] text-white font-semibold text-[11px] transition-colors flex items-center gap-1 cursor-pointer shrink-0"
                       >
-                        {copiedVpa ? <Check className="w-3 h-3 text-[#4cc38a]" /> : <Copy className="w-3 h-3" />}
+                        {copiedVpa ? <Check className="w-3 h-3 text-[#f2c14e]" /> : <Copy className="w-3 h-3" />}
                         <span>{copiedVpa ? 'Copied' : 'Copy'}</span>
                       </button>
-                    </div>
-
-                    {/* Supported App Badges */}
-                    <div className="flex flex-wrap items-center justify-center sm:justify-start gap-1.5 pt-0.5">
-                      <span className="text-[10px] px-2 py-0.5 rounded-md bg-[#131d2e] border border-[#23354f] text-[#9fc7e8] font-medium">Google Pay</span>
-                      <span className="text-[10px] px-2 py-0.5 rounded-md bg-[#131d2e] border border-[#23354f] text-[#c490e4] font-medium">PhonePe</span>
-                      <span className="text-[10px] px-2 py-0.5 rounded-md bg-[#131d2e] border border-[#23354f] text-[#70baff] font-medium">Paytm</span>
-                      <span className="text-[10px] px-2 py-0.5 rounded-md bg-[#131d2e] border border-[#23354f] text-[#4cc38a] font-medium">BHIM UPI</span>
-                      <span className="text-[10px] px-2 py-0.5 rounded-md bg-[#131d2e] border border-[#23354f] text-[#f2c14e] font-medium">Cred</span>
                     </div>
                   </div>
                 </div>
 
-                {/* Mobile Quick Tap UPI App Buttons */}
-                <div className="pt-2 border-t border-[#1b324d] space-y-2">
-                  <span className="text-[10px] uppercase font-bold tracking-wider text-[#7ea0c4] block text-center sm:text-left">
+                {/* Mobile Quick Tap Buttons */}
+                <div className="pt-2 border-t border-[#1b3d27] space-y-2">
+                  <span className="text-[10px] uppercase font-bold tracking-wider text-[#a3e8c0] block text-center sm:text-left">
                     Paying on this mobile phone? Tap your UPI app:
                   </span>
                   <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs">
@@ -629,55 +681,35 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
                     </button>
                   </div>
                 </div>
-
-                {/* RAZORPAY CHECKOUT POPUP BUTTON (Razorpay Mode Only) */}
-                {paymentMode === 'razorpay' && (
-                  <div className="pt-1">
-                    <button
-                      type="button"
-                      onClick={() => handleLaunchSdk('upi')}
-                      disabled={isProcessingRazorpay}
-                      className="w-full py-3.5 px-4 rounded-xl font-bold text-xs sm:text-sm bg-gradient-to-r from-[#00629b] via-[#007cc2] to-[#009bf2] text-white hover:from-[#007cc2] hover:to-[#00aeff] transition-all flex items-center justify-center gap-2 shadow-lg hover:shadow-[#0088d4]/30 cursor-pointer disabled:opacity-60"
-                    >
-                      {isProcessingRazorpay ? (
-                        <Loader2 className="w-4 h-4 animate-spin text-white" />
-                      ) : (
-                        <QrCode className="w-4 h-4 text-[#f2c14e]" />
-                      )}
-                      <span>Launch Razorpay Checkout Popup (Auto Pass)</span>
-                      <ArrowRight className="w-4 h-4 text-white" />
-                    </button>
-                  </div>
-                )}
               </div>
 
-              {/* STEP 2: VERIFICATION CARD */}
-              <div className="p-4 rounded-2xl bg-[#090b10] border border-[#1f283b] space-y-3">
-                <div className="flex items-center justify-between text-xs">
-                  <span className="font-bold text-[#f3ecd9] flex items-center gap-1.5">
-                    <ShieldCheck className="w-4 h-4 text-[#4cc38a]" />
-                    <span>
-                      {paymentMode === 'upi' ? 'Step 2: Enter 12-Digit UPI Reference (UTR) to Get Pass' : 'Step 2: Verify Razorpay Payment to Get Pass'}
-                    </span>
-                  </span>
-                  <span className="text-[10px] text-[#4cc38a] font-mono bg-[#4cc38a]/15 px-2 py-0.5 rounded-full border border-[#4cc38a]/30">
-                    {paymentMode === 'upi' ? 'Instant Verification' : 'Live Verified Only'}
+              {/* STEP 2: REQUIRED TRANSACTION ID & SCREENSHOT UPLOAD */}
+              <div className="p-4 sm:p-5 rounded-2xl bg-[#0a0d13] border-2 border-[#1f3828] space-y-4">
+                <div className="flex items-center justify-between border-b border-[#1b3224] pb-3">
+                  <div className="flex items-center gap-2">
+                    <div className="w-7 h-7 rounded-lg bg-[#4cc38a]/20 border border-[#4cc38a]/40 flex items-center justify-center text-[#4cc38a]">
+                      <FileCheck className="w-4 h-4" />
+                    </div>
+                    <div>
+                      <h4 className="text-xs sm:text-sm font-bold text-white">
+                        Step 2: Enter Transaction ID & Upload Screenshot
+                      </h4>
+                      <p className="text-[10px] text-[#a79f8b]">
+                        Required for verification before issuing your pass
+                      </p>
+                    </div>
+                  </div>
+                  <span className="text-[9px] font-mono px-2 py-0.5 rounded-full bg-[#f2c14e]/20 text-[#f2c14e] border border-[#f2c14e]/40 font-bold uppercase">
+                    Mandatory
                   </span>
                 </div>
 
-                <p className="text-[11px] text-[#a79f8b] leading-relaxed">
-                  {paymentMode === 'upi' ? (
-                    <>
-                      After completing payment in Google Pay, PhonePe, or Paytm, enter the <strong className="text-white">12-digit UPI Transaction Reference Number / UTR</strong> (e.g. <code className="text-[#f2c14e]">429182749102</code> from your receipt) to verify:
-                    </>
-                  ) : (
-                    <>
-                      If you paid via QR Code or Razorpay.me, enter your official <strong className="text-white">Razorpay Payment ID</strong> (starts with <code className="text-[#f2c14e]">pay_</code>, e.g. <code className="text-[#f2c14e]">pay_To1...</code> from your payment receipt) to verify:
-                    </>
-                  )}
-                </p>
-
-                <div className="flex gap-2">
+                {/* Field 1: Transaction ID / UTR */}
+                <div className="space-y-1.5">
+                  <label className="text-xs font-semibold text-[#f3ecd9] flex items-center justify-between">
+                    <span>1. UPI Transaction Reference Number (UTR) *</span>
+                    <span className="text-[10px] text-[#4cc38a] font-mono font-normal">12-digit number</span>
+                  </label>
                   <input
                     type="text"
                     value={paymentRefInput}
@@ -685,104 +717,254 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
                       setPaymentRefInput(e.target.value);
                       if (errorMessage) setErrorMessage(null);
                     }}
-                    placeholder={paymentMode === 'upi' ? "e.g. 429182749102 or T241017..." : "e.g. pay_To1b77abc..."}
-                    className="flex-1 bg-[#121622] border border-[#23354f] rounded-xl px-3 py-2 text-xs text-white placeholder-[#546b88] focus:outline-none focus:border-[#0088d4] font-mono tracking-wide"
+                    placeholder="e.g. 429182749102 or T241017..."
+                    className="w-full bg-[#121622] border border-[#23354f] rounded-xl px-3.5 py-2.5 text-xs text-white placeholder-[#546b88] focus:outline-none focus:border-[#4cc38a] font-mono tracking-wide"
                   />
+                  <p className="text-[10px] text-[#7ea0c4]">
+                    Found on your Google Pay, PhonePe, or Paytm payment success receipt as "UPI Ref No." or "UTR".
+                  </p>
+                </div>
+
+                {/* Field 2: Screenshot Upload Dropzone */}
+                <div className="space-y-1.5 pt-1">
+                  <label className="text-xs font-semibold text-[#f3ecd9] flex items-center justify-between">
+                    <span>2. Payment Confirmation Screenshot *</span>
+                    <span className="text-[10px] text-[#f2c14e] font-mono font-normal">Required</span>
+                  </label>
+
+                  <input
+                    type="file"
+                    ref={fileInputRef}
+                    accept="image/*"
+                    onChange={handleScreenshotChange}
+                    className="hidden"
+                  />
+
+                  {!screenshotPreview ? (
+                    <div
+                      onClick={() => fileInputRef.current?.click()}
+                      className="border-2 border-dashed border-[#274635] hover:border-[#4cc38a] rounded-xl p-4 sm:p-5 flex flex-col items-center justify-center text-center cursor-pointer bg-[#07130c]/70 hover:bg-[#07130c] transition-all group"
+                    >
+                      <div className="w-10 h-10 rounded-full bg-[#142e1f] group-hover:bg-[#1b442b] border border-[#27ae60]/40 flex items-center justify-center text-[#4cc38a] mb-2 transition-transform group-hover:scale-105">
+                        {isCompressingScreenshot ? (
+                          <Loader2 className="w-5 h-5 animate-spin" />
+                        ) : (
+                          <Upload className="w-5 h-5" />
+                        )}
+                      </div>
+                      <span className="text-xs font-bold text-white group-hover:text-[#4cc38a] transition-colors">
+                        {isCompressingScreenshot ? 'Compressing Screenshot...' : 'Click to Upload Payment Screenshot'}
+                      </span>
+                      <span className="text-[10px] text-[#7ea0c4] mt-1">
+                        Attach receipt from PhonePe, Google Pay, or Paytm (PNG, JPG, WEBP)
+                      </span>
+                    </div>
+                  ) : (
+                    <div className="p-3 rounded-xl bg-[#091b11] border border-[#2d6a45] flex items-center justify-between gap-3 animate-in fade-in">
+                      <div className="flex items-center gap-3 min-w-0">
+                        <div className="w-12 h-12 rounded-lg bg-black border border-[#2d6a45] overflow-hidden shrink-0 relative flex items-center justify-center">
+                          <img 
+                            src={screenshotPreview} 
+                            alt="Payment screenshot preview" 
+                            className="w-full h-full object-cover" 
+                          />
+                        </div>
+                        <div className="min-w-0">
+                          <div className="flex items-center gap-1.5">
+                            <CheckCircle2 className="w-3.5 h-3.5 text-[#4cc38a] shrink-0" />
+                            <span className="text-xs font-bold text-white truncate">
+                              {screenshotFile?.name || 'payment_screenshot.jpg'}
+                            </span>
+                          </div>
+                          <span className="text-[10px] text-[#a3e8c0] block font-mono">
+                            Ready for verification · Verified size
+                          </span>
+                        </div>
+                      </div>
+
+                      <button
+                        type="button"
+                        onClick={handleRemoveScreenshot}
+                        className="py-1 px-2.5 rounded-lg bg-[#2a1315] hover:bg-[#3d191d] border border-[#ff8a80]/30 text-[#ff8a80] text-xs font-semibold flex items-center gap-1 cursor-pointer shrink-0 transition-colors"
+                      >
+                        <Trash2 className="w-3 h-3" />
+                        <span>Remove</span>
+                      </button>
+                    </div>
+                  )}
+                </div>
+
+                {/* Final Submit Button */}
+                <div className="pt-2">
                   <button
                     type="button"
-                    disabled={isConfirming}
+                    disabled={isConfirming || isCompressingScreenshot || !paymentRefInput.trim() || !screenshotPreview}
                     onClick={handleVerifyManualPayment}
-                    className="py-2 px-4 rounded-xl font-bold text-xs bg-[#4cc38a] hover:bg-[#3db279] text-black transition-all flex items-center gap-1.5 shrink-0 cursor-pointer disabled:opacity-60 shadow"
+                    className="w-full py-3.5 px-4 rounded-xl font-bold text-xs sm:text-sm bg-gradient-to-r from-[#27ae60] to-[#2ecc71] hover:from-[#2ecc71] hover:to-[#40e080] text-black transition-all flex items-center justify-center gap-2 shadow-lg shadow-[#27ae60]/20 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     {isConfirming ? (
-                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                      <>
+                        <Loader2 className="w-4 h-4 animate-spin text-black" />
+                        <span>Verifying Payment & Issuing Pass...</span>
+                      </>
                     ) : (
-                      <Check className="w-3.5 h-3.5" />
+                      <>
+                        <Check className="w-4 h-4 stroke-[3]" />
+                        <span>Verify UTR & Issue Ticket Pass (₹{amount})</span>
+                      </>
                     )}
-                    <span>{isConfirming ? 'Verifying...' : (paymentMode === 'upi' ? 'Verify UTR & Issue Pass' : 'Verify with Razorpay')}</span>
                   </button>
                 </div>
 
-                {/* Strict security enforcement notice */}
-                <div className="pt-2 flex items-center gap-2 border-t border-[#182030] text-[11px] text-[#7ea0c4]">
+                <div className="flex items-center gap-2 pt-1 text-[11px] text-[#7ea0c4] border-t border-[#1b3224]">
                   <Lock className="w-3.5 h-3.5 text-[#4cc38a] shrink-0" />
                   <span>
-                    {paymentMode === 'upi'
-                      ? 'Each UPI Transaction Reference (UTR) is verified to prevent reuse. Passes are issued instantly upon verification.'
-                      : 'Tickets are strictly generated only after confirmed payment capture by Razorpay. Unpaid attempts are automatically rejected.'}
+                    Your pass will be automatically generated, stored in your Participant Space, and sent to <strong className="text-white">{email}</strong>.
                   </span>
                 </div>
               </div>
             </div>
           ) : (
-            /* TAB 2: CARDS / NET BANKING / WALLETS */
+            /* ========================================================================= */
+            /* CASE 2: RAZORPAY MODE (Instant Auto Pass, No Screenshot Needed!)           */
+            /* ========================================================================= */
             <div className="space-y-4">
-              <div className="p-4 sm:p-5 rounded-2xl bg-gradient-to-b from-[#0e1622] to-[#0a0a0d] border border-[#1d3557] space-y-4">
-                <div className="flex items-center justify-between text-xs">
-                  <span className="text-[#9fc7e8] font-semibold flex items-center gap-1.5">
-                    <Lock className="w-3.5 h-3.5 text-[#4cc38a]" />
-                    <span>Embedded Razorpay Checkout</span>
-                  </span>
-                  <span className="font-mono text-[10px] px-2 py-0.5 rounded-full bg-[#00629b]/40 text-[#70baff] border border-[#00629b]/60">
-                    256-Bit SSL
+              
+              {/* PRIMARY PROMINENT RAZORPAY 1-CLICK INSTANT PASS HERO CARD */}
+              <div className="p-5 sm:p-6 rounded-2xl bg-gradient-to-b from-[#0a1e38] via-[#0c2444] to-[#071324] border-2 border-[#0088d4] shadow-2xl space-y-4 relative overflow-hidden">
+                <div className="flex items-center justify-between border-b border-[#1b3f69] pb-3">
+                  <div className="flex items-center gap-2">
+                    <span className="w-2.5 h-2.5 rounded-full bg-[#4cc38a] animate-pulse" />
+                    <span className="text-xs font-bold text-white tracking-wide flex items-center gap-1.5">
+                      <Sparkles className="w-4 h-4 text-[#70baff]" />
+                      <span>Automatic Ticket Pass Generation</span>
+                    </span>
+                  </div>
+                  <span className="text-[10px] font-mono px-2.5 py-0.5 rounded-full bg-[#4cc38a]/20 text-[#4cc38a] border border-[#4cc38a]/40 font-bold">
+                    Zero Screenshot Required
                   </span>
                 </div>
 
-                <p className="text-xs text-[#a79f8b] leading-relaxed">
-                  Opens the standard embedded Razorpay checkout modal with Debit Cards, Credit Cards, Net Banking, and Wallets:
-                </p>
+                <div className="space-y-2">
+                  <h4 className="text-base sm:text-lg font-bold text-white">
+                    Pay ₹{amount} with Razorpay Instant Gateway
+                  </h4>
+                  <p className="text-xs text-[#9fc7e8] leading-relaxed">
+                    Click the button below to pay via <strong className="text-white">Google Pay, PhonePe, Paytm, Debit/Credit Cards, or Net Banking</strong>. No screenshot or manual UTR entry needed — your ticket pass is automatically created immediately upon payment!
+                  </p>
+                </div>
 
-                {/* Methods Grid */}
-                <div className="grid grid-cols-2 gap-2 text-xs">
-                  <div className="p-3 rounded-xl bg-[#131318] border border-[#2e2b22] flex items-center gap-2.5">
-                    <CreditCard className="w-4 h-4 text-[#70baff] shrink-0" />
+                {/* Key Benefits Grid */}
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 py-1 text-xs">
+                  <div className="p-2.5 rounded-xl bg-[#071321] border border-[#16375d] flex items-center gap-2">
+                    <CheckCheck className="w-4 h-4 text-[#4cc38a] shrink-0" />
                     <div>
-                      <span className="text-[#f3ecd9] font-medium block text-[11px]">Cards</span>
-                      <span className="text-[10px] text-[#a79f8b]">Visa, Master, RuPay</span>
+                      <span className="font-bold text-white block text-[11px]">Instant Pass</span>
+                      <span className="text-[10px] text-[#7ea0c4]">Auto-generated</span>
                     </div>
                   </div>
-                  <div className="p-3 rounded-xl bg-[#131318] border border-[#2e2b22] flex items-center gap-2.5">
-                    <Landmark className="w-4 h-4 text-[#4cc38a] shrink-0" />
+                  <div className="p-2.5 rounded-xl bg-[#071321] border border-[#16375d] flex items-center gap-2">
+                    <Mail className="w-4 h-4 text-[#70baff] shrink-0" />
                     <div>
-                      <span className="text-[#f3ecd9] font-medium block text-[11px]">Net Banking</span>
-                      <span className="text-[10px] text-[#a79f8b]">SBI, HDFC, ICICI +50</span>
+                      <span className="font-bold text-white block text-[11px]">Sent to Email</span>
+                      <span className="text-[10px] text-[#7ea0c4] truncate block max-w-[100px]">{email}</span>
                     </div>
                   </div>
-                  <div className="p-3 rounded-xl bg-[#131318] border border-[#2e2b22] flex items-center gap-2.5">
-                    <Wallet className="w-4 h-4 text-[#d4a935] shrink-0" />
-                    <div>
-                      <span className="text-[#f3ecd9] font-medium block text-[11px]">Wallets</span>
-                      <span className="text-[10px] text-[#a79f8b]">Cred, Mobikwik & More</span>
-                    </div>
-                  </div>
-                  <div className="p-3 rounded-xl bg-[#131318] border border-[#2e2b22] flex items-center gap-2.5">
+                  <div className="p-2.5 rounded-xl bg-[#071321] border border-[#16375d] flex items-center gap-2">
                     <Smartphone className="w-4 h-4 text-[#f2c14e] shrink-0" />
                     <div>
-                      <span className="text-[#f3ecd9] font-medium block text-[11px]">Razorpay UPI</span>
-                      <span className="text-[10px] text-[#a79f8b]">GPay, PhonePe</span>
+                      <span className="font-bold text-white block text-[11px]">Participant Space</span>
+                      <span className="text-[10px] text-[#7ea0c4]">Saved automatically</span>
                     </div>
                   </div>
                 </div>
 
+                {/* The Big 1-Click Pay Button */}
                 <button
                   type="button"
+                  onClick={() => handleLaunchSdk('upi')}
                   disabled={isProcessingRazorpay}
-                  onClick={() => handleLaunchSdk('card')}
-                  className="w-full mt-2 py-3.5 px-4 rounded-xl font-bold text-sm bg-gradient-to-r from-[#00629b] via-[#0077bc] to-[#0088cc] text-white hover:from-[#0077bc] hover:to-[#0099e6] transition-all flex items-center justify-center gap-2 shadow-lg shadow-[#00629b]/30 cursor-pointer disabled:opacity-60"
+                  className="w-full py-4 px-5 rounded-xl font-extrabold text-sm sm:text-base bg-gradient-to-r from-[#00629b] via-[#007cc2] to-[#009bf2] hover:from-[#007cc2] hover:to-[#00aeff] text-white transition-all flex items-center justify-center gap-2.5 shadow-xl shadow-[#0088d4]/30 cursor-pointer disabled:opacity-60"
                 >
                   {isProcessingRazorpay ? (
                     <>
-                      <Loader2 className="w-4 h-4 animate-spin" />
-                      <span>Opening Razorpay Gateway...</span>
+                      <Loader2 className="w-5 h-5 animate-spin text-white" />
+                      <span>Opening Secure Razorpay Gateway...</span>
                     </>
                   ) : (
                     <>
-                      <Sparkles className="w-4 h-4 text-[#70baff]" />
-                      <span>Launch Embedded Checkout (₹{amount})</span>
-                      <ArrowRight className="w-4 h-4" />
+                      <QrCode className="w-5 h-5 text-[#f2c14e]" />
+                      <span>Pay ₹{amount} with Razorpay (Instant Ticket)</span>
+                      <ArrowRight className="w-4 h-4 text-white" />
                     </>
                   )}
                 </button>
+              </div>
+
+              {/* SECONDARY SCANNER OPTION FOR DESKTOP / QR PREFERENCE */}
+              <div className="p-4 rounded-2xl bg-[#090b10] border border-[#1f283b] space-y-3">
+                <div className="flex items-center justify-between text-xs border-b border-[#1b2535] pb-2">
+                  <span className="font-bold text-white flex items-center gap-1.5">
+                    <QrCode className="w-3.5 h-3.5 text-[#70baff]" />
+                    <span>Prefer to scan a QR code from another device?</span>
+                  </span>
+                  <span className="text-[10px] text-[#7ea0c4] font-mono">
+                    Alternative
+                  </span>
+                </div>
+
+                <div className="flex flex-col sm:flex-row items-center gap-4 pt-1">
+                  <div className="relative p-2.5 bg-white rounded-xl shadow-lg shrink-0 flex items-center justify-center border-2 border-[#00629b]/40">
+                    <canvas 
+                      ref={qrCanvasRef} 
+                      className="rounded-lg w-[130px] h-[130px] block" 
+                    />
+                  </div>
+                  <div className="space-y-2 text-center sm:text-left text-xs flex-1">
+                    <p className="text-[11px] text-[#8ea8c9]">
+                      Scan this QR code with any UPI app to pay directly. Or click below to open our official Razorpay checkout page in a new window:
+                    </p>
+                    <div className="flex flex-wrap gap-2 justify-center sm:justify-start">
+                      <a
+                        href={razorpayMeUrl}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="py-1.5 px-3 rounded-lg bg-[#00629b] hover:bg-[#007cc2] text-white font-semibold text-xs transition-colors flex items-center gap-1.5 cursor-pointer shadow"
+                      >
+                        <ExternalLink className="w-3.5 h-3.5" />
+                        <span>Open Razorpay.me Page</span>
+                      </a>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Optional Fallback if user paid on Razorpay.me page */}
+                <div className="pt-2 border-t border-[#182030] space-y-2">
+                  <span className="text-[11px] text-[#7ea0c4] block">
+                    Already completed payment via Razorpay.me? Enter your Razorpay Payment ID to verify:
+                  </span>
+                  <div className="flex gap-2">
+                    <input
+                      type="text"
+                      value={paymentRefInput}
+                      onChange={(e) => {
+                        setPaymentRefInput(e.target.value);
+                        if (errorMessage) setErrorMessage(null);
+                      }}
+                      placeholder="e.g. pay_To1b77abc..."
+                      className="flex-1 bg-[#121622] border border-[#23354f] rounded-xl px-3 py-2 text-xs text-white placeholder-[#546b88] focus:outline-none focus:border-[#0088d4] font-mono"
+                    />
+                    <button
+                      type="button"
+                      disabled={isConfirming || !paymentRefInput.trim()}
+                      onClick={handleVerifyManualPayment}
+                      className="py-2 px-3.5 rounded-xl font-bold text-xs bg-[#4cc38a] hover:bg-[#3db279] text-black transition-all flex items-center gap-1 shrink-0 cursor-pointer disabled:opacity-50"
+                    >
+                      {isConfirming ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Check className="w-3.5 h-3.5" />}
+                      <span>Verify & Get Pass</span>
+                    </button>
+                  </div>
+                </div>
               </div>
             </div>
           )}

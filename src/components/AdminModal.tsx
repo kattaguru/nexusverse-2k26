@@ -218,6 +218,7 @@ export const AdminModal: React.FC<AdminModalProps> = ({
   const [isAddingPhoto, setIsAddingPhoto] = useState(false);
   const [photoAddSuccess, setPhotoAddSuccess] = useState('');
   const [previewLightbox, setPreviewLightbox] = useState<string | null>(null);
+  const [viewingReceipt, setViewingReceipt] = useState<{ name: string; roll: string; paymentId: string; screenshot: string } | null>(null);
 
   // Custom password management
   const [newAdminPassword, setNewAdminPassword] = useState('');
@@ -1349,6 +1350,15 @@ export const AdminModal: React.FC<AdminModalProps> = ({
                                       Non-IEEE
                                     </span>
                                   )}
+                                  {record.paymentMode === 'upi' ? (
+                                    <span className="text-[10px] font-semibold text-[#4cc38a] bg-[#1b5e39]/30 px-2 py-0.5 rounded border border-[#4cc38a]/40 font-mono">
+                                      UPI
+                                    </span>
+                                  ) : (
+                                    <span className="text-[10px] font-semibold text-[#70baff] bg-[#00629b]/30 px-2 py-0.5 rounded border border-[#0088d4]/40 font-mono">
+                                      Razorpay
+                                    </span>
+                                  )}
                                   <span className="text-[11px] text-[#9fc7e8] font-medium px-2 py-0.5 rounded bg-[#131f2b] border border-[#234259]">
                                     {eventName}
                                   </span>
@@ -1371,6 +1381,29 @@ export const AdminModal: React.FC<AdminModalProps> = ({
                                 <span className="font-mono font-bold text-sm text-[#f2c14e]">
                                   ₹{record.totalPaid}
                                 </span>
+
+                                {/* View UPI Receipt Screenshot */}
+                                {(record.paymentScreenshot || (record.teamDetails as any)?._paymentScreenshot) && (
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      const scr = record.paymentScreenshot || (record.teamDetails as any)?._paymentScreenshot;
+                                      if (scr) {
+                                        setViewingReceipt({
+                                          name: record.name,
+                                          roll: record.roll,
+                                          paymentId: record.paymentId,
+                                          screenshot: scr
+                                        });
+                                      }
+                                    }}
+                                    className="p-1.5 rounded-lg bg-[#0f2e1e] border border-[#4cc38a]/40 text-[#4cc38a] hover:bg-[#1b5e39] transition-colors cursor-pointer flex items-center gap-1 text-[11px] font-semibold"
+                                    title="View UPI Receipt Screenshot"
+                                  >
+                                    <ImageIcon className="w-3.5 h-3.5" />
+                                    <span className="hidden sm:inline">Receipt</span>
+                                  </button>
+                                )}
 
                                 {/* View / Print Pass */}
                                 {onViewPass && (
@@ -1441,6 +1474,65 @@ export const AdminModal: React.FC<AdminModalProps> = ({
                                     <span className="text-[#f3ecd9] truncate block">{team?.projectTitle || 'N/A'}</span>
                                   </div>
                                 </div>
+
+                                {/* UPI Payment Screenshot Card (if uploaded) */}
+                                {(record.paymentScreenshot || (record.teamDetails as any)?._paymentScreenshot) && (
+                                  <div className="p-3 rounded-xl bg-[#081810] border border-[#1d442b] flex items-center justify-between gap-3">
+                                    <div className="flex items-center gap-3 min-w-0">
+                                      <div 
+                                        onClick={() => {
+                                          const scr = record.paymentScreenshot || (record.teamDetails as any)?._paymentScreenshot;
+                                          if (scr) {
+                                            setViewingReceipt({
+                                              name: record.name,
+                                              roll: record.roll,
+                                              paymentId: record.paymentId,
+                                              screenshot: scr
+                                            });
+                                          }
+                                        }}
+                                        className="w-14 h-14 rounded-lg bg-black border border-[#27ae60]/50 overflow-hidden cursor-pointer hover:opacity-80 transition-opacity flex items-center justify-center shrink-0 shadow-md"
+                                        title="Click to enlarge"
+                                      >
+                                        <img 
+                                          src={record.paymentScreenshot || (record.teamDetails as any)?._paymentScreenshot} 
+                                          alt="UPI Payment Screenshot" 
+                                          className="w-full h-full object-cover" 
+                                        />
+                                      </div>
+                                      <div className="min-w-0">
+                                        <span className="text-xs font-bold text-white block flex items-center gap-1.5">
+                                          <ImageIcon className="w-3.5 h-3.5 text-[#4cc38a]" />
+                                          <span>UPI Payment Screenshot</span>
+                                        </span>
+                                        <span className="text-[10px] text-[#a3e8c0] font-mono block">
+                                          UTR: {record.paymentId}
+                                        </span>
+                                        <span className="text-[10px] text-[#7ea0c4] block">
+                                          Uploaded by delegate during verification
+                                        </span>
+                                      </div>
+                                    </div>
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        const scr = record.paymentScreenshot || (record.teamDetails as any)?._paymentScreenshot;
+                                        if (scr) {
+                                          setViewingReceipt({
+                                            name: record.name,
+                                            roll: record.roll,
+                                            paymentId: record.paymentId,
+                                            screenshot: scr
+                                          });
+                                        }
+                                      }}
+                                      className="px-3 py-1.5 rounded-lg bg-[#1b5e39] hover:bg-[#27ae60] text-white font-bold text-xs flex items-center gap-1.5 cursor-pointer shadow transition-all shrink-0"
+                                    >
+                                      <Eye className="w-3.5 h-3.5" />
+                                      <span>View Full Receipt</span>
+                                    </button>
+                                  </div>
+                                )}
 
                                 {/* Full Teammates Cards */}
                                 <div className="space-y-1.5 pt-1">
@@ -2278,7 +2370,7 @@ export const AdminModal: React.FC<AdminModalProps> = ({
                             )}
                           </div>
                           <p className="text-[11px] text-[#a79f8b] leading-relaxed mt-2">
-                            Shows dynamic UPI QR code (`upi://pay?pa=...`) for instant scanning via PhonePe, GPay, Paytm, or BHIM. Delegate submits 12-digit UPI UTR.
+                            Shows direct UPI QR code (`upi://pay?pa=...`) for instant scanning. Delegate must enter their <strong className="text-white">12-digit UPI UTR</strong> AND <strong className="text-white">upload their payment screenshot</strong> before their pass is issued.
                           </p>
                         </div>
                         <div className="mt-3 pt-2 border-t border-[#2e2b22]/60 text-[10px] font-mono text-[#a3e8c0] flex items-center justify-between">
@@ -2320,7 +2412,7 @@ export const AdminModal: React.FC<AdminModalProps> = ({
                             )}
                           </div>
                           <p className="text-[11px] text-[#a79f8b] leading-relaxed mt-2">
-                            Opens embedded Razorpay checkout popup supporting Credit/Debit Cards, NetBanking (+50 banks), Wallets, and Razorpay UPI with automatic signature verification.
+                            Opens embedded Razorpay checkout popup. <strong className="text-white">No screenshot or manual UTR needed</strong> — ticket pass is automatically generated, emailed to their inbox, and stored in their Participant Space!
                           </p>
                         </div>
                         <div className="mt-3 pt-2 border-t border-[#2e2b22]/60 text-[10px] font-mono text-[#70baff] flex items-center justify-between">
@@ -3242,6 +3334,75 @@ export const AdminModal: React.FC<AdminModalProps> = ({
                 className="max-h-[85vh] max-w-full rounded-xl shadow-2xl object-contain border border-[#2e2b22]"
                 onClick={(e) => e.stopPropagation()}
               />
+            </div>
+          </div>
+        )}
+
+        {/* FULLSCREEN UPI PAYMENT RECEIPT LIGHTBOX */}
+        {viewingReceipt && (
+          <div 
+            className="fixed inset-0 z-70 flex items-center justify-center p-3 sm:p-6 bg-black/90 backdrop-blur-md animate-in fade-in"
+            onClick={() => setViewingReceipt(null)}
+          >
+            <div 
+              className="bg-[#0f1118] border border-[#273248] rounded-2xl max-w-2xl w-full max-h-[92vh] flex flex-col overflow-hidden shadow-2xl animate-in zoom-in-95"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="p-4 border-b border-[#1b3d27] flex items-center justify-between bg-gradient-to-r from-[#081810] via-[#0d2618] to-[#121e16]">
+                <div className="flex items-center gap-2.5">
+                  <div className="w-9 h-9 rounded-xl bg-[#1b5e39] text-white flex items-center justify-center border border-[#4cc38a]/40 shadow">
+                    <ImageIcon className="w-4 h-4 text-[#a3e8c0]" />
+                  </div>
+                  <div>
+                    <h4 className="text-sm font-bold text-white">
+                      UPI Payment Receipt · {viewingReceipt.name}
+                    </h4>
+                    <span className="text-[10px] font-mono text-[#a3e8c0]">
+                      Roll: {viewingReceipt.roll || 'N/A'} · UTR: {viewingReceipt.paymentId}
+                    </span>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setViewingReceipt(null)}
+                  className="p-1.5 rounded-lg text-[#a79f8b] hover:text-white hover:bg-white/10 transition-colors cursor-pointer"
+                  aria-label="Close Receipt Viewer"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              <div className="p-4 overflow-auto flex-1 flex items-center justify-center bg-black/70 min-h-[300px]">
+                <img 
+                  src={viewingReceipt.screenshot} 
+                  alt="UPI Payment Receipt" 
+                  className="max-h-[68vh] max-w-full object-contain rounded-xl border border-[#23354f] shadow-2xl"
+                />
+              </div>
+
+              <div className="p-3 border-t border-[#1f283b] flex items-center justify-between bg-[#070b10] text-xs">
+                <span className="text-[11px] text-[#7ea0c4] flex items-center gap-1.5">
+                  <ShieldCheck className="w-3.5 h-3.5 text-[#4cc38a]" />
+                  <span>Participant Uploaded Proof</span>
+                </span>
+                <div className="flex items-center gap-2">
+                  <a
+                    href={viewingReceipt.screenshot}
+                    download={`receipt_${viewingReceipt.roll || 'upi'}.jpg`}
+                    className="px-3 py-1.5 rounded-lg bg-[#1b5e39] hover:bg-[#27ae60] text-white font-bold text-xs flex items-center gap-1 cursor-pointer transition-colors shadow"
+                  >
+                    <Download className="w-3.5 h-3.5" />
+                    <span>Download Receipt</span>
+                  </a>
+                  <button
+                    type="button"
+                    onClick={() => setViewingReceipt(null)}
+                    className="px-3 py-1.5 rounded-lg bg-[#1b2332] text-white font-semibold text-xs cursor-pointer hover:bg-[#233044] transition-colors"
+                  >
+                    Close
+                  </button>
+                </div>
+              </div>
             </div>
           </div>
         )}

@@ -35,6 +35,8 @@ export interface TeamMemberInfo {
 export interface RegistrationRecord {
   regId: string;
   paymentId: string;
+  paymentScreenshot?: string;
+  paymentMode?: 'upi' | 'razorpay';
   name: string;
   email: string;
   phone: string;
@@ -502,7 +504,7 @@ export const TicketPass: React.FC<TicketPassProps> = ({
             <span>Bring this pass & original College Identity Card · Join WhatsApp group for live hall allocations</span>
           </div>
           <div className="font-mono text-[11px]">
-            Amount Paid: <span className="text-[#f2c14e] font-bold">₹{record.totalPaid}</span> (Razorpay Ref: {record.paymentId})
+            Amount Paid: <span className="text-[#f2c14e] font-bold">₹{record.totalPaid}</span> ({record.paymentMode === 'upi' ? 'UPI UTR' : 'Razorpay Ref'}: {record.paymentId})
           </div>
         </div>
       </div>

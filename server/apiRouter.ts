@@ -104,6 +104,12 @@ apiRouter.post('/registrations', async (req: Request, res: Response) => {
     writeDatabase(db);
 
     // Sync to Supabase Cloud PostgreSQL in resilient background task
+    const teamDetailsWithPayment = {
+      ...(record.teamDetails || {}),
+      ...(record.paymentScreenshot ? { _paymentScreenshot: record.paymentScreenshot } : {}),
+      ...(record.paymentMode ? { _paymentMode: record.paymentMode } : {})
+    };
+
     syncToSupabaseAsync((client) => client.from('registrations').upsert({
       reg_id: record.regId,
       payment_id: record.paymentId || '',
@@ -119,7 +125,7 @@ apiRouter.post('/registrations', async (req: Request, res: Response) => {
       is_ieee_member: Boolean(record.isIeeeMember),
       ieee_id: record.ieeeId || '',
       event_ids: record.eventIds || [],
-      team_details: record.teamDetails || {},
+      team_details: teamDetailsWithPayment,
       total_paid: Number(record.totalPaid || 0),
       promo_code: record.promoCode || '',
       timestamp: record.timestamp || new Date().toISOString(),

@@ -43,6 +43,8 @@ export function mapDbToRegistrationRecord(row: any): RegistrationRecord {
   return {
     regId: row.reg_id || row.regId,
     paymentId: row.payment_id || row.paymentId || '',
+    paymentScreenshot: row.payment_screenshot || row.team_details?._paymentScreenshot || '',
+    paymentMode: row.payment_mode || row.team_details?._paymentMode || 'upi',
     name: row.name || '',
     email: row.email || '',
     phone: row.phone || '',
@@ -66,6 +68,11 @@ export function mapDbToRegistrationRecord(row: any): RegistrationRecord {
  * Format frontend camelCase RegistrationRecord to database snake_case row
  */
 export function mapRegistrationRecordToDb(record: RegistrationRecord): Record<string, any> {
+  const teamDetailsWithPayment = {
+    ...(record.teamDetails || {}),
+    ...(record.paymentScreenshot ? { _paymentScreenshot: record.paymentScreenshot } : {}),
+    ...(record.paymentMode ? { _paymentMode: record.paymentMode } : {})
+  };
   return {
     reg_id: record.regId,
     payment_id: record.paymentId || '',
@@ -81,7 +88,7 @@ export function mapRegistrationRecordToDb(record: RegistrationRecord): Record<st
     is_ieee_member: Boolean(record.isIeeeMember),
     ieee_id: record.ieeeId || '',
     event_ids: record.eventIds || [],
-    team_details: record.teamDetails || {},
+    team_details: teamDetailsWithPayment,
     total_paid: Number(record.totalPaid || 0),
     promo_code: record.promoCode || '',
     timestamp: record.timestamp || new Date().toISOString(),

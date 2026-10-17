@@ -664,7 +664,7 @@ export default function App() {
   };
 
   // Payment successful callback -> Generate Digital Ticket Pass
-  const handlePaymentSuccess = (paymentId: string) => {
+  const handlePaymentSuccess = (paymentId: string, paymentScreenshot?: string, paymentModeUsed?: 'upi' | 'razorpay') => {
     setIsPaymentOpen(false);
 
     const regId = 'NV26-' + Math.random().toString(36).slice(2, 8).toUpperCase();
@@ -705,9 +705,13 @@ export default function App() {
       ...(includeSpotEvents ? ['spot'] : [])
     ];
 
+    const effectiveMode = paymentModeUsed || (paymentId.startsWith('pay_') ? 'razorpay' : 'upi');
+
     const newRecord: RegistrationRecord = {
       regId,
       paymentId,
+      paymentScreenshot: paymentScreenshot || undefined,
+      paymentMode: effectiveMode,
       name: name.trim(),
       email: email.trim(),
       phone: phone.trim(),

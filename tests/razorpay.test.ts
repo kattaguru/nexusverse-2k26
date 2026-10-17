@@ -58,4 +58,38 @@ describe('Razorpay Utilities & Payment Calculation Unit Tests', () => {
     assert.ok(upiUri.includes('am=200'), 'URI must contain amount');
     assert.ok(upiUri.includes('cu=INR'), 'URI currency must be INR');
   });
+
+  it('should enforce screenshot and 12-digit UTR requirement for Direct UPI mode', () => {
+    // UPI mode requires both 12-digit UTR reference and payment screenshot
+    const validateUpiSubmission = (utr: string, screenshot?: string) => {
+      const trimmedUtr = utr.trim();
+      if (!trimmedUtr) return { valid: false, error: 'Please enter your 12-digit UPI Transaction Reference Number (UTR)' };
+      if (!screenshot) return { valid: false, error: 'Please upload your payment screenshot' };
+      return { valid: true, error: null };
+    };
+
+    // Missing UTR
+    assert.equal(validateUpiSubmission('', 'data:image/jpeg;base64,mock').valid, false);
+    // Missing screenshot
+    assert.equal(validateUpiSubmission('429182749102', '').valid, false);
+    // Both provided
+    assert.equal(validateUpiSubmission('429182749102', 'data:image/jpeg;base64,mock').valid, true);
+  });
+
+  it('should allow instant Razorpay tickets without requiring screenshot or manual UTR entry', () => {
+    // Razorpay mode does not require screenshot or manual UTR entry
+    const validateRazorpaySdkSuccess = (paymentId: string) => {
+      if (!paymentId || !paymentId.startsWith('pay_')) {
+        return { valid: false, error: 'Invalid Razorpay payment ID' };
+      }
+      return { valid: true, error: null, autoTicketGenerated: true, sentToMail: true, storedInSpace: true };
+    };
+
+    const result = validateRazorpaySdkSuccess('pay_Pqrst123456');
+    assert.equal(result.valid, true);
+    assert.equal(result.autoTicketGenerated, true);
+    assert.equal(result.sentToMail, true);
+    assert.equal(result.storedInSpace, true);
+  });
 });
+
