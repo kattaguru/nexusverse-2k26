@@ -189,7 +189,7 @@ body {
 }
 
 /* ============================================================
-   LIGHT THEME DESIGN SYSTEM & AUTOMATIC CONTRAST ADJUSTMENTS
+   LIGHT THEME DESIGN SYSTEM & PREMIUM ROYAL GOLD CONTRAST
    ============================================================ */
 html.light, [data-theme="light"] {
   --bg: #f8f6f0;
@@ -204,7 +204,7 @@ html.light, [data-theme="light"] {
   --signal: #a16207;
   --ok: #15803d;
   --err: #b91c1c;
-  --hero: #ffffff;
+  --hero: #f8f6f0;
   --hero-text: #171511;
   --hero-muted: #5e574a;
   color-scheme: light;
@@ -215,29 +215,105 @@ html.light body {
   color: #171511 !important;
 }
 
-/* Background Color Adjustments in Light Theme */
+/* 1. Hero Section Adaptations */
+.hero-contrast-vignette {
+  background: radial-gradient(ellipse at center, rgba(5, 5, 7, 0.45) 0%, rgba(5, 5, 7, 0.8) 65%, #050507 98%);
+}
+.hero-poster-silhouette {
+  mix-blend-mode: screen;
+}
+
+html.light .hero-section-container {
+  background-color: #f8f6f0 !important;
+  border-color: #ded7c8 !important;
+}
+html.light .hero-contrast-vignette {
+  background: radial-gradient(ellipse at center, rgba(254, 252, 246, 0.45) 0%, rgba(248, 246, 240, 0.85) 60%, #f8f6f0 95%) !important;
+}
+html.light .hero-poster-silhouette {
+  mix-blend-mode: multiply !important;
+  opacity: 0.12 !important;
+}
+html.light .hero-ambient-orb-1 {
+  background: rgba(37, 99, 235, 0.08) !important;
+}
+html.light .hero-ambient-orb-2 {
+  background: rgba(212, 169, 53, 0.16) !important;
+}
+html.light .hero-ambient-orb-3 {
+  background: rgba(14, 116, 144, 0.06) !important;
+}
+html.light .hero-light-beam {
+  opacity: 0.25 !important;
+}
+html.light .hero-orbital-ring {
+  border-color: rgba(184, 134, 11, 0.25) !important;
+}
+html.light .hero-cyber-grid {
+  opacity: 0.1 !important;
+}
+
+/* Hero Ticket Pass Preview */
+html.light .hero-ticket-card {
+  background-color: #ffffff !important;
+  border-color: #ded7c8 !important;
+  box-shadow: 0 20px 40px -12px rgba(184, 134, 11, 0.12), 0 4px 16px rgba(0, 0, 0, 0.04) !important;
+}
+html.light .hero-ticket-top {
+  background-color: #fcf9f1 !important;
+  border-color: #ded7c8 !important;
+}
+html.light .hero-ticket-cutout {
+  background-color: #f8f6f0 !important;
+  border-color: #ded7c8 !important;
+}
+
+/* Printable TicketPass Component */
+html.light .ticket-pass-card {
+  background-color: #ffffff !important;
+  border-color: rgba(184, 134, 11, 0.45) !important;
+  box-shadow: 0 24px 50px -15px rgba(184, 134, 11, 0.15), 0 8px 24px rgba(0, 0, 0, 0.05) !important;
+}
+html.light .ticket-pass-top {
+  background: linear-gradient(135deg, #fbf7ee 0%, #fdfaf3 50%, #f8f2e2 100%) !important;
+  border-color: #ded7c8 !important;
+}
+html.light .ticket-pass-cutout {
+  background-color: #f8f6f0 !important;
+  border-color: #ded7c8 !important;
+}
+
+/* 2. Global Dark Background Overrides */
 html.light .bg-\[\#0a0a0d\] {
   background-color: #f8f6f0 !important;
+}
+html.light .bg-\[\#07070a\] {
+  background-color: #f4efe4 !important;
+}
+html.light .bg-\[\#050507\] {
+  background-color: #ffffff !important;
 }
 html.light .bg-\[\#050507\]\/95 {
   background-color: rgba(255, 255, 255, 0.96) !important;
   box-shadow: 0 2px 14px rgba(0, 0, 0, 0.05);
 }
-html.light .bg-\[\#050507\] {
-  background-color: #ffffff !important;
-}
 html.light .bg-\[\#131318\] {
   background-color: #ffffff !important;
-  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.05);
-  border-color: #e5ded0 !important;
+  border-color: #ded7c8 !important;
+  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.04);
 }
 html.light .bg-\[\#181820\] {
-  background-color: #f2eee4 !important;
+  background-color: #f6f2e8 !important;
   color: #171511 !important;
+  border-color: #ded7c8 !important;
+}
+html.light .bg-\[\#181820\]\/60,
+html.light .bg-\[\#181820\]\/80 {
+  background-color: #f6f2e8 !important;
 }
 html.light .bg-\[\#1f1b0e\] {
-  background-color: #fcf6e8 !important;
-  border-color: rgba(184, 134, 11, 0.3) !important;
+  background-color: #fdf8ed !important;
+  border-color: rgba(184, 134, 11, 0.35) !important;
 }
 html.light .bg-\[\#0e0e12\] {
   background-color: #f5f1e8 !important;
@@ -246,30 +322,36 @@ html.light .bg-\[\#16161d\] {
   background-color: #f7f4ed !important;
 }
 
-/* Typography Overrides in Light Theme */
+/* Spot Events Special Card in Light Mode */
+html.light .bg-gradient-to-r.from-\[\#0d1e34\] {
+  background: linear-gradient(135deg, #e8f3fc 0%, #f0f7fe 50%, #ffffff 100%) !important;
+  border-color: #0284c7 !important;
+}
+
+/* 3. Typography Overrides */
+html.light .text-\[\#ffffff\] {
+  color: #11100d !important;
+}
 html.light .text-\[\#f3ecd9\] {
   color: #171511 !important;
 }
-html.light .text-\[\#ffffff\] {
-  color: #0e0c0a !important;
-}
 html.light .text-\[\#b9ae94\] {
-  color: #4f483c !important;
+  color: #4a4336 !important;
 }
 html.light .text-\[\#a79f8b\] {
   color: #5c5547 !important;
 }
 html.light .text-\[\#5a6a80\] {
-  color: #6e6758 !important;
+  color: #736c5d !important;
 }
 html.light .text-\[\#f2c14e\] {
-  color: #925807 !important;
-}
-html.light .text-\[\#d4a935\] {
   color: #a16207 !important;
 }
+html.light .text-\[\#d4a935\] {
+  color: #925807 !important;
+}
 
-/* Border Overrides in Light Theme */
+/* 4. Borders */
 html.light .border-\[\#2e2b22\] {
   border-color: #ded7c8 !important;
 }
@@ -277,30 +359,37 @@ html.light .border-\[\#3d382d\] {
   border-color: #cfc6b4 !important;
 }
 html.light .border-\[\#d4a935\]\/30,
-html.light .border-\[\#d4a935\]\/40 {
+html.light .border-\[\#d4a935\]\/40,
+html.light .border-\[\#d4a935\]\/50 {
   border-color: rgba(161, 98, 7, 0.35) !important;
 }
 
-/* Form Inputs & Selects in Light Theme */
+/* 5. Form Inputs & Selects */
 html.light input:not([type="checkbox"]):not([type="radio"]),
 html.light select,
 html.light textarea {
   background-color: #ffffff !important;
-  color: #171511 !important;
+  color: #11100d !important;
   border-color: #d8d0bf !important;
 }
 html.light input:focus,
 html.light select:focus,
 html.light textarea:focus {
   border-color: #b8860b !important;
-  box-shadow: 0 0 0 2px rgba(184, 134, 11, 0.2) !important;
+  box-shadow: 0 0 0 2px rgba(184, 134, 11, 0.25) !important;
 }
 html.light input::placeholder,
 html.light textarea::placeholder {
   color: #8c8371 !important;
 }
 
-/* Scrollbar in Light Theme */
+/* 6. Modals in Light Mode */
+html.light .modal-backdrop {
+  background-color: rgba(17, 16, 13, 0.5) !important;
+  backdrop-filter: blur(8px) !important;
+}
+
+/* 7. Scrollbars */
 html.light ::-webkit-scrollbar-track {
   background: #f0ebe0;
 }

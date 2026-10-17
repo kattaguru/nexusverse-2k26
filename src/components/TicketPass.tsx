@@ -233,13 +233,13 @@ export const TicketPass: React.FC<TicketPassProps> = ({
       {/* The Printable Digital Pass */}
       <div 
         ref={ticketRef}
-        className="bg-[#131318] border-2 border-[#d4a935]/50 rounded-3xl overflow-hidden shadow-2xl relative text-[#f3ecd9]"
+        className="bg-[#131318] border-2 border-[#d4a935]/50 rounded-3xl overflow-hidden shadow-2xl relative text-[#f3ecd9] ticket-pass-card"
       >
         {/* Pass Header */}
-        <div className="bg-gradient-to-r from-[#181820] via-[#1f1b0e] to-[#181820] p-6 sm:p-8 border-b-2 border-dashed border-[#2e2b22] relative">
+        <div className="bg-gradient-to-r from-[#181820] via-[#1f1b0e] to-[#181820] p-6 sm:p-8 border-b-2 border-dashed border-[#2e2b22] relative ticket-pass-top">
           {/* Side Cutouts */}
-          <div className="absolute -bottom-4 -left-4 w-8 h-8 rounded-full bg-[#0a0a0d] border border-[#2e2b22]" />
-          <div className="absolute -bottom-4 -right-4 w-8 h-8 rounded-full bg-[#0a0a0d] border border-[#2e2b22]" />
+          <div className="absolute -bottom-4 -left-4 w-8 h-8 rounded-full bg-[#0a0a0d] border border-[#2e2b22] ticket-pass-cutout" />
+          <div className="absolute -bottom-4 -right-4 w-8 h-8 rounded-full bg-[#0a0a0d] border border-[#2e2b22] ticket-pass-cutout" />
 
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
             <div className="flex items-center gap-3.5">

@@ -26,49 +26,48 @@ export const Hero: React.FC<HeroProps> = ({
     : ALL_EVENTS;
 
   return (
-    <section className="relative overflow-hidden bg-[#050507] text-[#ffffff] min-h-[calc(100vh-4.5rem)] flex flex-col justify-center py-10 sm:py-14 lg:py-16 border-b border-[#2e2b22]">
+    <section className="relative overflow-hidden bg-[#050507] text-[#ffffff] min-h-[calc(100vh-4.5rem)] flex flex-col justify-center py-10 sm:py-14 lg:py-16 border-b border-[#2e2b22] hero-section-container transition-colors">
       {/* ===== ANIMATED EVENT POSTER BACKGROUND ===== */}
       <div className="absolute inset-0 overflow-hidden pointer-events-none z-0 select-none" aria-hidden="true">
         {/* Floating Glowing Ambient Orbs */}
         <div 
-          className="absolute rounded-full blur-[85px] w-[46vmax] h-[46vmax] -left-[12vmax] -top-[14vmax] bg-[#1d4ed8]/35"
+          className="absolute rounded-full blur-[85px] w-[46vmax] h-[46vmax] -left-[12vmax] -top-[14vmax] bg-[#1d4ed8]/35 hero-ambient-orb-1"
           style={{ animation: 'd1 18s ease-in-out infinite alternate' }}
         />
         <div 
-          className="absolute rounded-full blur-[85px] w-[40vmax] h-[40vmax] -right-[12vmax] -bottom-[12vmax] bg-[#b4831e]/30"
+          className="absolute rounded-full blur-[85px] w-[40vmax] h-[40vmax] -right-[12vmax] -bottom-[12vmax] bg-[#b4831e]/30 hero-ambient-orb-2"
           style={{ animation: 'd2 22s ease-in-out infinite alternate' }}
         />
         <div 
-          className="absolute rounded-full blur-[75px] w-[26vmax] h-[26vmax] left-[42%] top-[34%] bg-[#0e7490]/22"
+          className="absolute rounded-full blur-[75px] w-[26vmax] h-[26vmax] left-[42%] top-[34%] bg-[#0e7490]/22 hero-ambient-orb-3"
           style={{ animation: 'd3 26s ease-in-out infinite alternate' }}
         />
 
         {/* Sweeping Radiant Light Beams */}
         <div 
-          className="absolute -top-[20%] left-[10%] w-[18vmax] h-[140%] bg-gradient-to-r from-transparent via-[#f0c96a]/10 to-transparent rotate-[18deg]"
+          className="absolute -top-[20%] left-[10%] w-[18vmax] h-[140%] bg-gradient-to-r from-transparent via-[#f0c96a]/10 to-transparent rotate-[18deg] hero-light-beam"
           style={{ animation: 'sweepBeam 9s ease-in-out infinite alternate' }}
         />
         <div 
-          className="absolute -top-[20%] left-[62%] w-[18vmax] h-[140%] bg-gradient-to-r from-transparent via-[#f0c96a]/8 to-transparent rotate-[18deg]"
+          className="absolute -top-[20%] left-[62%] w-[18vmax] h-[140%] bg-gradient-to-r from-transparent via-[#f0c96a]/8 to-transparent rotate-[18deg] hero-light-beam"
           style={{ animation: 'sweepBeam 12s ease-in-out infinite alternate -4s' }}
         />
 
         {/* Celestial Orbital Rings */}
         <div 
-          className="absolute left-1/2 top-1/2 w-[min(88vmin,760px)] aspect-square rounded-full border border-dashed border-[#f0c96a]/25"
+          className="absolute left-1/2 top-1/2 w-[min(88vmin,760px)] aspect-square rounded-full border border-dashed border-[#f0c96a]/25 hero-orbital-ring"
           style={{ animation: 'spinOrbit 60s linear infinite' }}
         />
         <div 
-          className="absolute left-1/2 top-1/2 w-[min(64vmin,540px)] aspect-square rounded-full border border-solid border-[#f0c96a]/15"
+          className="absolute left-1/2 top-1/2 w-[min(64vmin,540px)] aspect-square rounded-full border border-solid border-[#f0c96a]/15 hero-orbital-ring"
           style={{ animation: 'spinOrbitReverse 40s linear infinite' }}
         />
 
         {/* Animated Event Poster Graphic Silhouette Watermark */}
         <div 
-          className="absolute left-1/2 top-1/2 w-[min(96vmin,860px)] max-w-4xl"
+          className="absolute left-1/2 top-1/2 w-[min(96vmin,860px)] max-w-4xl hero-poster-silhouette"
           style={{ 
             animation: 'breathePoster 8s ease-in-out infinite alternate',
-            mixBlendMode: 'screen'
           }}
         >
           <img 
@@ -84,7 +83,7 @@ export const Hero: React.FC<HeroProps> = ({
 
         {/* 3D Perspective Cyber Floor Grid */}
         <div 
-          className="absolute -left-[50%] -right-[50%] bottom-0 h-[42%] opacity-40"
+          className="absolute -left-[50%] -right-[50%] bottom-0 h-[42%] opacity-40 hero-cyber-grid"
           style={{
             perspective: '420px',
             maskImage: 'linear-gradient(to top, black 20%, transparent 95%)',
@@ -103,13 +102,8 @@ export const Hero: React.FC<HeroProps> = ({
           />
         </div>
 
-        {/* Dark Radial Contrast Vignette to Guarantee Crystal-Clear Text & Form Readability */}
-        <div 
-          className="absolute inset-0" 
-          style={{
-            background: 'radial-gradient(ellipse at center, rgba(5, 5, 7, 0.45) 0%, rgba(5, 5, 7, 0.8) 65%, #050507 98%)'
-          }}
-        />
+        {/* Dynamic Contrast Vignette to Guarantee Crystal-Clear Text & Form Readability */}
+        <div className="absolute inset-0 hero-contrast-vignette" />
       </div>
 
       <div className="max-w-6xl mx-auto px-4 sm:px-6 relative z-10">
@@ -186,17 +180,17 @@ export const Hero: React.FC<HeroProps> = ({
           <div className="lg:col-span-5">
             <aside 
               aria-label="NexusVerse Pass Preview" 
-              className="bg-[#131318] text-[#f3ecd9] rounded-2xl border border-[#2e2b22] shadow-2xl relative overflow-hidden transition-all duration-300 hover:border-[#d4a935]/40"
+              className="bg-[#131318] text-[#f3ecd9] rounded-2xl border border-[#2e2b22] shadow-2xl relative overflow-hidden transition-all duration-300 hover:border-[#d4a935]/40 hero-ticket-card"
             >
               {/* Top Section */}
-              <div className="p-6 pb-5 border-b-2 border-dashed border-[#2e2b22] relative bg-[#181820]/60">
+              <div className="p-6 pb-5 border-b-2 border-dashed border-[#2e2b22] relative bg-[#181820]/60 hero-ticket-top">
                 {/* Left & Right Circular Ticket Cutouts */}
                 <div 
-                  className="absolute -bottom-3 -left-3 w-6 h-6 rounded-full bg-[#050507] border border-[#2e2b22]"
+                  className="absolute -bottom-3 -left-3 w-6 h-6 rounded-full bg-[#050507] border border-[#2e2b22] hero-ticket-cutout"
                   aria-hidden="true" 
                 />
                 <div 
-                  className="absolute -bottom-3 -right-3 w-6 h-6 rounded-full bg-[#050507] border border-[#2e2b22]" 
+                  className="absolute -bottom-3 -right-3 w-6 h-6 rounded-full bg-[#050507] border border-[#2e2b22] hero-ticket-cutout" 
                   aria-hidden="true" 
                 />
 
