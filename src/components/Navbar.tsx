@@ -31,16 +31,16 @@ export const Navbar: React.FC<NavbarProps> = ({
 
   return (
     <header className="sticky top-0 z-40 bg-[#050507]/95 backdrop-blur-md border-b border-[#2e2b22] transition-colors">
-      <div className="max-w-7xl mx-auto px-3 sm:px-6 h-18 flex items-center justify-between gap-4">
+      <div className="max-w-7xl mx-auto px-2.5 sm:px-6 h-16 sm:h-18 flex items-center justify-between gap-2 sm:gap-4 overflow-hidden">
         {/* TOP LEFT SIDE: Image 1 (NBKRIST Logo) & Brand Title */}
-        <div className="flex items-center gap-3 shrink-0">
+        <div className="flex items-center gap-2 sm:gap-3 shrink min-w-0">
           <a 
             href="#top" 
-            className="flex items-center gap-2.5 group cursor-pointer"
+            className="flex items-center gap-2 sm:gap-2.5 group cursor-pointer min-w-0"
             title="N.B.K.R. Institute of Science & Technology"
           >
             {/* Top Left Logo: Main Logo from Background Poster with Floating Glow Animation */}
-            <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-xl bg-black/60 p-1 border border-[#d4a935]/40 shadow-md flex items-center justify-center shrink-0 group-hover:scale-105 transition-all overflow-hidden logo-animated-badge">
+            <div className="w-8 h-8 sm:w-11 sm:h-11 rounded-xl bg-black/60 p-1 border border-[#d4a935]/40 shadow-md flex items-center justify-center shrink-0 group-hover:scale-105 transition-all overflow-hidden logo-animated-badge">
               <img 
                 src={leftLogo || '/symposium-poster.jpg'} 
                 alt="NexusVerse 2K26 Main Logo" 
@@ -48,11 +48,11 @@ export const Navbar: React.FC<NavbarProps> = ({
               />
             </div>
 
-            <div>
-              <span className="text-lg sm:text-xl font-serif-title font-bold tracking-tight text-[#f3ecd9] group-hover:text-[#f2c14e] transition-colors block leading-tight">
+            <div className="min-w-0">
+              <span className="text-sm sm:text-lg md:text-xl font-serif-title font-bold tracking-tight text-[#f3ecd9] group-hover:text-[#f2c14e] transition-colors block leading-tight truncate">
                 NexusVerse 2K26
               </span>
-              <span className="text-[10px] sm:text-[11px] font-sans font-medium text-[#a79f8b] block">
+              <span className="text-[9px] sm:text-[11px] font-sans font-medium text-[#a79f8b] block truncate">
                 NBKRIST · IEEE-SB
               </span>
             </div>
@@ -90,13 +90,13 @@ export const Navbar: React.FC<NavbarProps> = ({
         </nav>
 
         {/* TOP RIGHT SIDE: Primary Action, Theme Toggle, Admin Button & Image 2 (IEEE-SB Logo) */}
-        <div className="flex items-center gap-2 sm:gap-2.5 shrink-0">
+        <div className="flex items-center gap-1.5 sm:gap-2.5 shrink-0">
           {/* Dark / Light Theme Toggle Button */}
           {onToggleTheme && (
             <button
               type="button"
               onClick={onToggleTheme}
-              className="p-2 sm:px-2.5 sm:py-1.5 text-xs font-semibold rounded-lg bg-[#181820] text-[#d4a935] hover:text-[#f2c14e] border border-[#2e2b22] hover:border-[#d4a935]/50 transition-all flex items-center gap-1.5 cursor-pointer shadow-sm"
+              className="p-1.5 sm:px-2.5 sm:py-1.5 text-xs font-semibold rounded-lg bg-[#181820] text-[#d4a935] hover:text-[#f2c14e] border border-[#2e2b22] hover:border-[#d4a935]/50 transition-all flex items-center gap-1.5 cursor-pointer shadow-sm"
               title={`Switch to ${theme === 'dark' ? 'Light' : 'Dark'} Mode`}
               aria-label="Toggle dark/light theme"
             >
@@ -114,11 +114,11 @@ export const Navbar: React.FC<NavbarProps> = ({
             </button>
           )}
 
-          {/* Participant Space Button */}
+          {/* Participant Space Button: Show on tablet & desktop, accessible via mobile drawer */}
           <button
             type="button"
             onClick={onOpenParticipantSpace}
-            className={`px-2.5 sm:px-3 py-1.5 text-xs font-semibold rounded-lg border transition-all flex items-center gap-1.5 cursor-pointer shadow-sm ${
+            className={`hidden md:flex px-2.5 sm:px-3 py-1.5 text-xs font-semibold rounded-lg border transition-all items-center gap-1.5 cursor-pointer shadow-sm ${
               currentUser
                 ? 'bg-[#1f1b0e] text-[#f2c14e] border-[#d4a935]/50 hover:bg-[#2b2413]'
                 : 'bg-[#181820] text-[#d4a935] hover:text-[#f2c14e] border-[#2e2b22] hover:border-[#d4a935]/50'
@@ -129,27 +129,27 @@ export const Navbar: React.FC<NavbarProps> = ({
             <span className="hidden sm:inline">
               {currentUser ? `${currentUser.name.split(' ')[0]}'s Space` : 'Participant Space'}
             </span>
-            <span className="sm:hidden">
-              {currentUser ? 'Space' : 'Login'}
-            </span>
           </button>
+
+          {/* Register Button */}
           {isRegClosed ? (
-            <span className="px-3 py-1.5 text-xs font-bold rounded-lg bg-[#2a1315] border border-[#ff8a80]/40 text-[#ff8a80]">
+            <span className="px-2.5 py-1 text-xs font-bold rounded-lg bg-[#2a1315] border border-[#ff8a80]/40 text-[#ff8a80]">
               Closed
             </span>
           ) : (
             <button
               type="button"
               onClick={onRegisterClick}
-              className="px-3.5 sm:px-4 py-2 text-xs sm:text-sm font-bold rounded-lg bg-[#f2c14e] text-[#1a1300] hover:bg-[#d4a935] transition-all cursor-pointer whitespace-nowrap shadow-sm hover:shadow-[#f2c14e]/20"
+              className="px-2.5 sm:px-4 py-1.5 sm:py-2 text-xs sm:text-sm font-bold rounded-lg bg-[#f2c14e] text-[#1a1300] hover:bg-[#d4a935] transition-all cursor-pointer whitespace-nowrap shadow-sm hover:shadow-[#f2c14e]/20"
             >
-              Register Now
+              <span className="hidden sm:inline">Register Now</span>
+              <span className="sm:hidden">Register</span>
             </button>
           )}
 
-          {/* Top Right Logo: Image-2 (IEEE Student Branch NBKRIST) with Dynamic Pulse Animation */}
+          {/* Top Right Logo: Image-2 (IEEE Student Branch NBKRIST) */}
           <div 
-            className="w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-white p-1 border border-[#2e2b22] shadow-md flex items-center justify-center shrink-0 hover:scale-105 transition-all logo-animated-badge-right"
+            className="hidden sm:flex w-9 h-9 sm:w-11 sm:h-11 rounded-full bg-white p-1 border border-[#2e2b22] shadow-md items-center justify-center shrink-0 hover:scale-105 transition-all logo-animated-badge-right"
             title="IEEE Student Branch NBKRIST"
           >
             <img 
@@ -163,7 +163,7 @@ export const Navbar: React.FC<NavbarProps> = ({
           <button
             type="button"
             onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-            className="lg:hidden p-2 text-[#a79f8b] hover:text-[#f3ecd9] rounded-lg border border-[#2e2b22] focus:outline-none cursor-pointer"
+            className="lg:hidden p-1.5 sm:p-2 text-[#a79f8b] hover:text-[#f3ecd9] rounded-lg border border-[#2e2b22] focus:outline-none cursor-pointer"
             aria-label="Toggle navigation"
           >
             {mobileMenuOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}

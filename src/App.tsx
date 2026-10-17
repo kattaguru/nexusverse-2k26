@@ -805,7 +805,7 @@ export default function App() {
   }
 
   return (
-    <div className="min-h-screen bg-[#0a0a0d] text-[#f3ecd9] selection:bg-[#d4a935]/30 selection:text-[#f2c14e] font-sans antialiased">
+    <div className="min-h-screen bg-[#0a0a0d] text-[#f3ecd9] selection:bg-[#d4a935]/30 selection:text-[#f2c14e] font-sans antialiased w-full max-w-full overflow-x-hidden">
       {/* Top Navbar with Top Left Logo (Image 1), Top Right Logo (Image 2), and Admin button */}
       <Navbar 
         onOpenLookup={() => setIsLookupOpen(true)} 
@@ -832,7 +832,7 @@ export default function App() {
         </div>
       )}
 
-      <main className="relative">
+      <main className="relative w-full max-w-full overflow-x-hidden">
         {/* Confirmed Ticket Pass View */}
         {confirmedRecord ? (
           <TicketPass 
@@ -879,7 +879,7 @@ export default function App() {
                     <Sparkles className="w-3.5 h-3.5" />
                     <span>Official Registration Portal</span>
                   </div>
-                  <h2 className="font-serif-title text-4xl sm:text-5xl font-bold text-[#ffffff] tracking-tight">
+                  <h2 className="font-serif-title text-2xl xs:text-3xl sm:text-4xl lg:text-5xl font-bold text-[#ffffff] tracking-tight break-words">
                     Register for NexusVerse 2K26
                   </h2>
                   <p className="text-base text-[#b9ae94] mt-3 leading-relaxed">
@@ -1850,7 +1850,7 @@ export default function App() {
 
                 {/* Mobile Sticky Quick-Checkout Bar (Only visible on screens < lg when events are chosen and registration not confirmed) */}
                 {!confirmedRecord && (selectedEvents.length > 0 || includeSpotEvents) && (
-                  <div className="lg:hidden fixed bottom-0 left-0 right-0 z-30 p-3 bg-[#0a0a0d]/95 backdrop-blur-md border-t border-[#2e2b22] flex items-center justify-between gap-3 shadow-2xl">
+                  <div className="lg:hidden fixed bottom-0 left-0 right-0 z-30 p-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] bg-[#0a0a0d]/95 backdrop-blur-md border-t border-[#2e2b22] flex items-center justify-between gap-3 shadow-2xl max-w-full">
                     <div className="min-w-0">
                       <span className="text-[10px] uppercase font-bold text-[#a79f8b] block">Total Payable</span>
                       <div className="flex items-baseline gap-1.5">

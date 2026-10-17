@@ -26,9 +26,9 @@ export const Hero: React.FC<HeroProps> = ({
     : ALL_EVENTS;
 
   return (
-    <section className="relative overflow-hidden bg-[#050507] text-[#ffffff] min-h-[calc(100vh-4.5rem)] flex flex-col justify-center py-10 sm:py-14 lg:py-16 border-b border-[#2e2b22] hero-section-container transition-colors">
+    <section className="relative w-full max-w-full overflow-hidden overflow-x-clip bg-[#050507] text-[#ffffff] min-h-[calc(100vh-4.5rem)] flex flex-col justify-center py-8 sm:py-14 lg:py-16 border-b border-[#2e2b22] hero-section-container transition-colors">
       {/* ===== ANIMATED EVENT POSTER BACKGROUND ===== */}
-      <div className="absolute inset-0 overflow-hidden pointer-events-none z-0 select-none" aria-hidden="true">
+      <div className="absolute inset-0 overflow-hidden pointer-events-none z-0 select-none max-w-full" aria-hidden="true">
         {/* Floating Glowing Ambient Orbs */}
         <div 
           className="absolute rounded-full blur-[85px] w-[46vmax] h-[46vmax] -left-[12vmax] -top-[14vmax] bg-[#1d4ed8]/35 hero-ambient-orb-1"
@@ -83,7 +83,7 @@ export const Hero: React.FC<HeroProps> = ({
 
         {/* 3D Perspective Cyber Floor Grid */}
         <div 
-          className="absolute -left-[50%] -right-[50%] bottom-0 h-[42%] opacity-40 hero-cyber-grid"
+          className="absolute left-0 right-0 bottom-0 h-[42%] opacity-40 hero-cyber-grid overflow-hidden"
           style={{
             perspective: '420px',
             maskImage: 'linear-gradient(to top, black 20%, transparent 95%)',
@@ -91,7 +91,7 @@ export const Hero: React.FC<HeroProps> = ({
           }}
         >
           <div 
-            className="absolute inset-0"
+            className="absolute -left-[30%] -right-[30%] inset-y-0"
             style={{
               transform: 'rotateX(62deg)',
               transformOrigin: 'bottom',
@@ -106,38 +106,38 @@ export const Hero: React.FC<HeroProps> = ({
         <div className="absolute inset-0 hero-contrast-vignette" />
       </div>
 
-      <div className="max-w-6xl mx-auto px-4 sm:px-6 relative z-10">
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-10 lg:gap-14 items-center">
+      <div className="max-w-6xl mx-auto px-3.5 sm:px-6 relative z-10 w-full">
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 lg:gap-14 items-center">
           {/* Left Column: Heading and Event Highlights */}
-          <div className="lg:col-span-7 space-y-6">
-            <div className="flex flex-wrap items-center gap-3">
-              <div className="flex items-center gap-2.5">
-                <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-black/60 p-1 border border-[#d4a935]/40 shadow flex items-center justify-center overflow-hidden logo-animated-badge">
+          <div className="lg:col-span-7 space-y-5 sm:space-y-6">
+            <div className="flex flex-wrap items-center gap-2.5 sm:gap-3">
+              <div className="flex items-center gap-2">
+                <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-xl bg-black/60 p-1 border border-[#d4a935]/40 shadow flex items-center justify-center overflow-hidden logo-animated-badge shrink-0">
                   <img src={leftLogo || '/symposium-poster.jpg'} alt="NexusVerse" className="max-h-full max-w-full object-contain logo-glow-effect" />
                 </div>
-                <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-white p-1 border border-[#2e2b22] shadow flex items-center justify-center overflow-hidden logo-animated-badge-right">
+                <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-xl bg-white p-1 border border-[#2e2b22] shadow flex items-center justify-center overflow-hidden logo-animated-badge-right shrink-0">
                   <img src={rightLogo} alt="IEEE-SB" className="max-h-full max-w-full object-contain" />
                 </div>
               </div>
-              <div className="inline-flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-[#d4a935] bg-[#1f1b0e] px-3 py-1 rounded-full border border-[#d4a935]/30">
-                <Sparkles className="w-3.5 h-3.5 text-[#f2c14e]" />
-                <span>IEEE Student Branch NBKRIST Presents</span>
+              <div className="inline-flex items-center gap-1.5 sm:gap-2 text-[10px] sm:text-xs font-semibold uppercase tracking-wider text-[#d4a935] bg-[#1f1b0e] px-2.5 sm:px-3 py-1 rounded-full border border-[#d4a935]/30 max-w-full">
+                <Sparkles className="w-3.5 h-3.5 text-[#f2c14e] shrink-0" />
+                <span className="truncate">IEEE Student Branch NBKRIST Presents</span>
               </div>
             </div>
 
-            <h1 className="font-serif-title text-5xl sm:text-7xl lg:text-8xl font-bold tracking-tight text-[#ffffff] leading-none text-balance">
+            <h1 className="font-serif-title text-3xl xs:text-4xl sm:text-6xl md:text-7xl lg:text-8xl font-bold tracking-tight text-[#ffffff] leading-tight break-words">
               NexusVerse<span className="text-[#f2c14e]">-2K26</span>
             </h1>
 
-            <p className="text-base sm:text-lg text-[#b9ae94] leading-relaxed max-w-xl">
+            <p className="text-sm sm:text-lg text-[#b9ae94] leading-relaxed max-w-xl">
               A premier national-level technical symposium gathering visionary engineering minds on <span className="text-[#f3ecd9] font-medium">29 October 2026</span> at 9:00 AM. Compete across 5 flagship challenges, win exciting cash prizes (to be revealed!), trophies, and earn prestigious IEEE merit certificates.
             </p>
 
-            <div className="flex flex-wrap gap-3 pt-2">
+            <div className="flex flex-wrap gap-2.5 sm:gap-3 pt-2">
               <button
                 type="button"
                 onClick={onRegisterClick}
-                className="inline-flex items-center gap-2 px-6 py-3 rounded-lg bg-[#f2c14e] text-[#1a1300] font-semibold text-base hover:bg-[#d4a935] transition-all shadow-md hover:shadow-[#f2c14e]/25 cursor-pointer"
+                className="inline-flex items-center gap-2 px-5 sm:px-6 py-2.5 sm:py-3 rounded-lg bg-[#f2c14e] text-[#1a1300] font-semibold text-sm sm:text-base hover:bg-[#d4a935] transition-all shadow-md hover:shadow-[#f2c14e]/25 cursor-pointer"
               >
                 <span>Register now</span>
                 <ArrowRight className="w-4 h-4" />
@@ -145,33 +145,33 @@ export const Hero: React.FC<HeroProps> = ({
               
               <a
                 href="#timeline-section"
-                className="inline-flex items-center gap-2 px-5 py-3 rounded-lg bg-transparent text-[#f3ecd9] font-semibold text-base border border-[#ffffff]/25 hover:bg-[#ffffff]/5 hover:border-[#ffffff]/40 transition-colors"
+                className="inline-flex items-center gap-2 px-4 sm:px-5 py-2.5 sm:py-3 rounded-lg bg-transparent text-[#f3ecd9] font-semibold text-sm sm:text-base border border-[#ffffff]/25 hover:bg-[#ffffff]/5 hover:border-[#ffffff]/40 transition-colors"
               >
                 <span>Symposium Timeline</span>
               </a>
             </div>
 
             {/* Quick Metrics Bar */}
-            <div className="grid grid-cols-2 sm:grid-cols-3 gap-6 pt-6 border-t border-[#2e2b22]">
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 sm:gap-6 pt-5 sm:pt-6 border-t border-[#2e2b22]">
               <div>
-                <span className="block text-2xl sm:text-3xl font-serif-title font-bold text-[#ffffff]">
+                <span className="block text-lg sm:text-2xl lg:text-3xl font-serif-title font-bold text-[#ffffff]">
                   5 Tech + Spot
                 </span>
-                <span className="text-xs text-[#a79f8b]">₹150/₹200 Tech · ₹100 Spot Events</span>
+                <span className="text-[11px] sm:text-xs text-[#a79f8b]">₹150/₹200 Tech · ₹100 Spot Events</span>
               </div>
               <div>
-                <span className="block text-2xl sm:text-3xl font-serif-title font-bold text-[#ffffff] flex items-center gap-1.5">
-                  <Calendar className="w-5 h-5 text-[#f2c14e]" />
-                  <span>29 Oct 2026</span>
+                <span className="block text-lg sm:text-2xl lg:text-3xl font-serif-title font-bold text-[#ffffff] flex items-center gap-1.5">
+                  <Calendar className="w-4 h-4 sm:w-5 sm:h-5 text-[#f2c14e] shrink-0" />
+                  <span className="truncate">29 Oct 2026</span>
                 </span>
-                <span className="text-xs text-[#a79f8b]">Starts 9:00 AM Sharp</span>
+                <span className="text-[11px] sm:text-xs text-[#a79f8b]">Starts 9:00 AM Sharp</span>
               </div>
               <div className="col-span-2 sm:col-span-1">
-                <span className="block text-2xl sm:text-3xl font-serif-title font-bold text-[#ffffff] flex items-center gap-1.5">
-                  <MapPin className="w-5 h-5 text-[#f2c14e]" />
+                <span className="block text-lg sm:text-2xl lg:text-3xl font-serif-title font-bold text-[#ffffff] flex items-center gap-1.5">
+                  <MapPin className="w-4 h-4 sm:w-5 sm:h-5 text-[#f2c14e] shrink-0" />
                   <span>NBKRIST</span>
                 </span>
-                <span className="text-xs text-[#a79f8b]">Vidyanagar, Tirupati</span>
+                <span className="text-[11px] sm:text-xs text-[#a79f8b]">Vidyanagar, Tirupati</span>
               </div>
             </div>
           </div>
