@@ -44,7 +44,7 @@ import {
   Smartphone
 } from 'lucide-react';
 import { RegistrationRecord, TeamMemberInfo } from './TicketPass';
-import { EVENTS, SYMPOSIUM_CONFIG } from '../data/symposiumData';
+import { EVENTS, ALL_EVENTS, SYMPOSIUM_CONFIG } from '../data/symposiumData';
 import { fetchPhotosApi, uploadPhotoApi, deletePhotoApi, syncLocalRegistrationsToSupabase, testEmailApi } from '../services/api';
 import { testSupabaseConnection, isSupabaseConfigured } from '../lib/supabase';
 
@@ -624,7 +624,7 @@ export const AdminModal: React.FC<AdminModalProps> = ({
     ];
 
     const rows = savedRecords.map(r => {
-      const eventName = r.eventIds.map(id => EVENTS.find(e => e.id === id)?.name).filter(Boolean).join('; ');
+      const eventName = r.eventIds.map(id => ALL_EVENTS.find(e => e.id === id)?.name).filter(Boolean).join('; ');
       const primaryEventId = r.eventIds[0] || '';
       const team = r.teamDetails?.[primaryEventId];
       const members = team?.teamMembers || [];
@@ -766,7 +766,7 @@ export const AdminModal: React.FC<AdminModalProps> = ({
     const regId = 'NV26-SPOT-' + Math.random().toString(36).slice(2, 7).toUpperCase();
     const paymentId = `${manualPayMethod.toUpperCase().replace(/\s+/g, '_')}_${Date.now().toString().slice(-6)}`;
 
-    const eventObj = EVENTS.find(ev => ev.id === manualEventId);
+    const eventObj = ALL_EVENTS.find(ev => ev.id === manualEventId);
     const isTeamEvent = eventObj ? eventObj.max > 1 : false;
 
     const formattedTeamDetails: Record<string, { 
@@ -1169,8 +1169,8 @@ export const AdminModal: React.FC<AdminModalProps> = ({
                           className="px-2.5 py-2 text-xs rounded-lg bg-[#131318] border border-[#2e2b22] text-[#f3ecd9] focus:outline-none focus:border-[#d4a935] cursor-pointer"
                           aria-label="Filter by Event"
                         >
-                          <option value="all">All Technical Events</option>
-                          {EVENTS.map(ev => (
+                          <option value="all">All Events (Tech & Spot)</option>
+                          {ALL_EVENTS.map(ev => (
                             <option key={ev.id} value={ev.id}>{ev.name}</option>
                           ))}
                         </select>
@@ -1258,7 +1258,7 @@ export const AdminModal: React.FC<AdminModalProps> = ({
                     <div className="space-y-3">
                       {filteredAndSortedRecords.map((record) => {
                         const isExpanded = expandedRecordId === record.regId;
-                        const eventName = record.eventIds.map(id => EVENTS.find(e => e.id === id)?.name).filter(Boolean).join(', ');
+                        const eventName = record.eventIds.map(id => ALL_EVENTS.find(e => e.id === id)?.name).filter(Boolean).join(', ');
                         const primaryEventId = record.eventIds[0] || '';
                         const team = record.teamDetails?.[primaryEventId];
                         const teammates = team?.teamMembers || [];
@@ -1466,12 +1466,12 @@ export const AdminModal: React.FC<AdminModalProps> = ({
                           onChange={(e) => {
                             const newId = e.target.value;
                             setManualEventId(newId);
-                            const ev = EVENTS.find(x => x.id === newId);
+                            const ev = ALL_EVENTS.find(x => x.id === newId);
                             if (ev) setManualFee(manualIsIeee ? ev.feeMember : ev.feeNonMember);
                           }}
                           className="w-full px-3 py-2 rounded-xl bg-[#131318] border border-[#2e2b22] text-[#f3ecd9] focus:outline-none focus:border-[#d4a935]"
                         >
-                          {EVENTS.map(ev => (
+                          {ALL_EVENTS.map(ev => (
                             <option key={ev.id} value={ev.id}>
                               {ev.name} ({ev.teamLabel} · Min: {ev.min}, Max: {ev.max})
                             </option>
@@ -1575,7 +1575,7 @@ export const AdminModal: React.FC<AdminModalProps> = ({
                             type="button"
                             onClick={() => {
                               setManualIsIeee(false);
-                              const ev = EVENTS.find(x => x.id === manualEventId);
+                              const ev = ALL_EVENTS.find(x => x.id === manualEventId);
                               if (ev) setManualFee(ev.feeNonMember);
                             }}
                             className={`py-1.5 px-3 rounded-lg text-xs font-medium border text-center transition-all cursor-pointer ${
@@ -1588,7 +1588,7 @@ export const AdminModal: React.FC<AdminModalProps> = ({
                             type="button"
                             onClick={() => {
                               setManualIsIeee(true);
-                              const ev = EVENTS.find(x => x.id === manualEventId);
+                              const ev = ALL_EVENTS.find(x => x.id === manualEventId);
                               if (ev) setManualFee(ev.feeMember);
                             }}
                             className={`py-1.5 px-3 rounded-lg text-xs font-medium border text-center transition-all cursor-pointer flex items-center justify-center gap-1 ${
@@ -1611,14 +1611,14 @@ export const AdminModal: React.FC<AdminModalProps> = ({
                       </div>
 
                       {/* Teammates Section if team event */}
-                      {EVENTS.find(e => e.id === manualEventId)?.max! > 1 && (
+                      {ALL_EVENTS.find(e => e.id === manualEventId)?.max! > 1 && (
                         <div className="p-3.5 rounded-xl bg-[#131318] border border-[#2e2b22] space-y-3">
                           <div className="flex items-center justify-between">
                             <span className="font-semibold text-white">Team Details & Additional Members</span>
                             <button
                               type="button"
                               onClick={() => {
-                                const ev = EVENTS.find(e => e.id === manualEventId);
+                                const ev = ALL_EVENTS.find(e => e.id === manualEventId);
                                 if (!ev || manualTeammates.length + 1 >= ev.max) return;
                                 setManualTeammates([
                                   ...manualTeammates,
@@ -1649,7 +1649,7 @@ export const AdminModal: React.FC<AdminModalProps> = ({
                               placeholder="Team Name (e.g. CyberKnights)"
                               className="w-full px-3 py-1.5 rounded-lg bg-[#0a0a0d] border border-[#2e2b22] text-[#f3ecd9]"
                             />
-                            {EVENTS.find(e => e.id === manualEventId)?.project && (
+                            {ALL_EVENTS.find(e => e.id === manualEventId)?.project && (
                               <input
                                 type="text"
                                 value={manualProjectTitle}

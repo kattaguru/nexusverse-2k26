@@ -16,7 +16,7 @@ import {
   Users, 
   Layers 
 } from 'lucide-react';
-import { SymposiumEvent, SYMPOSIUM_CONFIG } from '../data/symposiumData';
+import { SymposiumEvent, SYMPOSIUM_CONFIG, SPOT_EVENT } from '../data/symposiumData';
 
 export interface TeamMemberInfo {
   name: string;
@@ -102,10 +102,16 @@ export const TicketPass: React.FC<TicketPassProps> = ({
     window.print();
   };
 
+  const allKnownEvents = events.some(e => e.id === 'spot') ? events : [...events, SPOT_EVENT];
+  const registeredEvents = allKnownEvents.filter(e => record.eventIds.includes(e.id));
+  const hasTech = registeredEvents.some(e => e.id !== 'spot');
+  const hasSpot = registeredEvents.some(e => e.id === 'spot') || record.eventIds.includes('spot');
+
   // Generate and download .ics calendar invite
   const handleAddToCalendar = () => {
     const eventTitle = `NexusVerse 2K26 - National Tech Symposium`;
-    const description = `NexusVerse 2K26 at NBKRIST, Vidyanagar. Registered Event: ${record.eventIds.map(id => events.find(e => e.id === id)?.name).filter(Boolean).join(', ')}. Pass ID: ${record.regId}. Roll: ${record.roll}. Class: ${record.className} ${record.section}`;
+    const eventNames = record.eventIds.map(id => allKnownEvents.find(e => e.id === id)?.name || id).join(', ');
+    const description = `NexusVerse 2K26 at NBKRIST, Vidyanagar. Registered Event(s): ${eventNames}. Pass ID: ${record.regId}. Roll: ${record.roll}. Class: ${record.className} ${record.section}`;
     const location = `N.B.K.R. Institute of Science & Technology, Vidyanagar, Tirupati`;
     const icsContent = [
       'BEGIN:VCALENDAR',
@@ -134,8 +140,6 @@ export const TicketPass: React.FC<TicketPassProps> = ({
     document.body.removeChild(link);
     URL.revokeObjectURL(url);
   };
-
-  const registeredEvents = events.filter(e => record.eventIds.includes(e.id));
 
   return (
     <div className="max-w-3xl mx-auto py-8 px-4 sm:px-6 space-y-8 animate-in fade-in-50 duration-300">
@@ -256,8 +260,21 @@ export const TicketPass: React.FC<TicketPassProps> = ({
                 </span>
               </div>
 
+              <div className="col-span-2 sm:col-span-1">
+                <span className="text-[#a79f8b] block flex items-center gap-1">
+                  <Award className="w-3.5 h-3.5 text-[#d4a935]" /> Pass Category
+                </span>
+                <span className="font-semibold text-xs text-[#f2c14e] bg-[#1f1b0e] px-2.5 py-0.5 rounded border border-[#d4a935]/30 inline-block mt-0.5">
+                  {hasTech && hasSpot 
+                    ? `Tech + Spot Pass (${record.isIeeeMember ? 'IEEE' : 'Regular'})` 
+                    : hasSpot 
+                    ? 'Spot Events Pass (Non-Technical)' 
+                    : `Technical Event (${record.isIeeeMember ? 'IEEE' : 'Regular'})`}
+                </span>
+              </div>
+
               {record.isIeeeMember && (
-                <div className="col-span-2 sm:col-span-3 p-2 rounded-lg bg-[#1f1b0e] border border-[#d4a935]/30 flex items-center justify-between">
+                <div className="col-span-2 sm:col-span-2 p-2 rounded-lg bg-[#1f1b0e] border border-[#d4a935]/30 flex items-center justify-between">
                   <div className="flex items-center gap-1.5 text-xs text-[#f2c14e] font-semibold">
                     <Award className="w-4 h-4" />
                     <span>IEEE Student Member</span>
@@ -269,12 +286,52 @@ export const TicketPass: React.FC<TicketPassProps> = ({
 
             {/* Registered Events */}
             <div className="space-y-3 pt-2 border-t border-[#2e2b22]">
-              <div className="text-xs font-semibold uppercase tracking-wider text-[#d4a935] flex items-center gap-1">
-                <Trophy className="w-3.5 h-3.5" />
-                <span>Confirmed Technical Event</span>
+              <div className="text-xs font-semibold uppercase tracking-wider text-[#d4a935] flex items-center gap-1.5">
+                <Trophy className="w-4 h-4 text-[#d4a935]" />
+                <span>
+                  {hasTech && hasSpot 
+                    ? 'Confirmed Registrations (Technical + Spot Events)'
+                    : hasSpot 
+                    ? 'Confirmed Spot Events Registration'
+                    : 'Confirmed Technical Event'}
+                </span>
               </div>
-              <div className="space-y-2 text-xs">
+              <div className="space-y-3 text-xs">
                 {registeredEvents.map((ev) => {
+                  if (ev.id === 'spot') {
+                    return (
+                      <div key={ev.id} className="p-4 rounded-xl bg-gradient-to-r from-[#0d1e34] via-[#091524] to-[#070e17] border border-[#0088d4]/50 shadow-md space-y-2.5">
+                        <div className="flex flex-wrap items-center justify-between gap-2">
+                          <div>
+                            <div className="font-bold text-sm text-[#ffffff] flex items-center gap-1.5">
+                              <Sparkles className="w-4 h-4 text-[#70baff]" />
+                              <span>{ev.name}</span>
+                              <span className="text-[10px] px-2 py-0.2 rounded-full bg-[#0088d4]/20 text-[#70baff] border border-[#0088d4]/40 font-mono">
+                                Non-Technical
+                              </span>
+                            </div>
+                            <div className="text-[#8ea8c9] text-[11px] mt-0.5">{ev.slot} · {ev.venue}</div>
+                          </div>
+                          <span className="px-2.5 py-1 rounded-md bg-[#00629b]/30 text-[#70baff] border border-[#0088d4]/40 font-semibold text-xs font-mono">
+                            ₹100 · Spot Pass
+                          </span>
+                        </div>
+                        <p className="text-[11px] text-[#8ea8c9] leading-relaxed">
+                          {ev.tag}
+                        </p>
+                        <div className="flex flex-wrap items-center gap-2 pt-1 border-t border-[#1b324d]/60">
+                          <span className="text-[10px] px-2 py-0.5 rounded bg-[#0b1726] border border-[#1b324d] text-[#9fc7e8]">
+                            Afternoon Session: 01:30 PM – 03:30 PM
+                          </span>
+                          <span className="text-[10px] px-2 py-0.5 rounded bg-[#0b1726] border border-[#1b324d] text-[#4cc38a] font-medium flex items-center gap-1">
+                            <Check className="w-3 h-3 text-[#4cc38a]" />
+                            <span>Entry to All Non-Technical Spot Competitions</span>
+                          </span>
+                        </div>
+                      </div>
+                    );
+                  }
+
                   const teamInfo = record.teamDetails?.[ev.id];
                   const structuredMembers = teamInfo?.teamMembers || [];
 
@@ -282,7 +339,12 @@ export const TicketPass: React.FC<TicketPassProps> = ({
                     <div key={ev.id} className="p-4 rounded-xl bg-[#0a0a0d] border border-[#2e2b22] space-y-3">
                       <div className="flex flex-wrap items-center justify-between gap-2">
                         <div>
-                          <div className="font-bold text-sm text-[#ffffff]">{ev.name}</div>
+                          <div className="font-bold text-sm text-[#ffffff] flex items-center gap-2">
+                            <span>{ev.name}</span>
+                            <span className="text-[10px] px-2 py-0.2 rounded-full bg-[#d4a935]/20 text-[#f2c14e] border border-[#d4a935]/40 font-mono">
+                              Technical Event
+                            </span>
+                          </div>
                           <div className="text-[#a79f8b] text-[11px] mt-0.5">{ev.slot} · {ev.time} · {ev.venue}</div>
                         </div>
                         {teamInfo?.teamName && (

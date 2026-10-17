@@ -32,7 +32,7 @@ import {
   logoutParticipant 
 } from '../services/auth';
 import { RegistrationRecord } from './TicketPass';
-import { EVENTS } from '../data/symposiumData';
+import { ALL_EVENTS } from '../data/symposiumData';
 
 interface ParticipantSpaceModalProps {
   isOpen: boolean;
@@ -721,7 +721,7 @@ export const ParticipantSpaceModal: React.FC<ParticipantSpaceModalProps> = ({
                 {userRegistrations.length > 0 ? (
                   userRegistrations.map((rec) => {
                     const eventObjects = (rec.eventIds || [])
-                      .map(id => EVENTS.find(e => e.id === id))
+                      .map(id => ALL_EVENTS.find(e => e.id === id))
                       .filter(Boolean);
 
                     return (

@@ -264,6 +264,42 @@ export const EVENTS: SymposiumEvent[] = [
   }
 ];
 
+export const SPOT_EVENT: SymposiumEvent = {
+  id: "spot",
+  name: "Spot Events (Non-Technical)",
+  tagline: "Quick Wit. High Energy. Instant Thrills.",
+  tag: "Exciting on-the-spot games, interactive arena challenges, fun non-technical mini-games, and engaging open activities conducted during the afternoon session.",
+  category: "Non-Technical / Spot Events",
+  teamLabel: "Individual (Spot Entry)",
+  participationText: "Open to all registered spot pass delegates.",
+  feeNonMember: 100,
+  feeMember: 100,
+  min: 1,
+  max: 1,
+  slot: "01:30 PM – 03:30 PM",
+  time: "01:30 PM – 03:30 PM",
+  venue: "Central Courtyard & Seminar Halls",
+  prizes: {
+    first: "Exciting Spot Awards & Prizes (Revealing Soon) + Certificate",
+    second: "Exciting Spot Awards & Prizes (Revealing Soon) + Certificate"
+  },
+  highlights: [
+    "Fast-paced spot challenges & fun non-technical arena games",
+    "Open access to all afternoon spot competitions",
+    "Instant recognition, certificates & awards"
+  ],
+  rules: [
+    "Open to all participants with a valid Spot Events Pass.",
+    "Events are conducted live on-spot during the afternoon session (1:30 PM – 3:30 PM).",
+    "Judges & student coordinators' decisions are final for spot activities."
+  ],
+  rounds: [
+    { title: "Afternoon Arena Session (01:30 PM - 03:30 PM)", desc: "Participate in fun non-technical games, spot challenges, and interactive arena activities." }
+  ]
+};
+
+export const ALL_EVENTS: SymposiumEvent[] = [...EVENTS, SPOT_EVENT];
+
 export const TIMELINE = [
   { 
     time: "09:00 AM – 09:40 AM", 

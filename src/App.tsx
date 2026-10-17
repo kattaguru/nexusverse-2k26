@@ -20,7 +20,7 @@ import { TimelineSection } from './components/TimelineSection';
 import { FaqSection } from './components/FaqSection';
 import { ContactSection } from './components/ContactSection';
 import { Footer } from './components/Footer';
-import { EVENTS, SYMPOSIUM_CONFIG, SymposiumEvent } from './data/symposiumData';
+import { EVENTS, SPOT_EVENT, ALL_EVENTS, SYMPOSIUM_CONFIG, SymposiumEvent } from './data/symposiumData';
 import { 
   fetchRegistrationsApi, 
   saveRegistrationApi, 
@@ -44,7 +44,8 @@ import {
   User, 
   Award,
   ChevronRight,
-  Shield
+  Shield,
+  Trophy
 } from 'lucide-react';
 
 export interface FormTeamMember {
@@ -79,8 +80,10 @@ export default function App() {
   const [isIeeeMember, setIsIeeeMember] = useState(false);
   const [ieeeId, setIeeeId] = useState('');
   
-  // Selected single technical event
+  // Selected single technical event (or empty if attending only spot events)
   const [selectedEvents, setSelectedEvents] = useState<string[]>(['ctf']);
+  // Spot Events (Non-Technical, ₹100)
+  const [includeSpotEvents, setIncludeSpotEvents] = useState<boolean>(false);
 
   // Structured Team Details for team events
   const [teamDetails, setTeamDetails] = useState<Record<string, FormEventTeamData>>({
@@ -436,18 +439,28 @@ export default function App() {
     }
   }, [promoCode]);
 
-  // Pricing calculations: ₹200 per head (₹150 for IEEE members)
+  // Pricing calculations: Technical events: ₹200 (₹150 IEEE); Spot Events: ₹100 flat
   const calculateTotal = () => {
-    const subtotal = selectedEvents.reduce((sum, id) => {
-      const ev = EVENTS.find(e => e.id === id);
-      if (!ev) return sum;
-      const details = teamDetails[id] || { teamName: '', members: [] };
-      const leaderFee = isIeeeMember ? ev.feeMember : ev.feeNonMember;
-      const teammatesFee = (details.members || []).reduce((mSum, m) => {
-        return mSum + (m.isIeeeMember ? ev.feeMember : ev.feeNonMember);
-      }, 0);
-      return sum + leaderFee + teammatesFee;
-    }, 0);
+    let subtotal = 0;
+
+    // 1. Technical event subtotal (if selected)
+    if (selectedEvents.length > 0) {
+      for (const id of selectedEvents) {
+        const ev = EVENTS.find(e => e.id === id);
+        if (!ev) continue;
+        const details = teamDetails[id] || { teamName: '', members: [] };
+        const leaderFee = isIeeeMember ? ev.feeMember : ev.feeNonMember;
+        const teammatesFee = (details.members || []).reduce((mSum, m) => {
+          return mSum + (m.isIeeeMember ? ev.feeMember : ev.feeNonMember);
+        }, 0);
+        subtotal += leaderFee + teammatesFee;
+      }
+    }
+
+    // 2. Spot events pass (₹100 flat per registrant)
+    if (includeSpotEvents) {
+      subtotal += SPOT_EVENT.feeNonMember; // ₹100
+    }
 
     const cleanCode = promoCode.trim().toUpperCase();
     const discountPercent = SYMPOSIUM_CONFIG.promoCodes[cleanCode] || 0;
@@ -482,8 +495,8 @@ export default function App() {
       newErrors.ieeeId = 'Enter your valid IEEE membership number.';
     }
 
-    if (selectedEvents.length !== 1) {
-      newErrors.events = 'Please select one technical event to participate in.';
+    if (selectedEvents.length === 0 && !includeSpotEvents) {
+      newErrors.events = 'Please select at least one event: a Technical Event (₹150/₹200), Spot Events pass (₹100), or both.';
     }
 
     // Validate per-event team requirements
@@ -600,6 +613,11 @@ export default function App() {
       }
     }
 
+    const combinedEventIds = [
+      ...selectedEvents,
+      ...(includeSpotEvents ? ['spot'] : [])
+    ];
+
     const newRecord: RegistrationRecord = {
       regId,
       paymentId,
@@ -614,7 +632,7 @@ export default function App() {
       roll: roll.trim().toUpperCase(),
       isIeeeMember,
       ieeeId: isIeeeMember ? ieeeId.trim() : undefined,
-      eventIds: selectedEvents,
+      eventIds: combinedEventIds,
       teamDetails: formattedTeamDetails,
       totalPaid: total,
       promoCode: promoCode.trim().toUpperCase() || undefined,
@@ -728,12 +746,13 @@ export default function App() {
         {confirmedRecord ? (
           <TicketPass 
             record={confirmedRecord}
-            events={EVENTS}
+            events={ALL_EVENTS}
             leftLogo={leftLogo}
             rightLogo={rightLogo}
             onReset={() => {
               setConfirmedRecord(null);
               setSelectedEvents(['ctf']);
+              setIncludeSpotEvents(false);
               setName('');
               setRoll('');
               setPhone('');
@@ -1039,32 +1058,53 @@ export default function App() {
                       </div>
                     </div>
 
-                    {/* 2. CHOOSE TECHNICAL EVENT & TEAM MEMBERS CARD */}
-                    <div className="bg-[#131318] p-6 sm:p-8 rounded-2xl border border-[#2e2b22]" id="events-section">
-                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-6">
+                    {/* 2. CHOOSE YOUR EVENTS (TECHNICAL & SPOT) */}
+                    <div className="bg-[#131318] p-6 sm:p-8 rounded-2xl border border-[#2e2b22] space-y-6" id="events-section">
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-[#2e2b22] pb-4">
                         <div>
                           <h3 className="font-serif-title text-2xl font-bold text-[#ffffff]">
-                            2. Choose Your Technical Event
+                            2. Choose Your Events
                           </h3>
                           <p className="text-xs text-[#a79f8b] mt-1">
-                            Participants can register for <span className="text-[#f2c14e] font-semibold">only one technical event</span>. Select below:
+                            Register for a <span className="text-[#f2c14e] font-semibold">Technical Event</span> (1 max), <span className="text-[#70baff] font-semibold">Spot Events Pass</span> (₹100), or <span className="text-[#4cc38a] font-semibold">Both</span>:
                           </p>
                         </div>
 
-                        <span className="text-xs font-mono text-[#d4a935] bg-[#1f1b0e] px-2.5 py-1 rounded-md border border-[#d4a935]/30">
-                          {selectedEvents.length === 1 ? '1 event selected' : 'Select 1 event'}
-                        </span>
+                        <div className="flex flex-wrap items-center gap-2">
+                          {selectedEvents.length > 0 && (
+                            <span className="text-xs font-mono text-[#d4a935] bg-[#1f1b0e] px-2.5 py-1 rounded-md border border-[#d4a935]/30">
+                              Tech: {EVENTS.find(e => e.id === selectedEvents[0])?.name}
+                            </span>
+                          )}
+                          {includeSpotEvents && (
+                            <span className="text-xs font-mono text-[#70baff] bg-[#0c1c2e] px-2.5 py-1 rounded-md border border-[#0088d4]/30">
+                              + Spot Pass (₹100)
+                            </span>
+                          )}
+                        </div>
                       </div>
 
                       {errors.events && (
-                        <div className="mb-4 p-3 rounded-xl bg-[#ff8a80]/10 border border-[#ff8a80]/30 text-xs text-[#ff8a80] flex items-center gap-2">
+                        <div className="p-3 rounded-xl bg-[#ff8a80]/10 border border-[#ff8a80]/30 text-xs text-[#ff8a80] flex items-center gap-2">
                           <AlertCircle className="w-4 h-4 shrink-0" />
                           <span>{errors.events}</span>
                         </div>
                       )}
 
-                      {/* Event Cards List */}
+                      {/* TRACK 1: TECHNICAL EVENTS (5 EVENTS) */}
                       <div className="space-y-4">
+                        <div className="flex items-center justify-between pb-1">
+                          <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-[#d4a935]">
+                            <Trophy className="w-4 h-4" />
+                            <span>Track 1: Flagship Technical Events (10:00 AM – 12:00 PM)</span>
+                          </div>
+                          <span className="text-[11px] font-mono text-[#f2c14e]">
+                            {isIeeeMember ? '₹150 for IEEE Member' : '₹200 Standard (₹150 IEEE)'}
+                          </span>
+                        </div>
+
+                        {/* Event Cards List */}
+                        <div className="space-y-4">
                         {EVENTS.map((event) => {
                           const isSelected = selectedEvents.includes(event.id);
                           const fee = isIeeeMember ? event.feeMember : event.feeNonMember;
@@ -1454,65 +1494,203 @@ export default function App() {
                           );
                         })}
                       </div>
+
+                      {/* Option to clear technical event if participant only wants Spot Events */}
+                      {selectedEvents.length > 0 ? (
+                        <div className="flex justify-end pt-1">
+                          <button
+                            type="button"
+                            onClick={() => setSelectedEvents([])}
+                            className="text-xs text-[#a79f8b] hover:text-[#ff8a80] transition-colors cursor-pointer"
+                          >
+                            ✕ Deselect Technical Event (Attend Spot Events Only)
+                          </button>
+                        </div>
+                      ) : (
+                        <div className="p-3.5 rounded-xl bg-[#0a0a0d] border border-dashed border-[#2e2b22] text-xs text-[#a79f8b] flex items-center justify-between">
+                          <span>No Technical Event selected. Choose one above, or proceed with Spot Events below.</span>
+                          <button
+                            type="button"
+                            onClick={() => selectEvent('ctf')}
+                            className="text-[#f2c14e] font-semibold hover:underline"
+                          >
+                            Select FLAGHUNT →
+                          </button>
+                        </div>
+                      )}
                     </div>
-                  </div>
 
-                  {/* Right Column: Checkout Summary & Proceed Button */}
-                  <div className="lg:col-span-4 space-y-6 lg:sticky lg:top-24">
-                    <div className="bg-[#131318] p-6 rounded-2xl border border-[#2e2b22] space-y-6 shadow-xl">
-                      <div className="flex items-center justify-between border-b border-[#2e2b22] pb-4">
-                        <h4 className="font-serif-title text-xl font-bold text-[#ffffff]">
-                          Registration Summary
-                        </h4>
-                        <span className="text-xs font-mono text-[#a79f8b]">1 Delegate Pass</span>
+                    {/* TRACK 2: SPOT EVENTS (NON-TECHNICAL) */}
+                    <div className="pt-6 border-t border-[#2e2b22] space-y-4">
+                      <div className="flex items-center justify-between pb-1">
+                        <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-[#70baff]">
+                          <Sparkles className="w-4 h-4 text-[#70baff]" />
+                          <span>Track 2: Spot Events / Non-Technical Pass (01:30 PM – 03:30 PM)</span>
+                        </div>
+                        <span className="text-[11px] font-mono font-bold text-[#4cc38a] bg-[#142617] px-2.5 py-0.5 rounded-full border border-[#4cc38a]/40">
+                          100/- For Spot Events
+                        </span>
                       </div>
 
-                      {/* Participant Preview Pill */}
-                      <div className="p-3 rounded-xl bg-[#0a0a0d] border border-[#2e2b22] text-xs space-y-1">
-                        <div className="flex items-center justify-between">
-                          <span className="text-[#a79f8b]">Participant:</span>
-                          <span className="font-semibold text-[#f3ecd9]">{name || 'Your Name'}</span>
-                        </div>
-                        <div className="flex items-center justify-between text-[#a79f8b]">
-                          <span>Roll & Phone:</span>
-                          <span className="font-mono text-[#f2c14e]">{roll || '---'} · {phone || '---'}</span>
-                        </div>
-                        <div className="flex items-center justify-between text-[#a79f8b]">
-                          <span>Class & Sec:</span>
-                          <span>{classNameVal} {sectionVal ? `(${sectionVal})` : ''} · {dept || 'Branch'}</span>
-                        </div>
-                      </div>
-
-                      {/* Line Item for Selected Event */}
-                      <div className="space-y-3">
-                        {selectedEvents.map(id => {
-                          const ev = EVENTS.find(e => e.id === id);
-                          if (!ev) return null;
-                          const details = teamDetails[id] || { teamName: '', members: [] };
-                          const totalHeads = 1 + (ev.max > 1 ? (details.members?.length || 0) : 0);
-                          const leaderFee = isIeeeMember ? ev.feeMember : ev.feeNonMember;
-                          const teammatesFee = (details.members || []).reduce((mSum, m) => {
-                            return mSum + (m.isIeeeMember ? ev.feeMember : ev.feeNonMember);
-                          }, 0);
-                          const evTotal = leaderFee + teammatesFee;
-
-                          return (
-                            <div key={id} className="p-3 rounded-xl bg-[#0a0a0d] border border-[#2e2b22] space-y-1.5 text-xs">
-                              <div className="flex items-start justify-between gap-3">
-                                <div>
-                                  <span className="font-semibold text-[#f3ecd9] block">{ev.name}</span>
-                                  <span className="text-[#a79f8b] text-[11px] block">{ev.slot} · {ev.teamLabel}</span>
-                                </div>
-                                <span className="font-mono font-bold text-[#f2c14e] text-sm">₹{evTotal}</span>
+                      {/* Interactive Spot Events Card */}
+                      <div
+                        onClick={() => {
+                          setIncludeSpotEvents(!includeSpotEvents);
+                          if (errors.events) {
+                            setErrors(prev => {
+                              const copy = { ...prev };
+                              delete copy.events;
+                              return copy;
+                            });
+                          }
+                        }}
+                        className={`rounded-2xl border transition-all duration-200 overflow-hidden cursor-pointer ${
+                          includeSpotEvents
+                            ? 'bg-gradient-to-r from-[#0d1e34] via-[#091524] to-[#070e17] border-[#0088d4] shadow-lg shadow-[#0088d4]/15 ring-1 ring-[#0088d4]/50'
+                            : 'bg-[#0a0a0d] border-[#2e2b22] hover:border-[#0088d4]/40'
+                        }`}
+                      >
+                        <div className="p-5 flex items-start justify-between gap-4">
+                          <label className="flex items-start gap-3.5 flex-1 cursor-pointer" onClick={(e) => e.stopPropagation()}>
+                            <input
+                              type="checkbox"
+                              checked={includeSpotEvents}
+                              onChange={(e) => {
+                                setIncludeSpotEvents(e.target.checked);
+                                if (errors.events) {
+                                  setErrors(prev => {
+                                    const copy = { ...prev };
+                                    delete copy.events;
+                                    return copy;
+                                  });
+                                }
+                              }}
+                              className="mt-1 w-5 h-5 rounded border-[#2e2b22] bg-[#0a0a0d] text-[#0088d4] accent-[#0088d4] cursor-pointer"
+                            />
+                            <div className="space-y-1">
+                              <div className="flex flex-wrap items-center gap-2">
+                                <span className="font-serif-title text-xl font-bold text-[#ffffff]">
+                                  Spot Events Pass (Non-Technical)
+                                </span>
+                                <span className="text-xs text-[#a79f8b]">
+                                  · Individual / Open Entry
+                                </span>
+                                <span className="text-[11px] text-[#70baff] bg-[#0c1c2e] px-2 py-0.5 rounded border border-[#0088d4]/30">
+                                  01:30 PM – 03:30 PM
+                                </span>
+                                {includeSpotEvents && (
+                                  <span className="text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded bg-[#0088d4]/20 text-[#70baff] border border-[#0088d4]/40">
+                                    Pass Selected
+                                  </span>
+                                )}
                               </div>
-                              <div className="pt-1.5 border-t border-[#2e2b22]/60 flex items-center justify-between text-[11px] text-[#a79f8b]">
-                                <span>{totalHeads} {totalHeads === 1 ? 'Head (1 Participant)' : `Heads (${totalHeads} Participants)`}</span>
-                                <span className="font-mono">₹{isIeeeMember ? ev.feeMember : ev.feeNonMember} / head</span>
+                              <p className="text-xs font-semibold text-[#f2c14e] italic">
+                                "{SPOT_EVENT.tagline}"
+                              </p>
+                              <p className="text-xs text-[#b9ae94] leading-relaxed max-w-xl">
+                                {SPOT_EVENT.tag}
+                              </p>
+                              <div className="flex flex-wrap items-center gap-3 pt-1 text-[11px] text-[#8ea8c9]">
+                                <span className="flex items-center gap-1 text-[#4cc38a]">
+                                  <Check className="w-3.5 h-3.5" /> Entry to all non-technical spot games
+                                </span>
+                                <span className="flex items-center gap-1 text-[#4cc38a]">
+                                  <Check className="w-3.5 h-3.5" /> Central Courtyard & Seminar Halls
+                                </span>
                               </div>
                             </div>
-                          );
-                        })}
+                          </label>
+
+                          <div className="text-right shrink-0 flex flex-col items-end gap-1" onClick={(e) => e.stopPropagation()}>
+                            <span className="font-mono tabular-nums text-2xl font-bold text-[#4cc38a]">
+                              ₹100
+                            </span>
+                            <span className="text-[10px] uppercase font-bold tracking-wider text-[#8ea8c9]">
+                              Spot Events
+                            </span>
+                          </div>
+                        </div>
                       </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Right Column: Checkout Summary & Proceed Button */}
+                <div className="lg:col-span-4 space-y-6 lg:sticky lg:top-24">
+                  <div className="bg-[#131318] p-6 rounded-2xl border border-[#2e2b22] space-y-6 shadow-xl">
+                    <div className="flex items-center justify-between border-b border-[#2e2b22] pb-4">
+                      <h4 className="font-serif-title text-xl font-bold text-[#ffffff]">
+                        Registration Summary
+                      </h4>
+                      <span className="text-xs font-mono text-[#a79f8b]">1 Delegate Pass</span>
+                    </div>
+
+                    {/* Participant Preview Pill */}
+                    <div className="p-3 rounded-xl bg-[#0a0a0d] border border-[#2e2b22] text-xs space-y-1">
+                      <div className="flex items-center justify-between">
+                        <span className="text-[#a79f8b]">Participant:</span>
+                        <span className="font-semibold text-[#f3ecd9]">{name || 'Your Name'}</span>
+                      </div>
+                      <div className="flex items-center justify-between text-[#a79f8b]">
+                        <span>Roll & Phone:</span>
+                        <span className="font-mono text-[#f2c14e]">{roll || '---'} · {phone || '---'}</span>
+                      </div>
+                      <div className="flex items-center justify-between text-[#a79f8b]">
+                        <span>Class & Sec:</span>
+                        <span>{classNameVal} {sectionVal ? `(${sectionVal})` : ''} · {dept || 'Branch'}</span>
+                      </div>
+                    </div>
+
+                    {/* Line Items for Selected Events */}
+                    <div className="space-y-3">
+                      {selectedEvents.map(id => {
+                        const ev = EVENTS.find(e => e.id === id);
+                        if (!ev) return null;
+                        const details = teamDetails[id] || { teamName: '', members: [] };
+                        const totalHeads = 1 + (ev.max > 1 ? (details.members?.length || 0) : 0);
+                        const leaderFee = isIeeeMember ? ev.feeMember : ev.feeNonMember;
+                        const teammatesFee = (details.members || []).reduce((mSum, m) => {
+                          return mSum + (m.isIeeeMember ? ev.feeMember : ev.feeNonMember);
+                        }, 0);
+                        const evTotal = leaderFee + teammatesFee;
+
+                        return (
+                          <div key={id} className="p-3 rounded-xl bg-[#0a0a0d] border border-[#2e2b22] space-y-1.5 text-xs">
+                            <div className="flex items-start justify-between gap-3">
+                              <div>
+                                <span className="font-semibold text-[#f3ecd9] block">{ev.name}</span>
+                                <span className="text-[#a79f8b] text-[11px] block">{ev.slot} · {ev.teamLabel}</span>
+                              </div>
+                              <span className="font-mono font-bold text-[#f2c14e] text-sm">₹{evTotal}</span>
+                            </div>
+                            <div className="pt-1.5 border-t border-[#2e2b22]/60 flex items-center justify-between text-[11px] text-[#a79f8b]">
+                              <span>{totalHeads} {totalHeads === 1 ? 'Head (1 Participant)' : `Heads (${totalHeads} Participants)`}</span>
+                              <span className="font-mono">₹{isIeeeMember ? ev.feeMember : ev.feeNonMember} / head</span>
+                            </div>
+                          </div>
+                        );
+                      })}
+
+                      {/* Line Item for Spot Events Pass */}
+                      {includeSpotEvents && (
+                        <div className="p-3 rounded-xl bg-gradient-to-r from-[#0d1e34] to-[#070e17] border border-[#0088d4]/40 space-y-1.5 text-xs">
+                          <div className="flex items-start justify-between gap-3">
+                            <div>
+                              <span className="font-semibold text-[#f3ecd9] flex items-center gap-1.5">
+                                <Sparkles className="w-3.5 h-3.5 text-[#70baff]" />
+                                <span>Spot Events Pass</span>
+                              </span>
+                              <span className="text-[#8ea8c9] text-[11px] block">01:30 PM – 03:30 PM · Non-Technical</span>
+                            </div>
+                            <span className="font-mono font-bold text-[#70baff] text-sm">₹100</span>
+                          </div>
+                          <div className="pt-1.5 border-t border-[#1b324d]/60 flex items-center justify-between text-[11px] text-[#8ea8c9]">
+                            <span>1 Delegate (Afternoon Arena Pass)</span>
+                            <span className="font-mono">₹100 flat</span>
+                          </div>
+                        </div>
+                      )}
+                    </div>
 
                       {/* Promo Code Box */}
                       <div className="pt-2 border-t border-[#2e2b22]">
@@ -1637,7 +1815,10 @@ export default function App() {
         dept={dept}
         roll={roll}
         year={year}
-        eventName={selectedEvents.map(id => EVENTS.find(e => e.id === id)?.name).filter(Boolean).join(', ')}
+        eventName={[
+          ...selectedEvents.map(id => EVENTS.find(e => e.id === id)?.name).filter(Boolean),
+          ...(includeSpotEvents ? ['Spot Events (Non-Technical)'] : [])
+        ].join(' + ') || 'NexusVerse 2K26 Registration'}
         onSuccess={handlePaymentSuccess}
       />
 

@@ -1,5 +1,5 @@
 import React from 'react';
-import { EVENTS } from '../data/symposiumData';
+import { EVENTS, ALL_EVENTS } from '../data/symposiumData';
 import { ArrowRight, Sparkles, MapPin, Calendar, Trophy } from 'lucide-react';
 
 interface HeroProps {
@@ -22,8 +22,8 @@ export const Hero: React.FC<HeroProps> = ({
   rightLogo = '/ieee-sb-logo.png'
 }) => {
   const displayEvents = selectedEventIds && selectedEventIds.length > 0
-    ? EVENTS.filter(e => selectedEventIds.includes(e.id))
-    : EVENTS;
+    ? ALL_EVENTS.filter(e => selectedEventIds.includes(e.id))
+    : ALL_EVENTS;
 
   return (
     <section className="relative overflow-hidden bg-[#050507] text-[#ffffff] min-h-[calc(100vh-4.5rem)] flex flex-col justify-center py-10 sm:py-14 lg:py-16 border-b border-[#2e2b22]">
@@ -161,9 +161,9 @@ export const Hero: React.FC<HeroProps> = ({
             <div className="grid grid-cols-2 sm:grid-cols-3 gap-6 pt-6 border-t border-[#2e2b22]">
               <div>
                 <span className="block text-2xl sm:text-3xl font-serif-title font-bold text-[#ffffff]">
-                  5 Flagships
+                  5 Tech + Spot
                 </span>
-                <span className="text-xs text-[#a79f8b]">CTF, Expo, Code, Quiz, UI</span>
+                <span className="text-xs text-[#a79f8b]">₹150/₹200 Tech · ₹100 Spot Events</span>
               </div>
               <div>
                 <span className="block text-2xl sm:text-3xl font-serif-title font-bold text-[#ffffff] flex items-center gap-1.5">
@@ -223,12 +223,12 @@ export const Hero: React.FC<HeroProps> = ({
               {/* Pass Body: Event Roster */}
               <div className="p-6 space-y-4">
                 <div className="text-xs font-medium text-[#a79f8b] flex justify-between items-center">
-                  <span>Selected Event (1 Event Max)</span>
+                  <span>Symposium Tracks & Events</span>
                   <span>Fee ({isIeeeMember ? 'Member' : 'Regular'})</span>
                 </div>
 
                 <ul className="space-y-2 text-sm divide-y divide-[#2e2b22]/50 max-h-56 overflow-y-auto pr-1">
-                  {EVENTS.map((ev) => {
+                  {ALL_EVENTS.map((ev) => {
                     const fee = isIeeeMember ? ev.feeMember : ev.feeNonMember;
                     const isSelected = selectedEventIds.includes(ev.id);
                     return (
