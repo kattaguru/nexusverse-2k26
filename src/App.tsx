@@ -147,6 +147,24 @@ export default function App() {
   // Listen for Supabase OAuth login events (e.g. Google OAuth redirect)
   useEffect(() => {
     if (isSupabaseConfigured() && supabase) {
+      // Check existing OAuth session on return from Google
+      supabase.auth.getSession().then(async ({ data }) => {
+        if (data?.session?.user?.email) {
+          try {
+            const googleRes = await googleLoginParticipant({
+              email: data.session.user.email,
+              name: data.session.user.user_metadata?.full_name || data.session.user.user_metadata?.name || data.session.user.email.split('@')[0],
+              avatarUrl: data.session.user.user_metadata?.avatar_url,
+            });
+            if (googleRes.success && googleRes.user) {
+              setCurrentUser(googleRes.user);
+            }
+          } catch (e) {
+            console.error('Failed to sync existing Supabase session:', e);
+          }
+        }
+      });
+
       const { data: authSub } = supabase.auth.onAuthStateChange(async (event, session) => {
         if ((event === 'SIGNED_IN' || event === 'USER_UPDATED') && session?.user?.email) {
           try {

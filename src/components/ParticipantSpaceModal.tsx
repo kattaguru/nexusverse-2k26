@@ -196,36 +196,12 @@ export const ParticipantSpaceModal: React.FC<ParticipantSpaceModalProps> = ({
     }
   };
 
-  // Handle Google Sign-In Click
-  const handleGoogleClick = async () => {
+  // Handle Google Sign-In Click -> Direct official Google OAuth redirect
+  const handleGoogleClick = () => {
     setErrorMsg('');
-    if (identifier.includes('@')) {
-      setGoogleSimEmail(identifier.trim());
-    }
-
-    // If Supabase OAuth is active and configured, launch official Google OAuth
-    if (isSupabaseConfigured() && supabase) {
-      setLoading(true);
-      try {
-        const { error } = await supabase.auth.signInWithOAuth({
-          provider: 'google',
-          options: {
-            redirectTo: window.location.origin + window.location.pathname,
-          },
-        });
-        if (!error) {
-          // Supabase redirects browser directly to accounts.google.com
-          return;
-        }
-        console.warn('Google OAuth error, using fallback:', error.message);
-      } catch (err: any) {
-        console.warn('OAuth launch error, using fallback:', err);
-      } finally {
-        setLoading(false);
-      }
-    }
-
-    setGooglePromptOpen(true);
+    setLoading(true);
+    const returnUrl = encodeURIComponent(window.location.origin + window.location.pathname);
+    window.location.href = `https://nfkyzozrreardklsoehb.supabase.co/auth/v1/authorize?provider=google&redirect_to=${returnUrl}`;
   };
 
   // Complete Google simulation login
