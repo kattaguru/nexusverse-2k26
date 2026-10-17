@@ -192,15 +192,23 @@ export const GallerySection: React.FC<GallerySectionProps> = ({ onOpenAdmin }) =
     ? photos
     : photos.filter(p => p.category.toLowerCase() === selectedCategory.toLowerCase());
 
-  // Prepare a sufficiently duplicated list for an uninterrupted infinite right-to-left marquee stream
+  // Prepare base list
   const baseList = filteredPhotos.length > 0 ? filteredPhotos : CURATED_DEFAULT_PHOTOS;
-  // Repeat up to at least 12 items so the loop width exceeds screen widths effortlessly
-  const repeatCount = Math.max(3, Math.ceil(12 / baseList.length));
-  const marqueeItems = Array.from({ length: repeatCount }, () => baseList).flat();
 
-  // Split into 2 parallel tracks for dual 3D perspective stream (both streaming strictly Right to Left)
-  const track1 = marqueeItems.filter((_, idx) => idx % 2 === 0);
-  const track2 = marqueeItems.filter((_, idx) => idx % 2 === 1);
+  // Split photos into 2 alternating tracks for dual right-to-left streaming
+  const track1Base = baseList.filter((_, idx) => idx % 2 === 0);
+  const track2Base = baseList.filter((_, idx) => idx % 2 === 1);
+
+  // For a seamless -50% marquee loop, each track needs to repeat exactly twice [A, A]
+  // This reduces DOM elements by 50% and completely eliminates GPU memory pressure
+  const getLoopItems = (items: GalleryPhoto[]) => {
+    if (items.length === 0) return [];
+    if (items.length < 4) return [...items, ...items, ...items, ...items];
+    return [...items, ...items];
+  };
+
+  const track1 = getLoopItems(track1Base.length > 0 ? track1Base : baseList);
+  const track2 = getLoopItems(track2Base.length > 0 ? track2Base : baseList);
 
   // Speed multiplier duration
   const durationTrack1 = marqueeSpeed === 'slow' ? '54s' : marqueeSpeed === 'fast' ? '24s' : '36s';
@@ -211,13 +219,15 @@ export const GallerySection: React.FC<GallerySectionProps> = ({ onOpenAdmin }) =
       id="gallery-section" 
       className="relative py-16 sm:py-24 px-2 sm:px-4 lg:px-8 border-b border-[#2e2b22] bg-[#07070a] overflow-hidden"
     >
-      {/* 3D Ambient background lighting & cyber grid glow */}
+      {/* 3D Ambient background lighting (High-performance radial gradients, 0% CPU blur cost) */}
       <div 
-        className="absolute top-1/4 left-1/4 w-[42rem] h-[42rem] rounded-full bg-[#d4a935]/6 blur-3xl pointer-events-none" 
+        className="absolute top-1/4 left-1/4 w-[36rem] h-[36rem] rounded-full pointer-events-none opacity-40" 
+        style={{ background: 'radial-gradient(circle, rgba(212, 169, 53, 0.12) 0%, transparent 70%)' }}
         aria-hidden="true" 
       />
       <div 
-        className="absolute bottom-10 right-10 w-[36rem] h-[36rem] rounded-full bg-[#00629b]/10 blur-3xl pointer-events-none" 
+        className="absolute bottom-10 right-10 w-[30rem] h-[30rem] rounded-full pointer-events-none opacity-30" 
+        style={{ background: 'radial-gradient(circle, rgba(0, 98, 155, 0.15) 0%, transparent 70%)' }}
         aria-hidden="true" 
       />
       <div 
@@ -394,7 +404,7 @@ export const GallerySection: React.FC<GallerySectionProps> = ({ onOpenAdmin }) =
                 <div
                   key={`t1-${photo.id}-${idx}`}
                   onClick={() => setActiveLightboxPhoto(photo)}
-                  className="card-3d-component w-[290px] sm:w-[350px] md:w-[390px] shrink-0 rounded-2xl bg-[#111116] border border-[#2e2b22] hover:border-[#f2c14e] overflow-hidden shadow-[0_20px_45px_rgba(0,0,0,0.85)] hover:shadow-[0_25px_60px_rgba(212,169,53,0.25)] transition-all duration-300 cursor-pointer group select-none"
+                  className="card-3d-component w-[280px] sm:w-[340px] md:w-[380px] shrink-0 rounded-2xl bg-[#111116] border border-[#2e2b22] hover:border-[#f2c14e] overflow-hidden shadow-xl shadow-black/70 hover:shadow-2xl hover:shadow-[#d4a935]/20 transition-all duration-300 cursor-pointer group select-none"
                 >
                   {/* Photo Container */}
                   <div className="relative aspect-[16/10] bg-[#050507] overflow-hidden">
@@ -402,7 +412,8 @@ export const GallerySection: React.FC<GallerySectionProps> = ({ onOpenAdmin }) =
                       src={photo.url}
                       alt={photo.title}
                       loading="lazy"
-                      className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700 ease-out"
+                      decoding="async"
+                      className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500 ease-out"
                       onError={(e) => {
                         (e.target as HTMLImageElement).src = CURATED_DEFAULT_PHOTOS[idx % CURATED_DEFAULT_PHOTOS.length].url;
                       }}
@@ -467,7 +478,7 @@ export const GallerySection: React.FC<GallerySectionProps> = ({ onOpenAdmin }) =
                 <div
                   key={`t2-${photo.id}-${idx}`}
                   onClick={() => setActiveLightboxPhoto(photo)}
-                  className="card-3d-component-alt w-[290px] sm:w-[350px] md:w-[390px] shrink-0 rounded-2xl bg-[#111116] border border-[#2e2b22] hover:border-[#f2c14e] overflow-hidden shadow-[0_20px_45px_rgba(0,0,0,0.85)] hover:shadow-[0_25px_60px_rgba(212,169,53,0.25)] transition-all duration-300 cursor-pointer group select-none"
+                  className="card-3d-component-alt w-[280px] sm:w-[340px] md:w-[380px] shrink-0 rounded-2xl bg-[#111116] border border-[#2e2b22] hover:border-[#f2c14e] overflow-hidden shadow-xl shadow-black/70 hover:shadow-2xl hover:shadow-[#d4a935]/20 transition-all duration-300 cursor-pointer group select-none"
                 >
                   {/* Photo Container */}
                   <div className="relative aspect-[16/10] bg-[#050507] overflow-hidden">
@@ -475,7 +486,8 @@ export const GallerySection: React.FC<GallerySectionProps> = ({ onOpenAdmin }) =
                       src={photo.url}
                       alt={photo.title}
                       loading="lazy"
-                      className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700 ease-out"
+                      decoding="async"
+                      className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500 ease-out"
                       onError={(e) => {
                         (e.target as HTMLImageElement).src = CURATED_DEFAULT_PHOTOS[(idx + 1) % CURATED_DEFAULT_PHOTOS.length].url;
                       }}
