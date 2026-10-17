@@ -144,45 +144,88 @@ export default function App() {
     }
   }, []);
 
-  // Listen for Supabase OAuth login events (e.g. Google OAuth redirect)
+  // Listen for Supabase OAuth login events (Google OAuth popup or redirect)
   useEffect(() => {
+    // If this window is an OAuth popup callback, notify parent window and close
+    if (typeof window !== 'undefined' && window.opener && window.opener !== window) {
+      if (window.location.hash.includes('access_token') || window.location.search.includes('code=')) {
+        try {
+          window.opener.postMessage({ type: 'GOOGLE_AUTH_SUCCESS' }, '*');
+          window.close();
+          return;
+        } catch {
+          // Fallback to normal execution if window.opener is inaccessible
+        }
+      }
+    }
+
     if (isSupabaseConfigured() && supabase) {
-      // Check existing OAuth session on return from Google
-      supabase.auth.getSession().then(async ({ data }) => {
-        if (data?.session?.user?.email) {
-          try {
-            const googleRes = await googleLoginParticipant({
-              email: data.session.user.email,
-              name: data.session.user.user_metadata?.full_name || data.session.user.user_metadata?.name || data.session.user.email.split('@')[0],
-              avatarUrl: data.session.user.user_metadata?.avatar_url,
-            });
-            if (googleRes.success && googleRes.user) {
-              setCurrentUser(googleRes.user);
+      const hasAuthHash = typeof window !== 'undefined' && (
+        window.location.hash.includes('access_token') || 
+        window.location.hash.includes('refresh_token') ||
+        window.location.search.includes('code=')
+      );
+
+      // If returning from Google redirect, immediately reveal Participant Space portal
+      if (hasAuthHash) {
+        setIsParticipantSpaceOpen(true);
+      }
+
+      const syncSessionUser = async (session: any) => {
+        if (!session?.user?.email) return;
+        try {
+          const googleRes = await googleLoginParticipant({
+            email: session.user.email,
+            name: session.user.user_metadata?.full_name || session.user.user_metadata?.name || session.user.email.split('@')[0],
+            avatarUrl: session.user.user_metadata?.avatar_url,
+          });
+          if (googleRes.success && googleRes.user) {
+            setCurrentUser(googleRes.user);
+            setIsParticipantSpaceOpen(true);
+            // Clean up trailing # or tokens from URL without triggering reload
+            if (window.location.hash) {
+              window.history.replaceState(null, '', window.location.pathname + window.location.search);
             }
-          } catch (e) {
-            console.error('Failed to sync existing Supabase session:', e);
           }
+        } catch (e) {
+          console.error('Failed to sync Google participant session:', e);
+        }
+      };
+
+      // 1. Check existing OAuth session on return
+      supabase.auth.getSession().then(({ data }) => {
+        if (data?.session) {
+          syncSessionUser(data.session);
         }
       });
 
+      // 2. Listen for all auth state events (INITIAL_SESSION, SIGNED_IN, USER_UPDATED, TOKEN_REFRESHED)
       const { data: authSub } = supabase.auth.onAuthStateChange(async (event, session) => {
-        if ((event === 'SIGNED_IN' || event === 'USER_UPDATED') && session?.user?.email) {
-          try {
-            const googleRes = await googleLoginParticipant({
-              email: session.user.email,
-              name: session.user.user_metadata?.full_name || session.user.user_metadata?.name || session.user.email.split('@')[0],
-              avatarUrl: session.user.user_metadata?.avatar_url,
-            });
-            if (googleRes.success && googleRes.user) {
-              setCurrentUser(googleRes.user);
-            }
-          } catch (e) {
-            console.error('Failed to sync Supabase Google user:', e);
-          }
+        if (session?.user?.email && (
+          event === 'SIGNED_IN' || 
+          event === 'INITIAL_SESSION' || 
+          event === 'USER_UPDATED' || 
+          event === 'TOKEN_REFRESHED'
+        )) {
+          syncSessionUser(session);
         }
       });
+
+      // 3. Listen for popup message completion
+      const handlePopupMessage = (e: MessageEvent) => {
+        if (e.data?.type === 'GOOGLE_AUTH_SUCCESS') {
+          supabase.auth.getSession().then(({ data }) => {
+            if (data?.session) {
+              syncSessionUser(data.session);
+            }
+          });
+        }
+      };
+      window.addEventListener('message', handlePopupMessage);
+
       return () => {
         authSub?.subscription?.unsubscribe();
+        window.removeEventListener('message', handlePopupMessage);
       };
     }
   }, []);

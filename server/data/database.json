@@ -204,6 +204,44 @@
       "roll": "",
       "authProvider": "google",
       "createdAt": "2026-10-17T04:50:26.552Z"
+    },
+    {
+      "id": "usr_14f66d736fdc",
+      "name": "Guravaiah Katta",
+      "email": "kattaguravaiah39@gmail.com",
+      "username": "kattaguravaiah39",
+      "avatarUrl": "https://lh3.googleusercontent.com/a/ACg8ocJ_O3LPQw8qrZHy1YHw0n6qmQsYaI_pHx93IShwgUp5GGWrMQ=s96-c",
+      "phone": "",
+      "college": "N.B.K.R. Institute of Science & Technology",
+      "roll": "",
+      "authProvider": "google",
+      "createdAt": "2026-10-17T07:45:17.379Z",
+      "updatedAt": "2026-10-17T07:47:21.022Z"
+    },
+    {
+      "id": "usr_4ca4fc76d953",
+      "name": "KATTA GURAVAIAH NBKRIST",
+      "email": "23kb1a0597@nbkrist.org",
+      "username": "23kb1a0597",
+      "avatarUrl": "https://lh3.googleusercontent.com/a/ACg8ocJjcm_3OX64mAssB1GdbeLa7VkBQYkFRv04VX3u19tyMuL7uw=s96-c",
+      "phone": "",
+      "college": "N.B.K.R. Institute of Science & Technology",
+      "roll": "",
+      "authProvider": "google",
+      "createdAt": "2026-10-17T07:48:30.244Z",
+      "updatedAt": "2026-10-17T07:54:48.722Z"
+    },
+    {
+      "id": "usr_3b824ae2be43",
+      "name": "test",
+      "email": "test@example.com",
+      "username": "test",
+      "avatarUrl": "",
+      "phone": "",
+      "college": "N.B.K.R. Institute of Science & Technology",
+      "roll": "",
+      "authProvider": "google",
+      "createdAt": "2026-10-17T07:51:01.651Z"
     }
   ]
 }

@@ -196,12 +196,44 @@ export const ParticipantSpaceModal: React.FC<ParticipantSpaceModalProps> = ({
     }
   };
 
-  // Handle Google Sign-In Click -> Direct official Google OAuth redirect
+  // Handle Google Sign-In Click -> Clean Google OAuth popup with fallback redirect
   const handleGoogleClick = () => {
     setErrorMsg('');
     setLoading(true);
+
     const returnUrl = encodeURIComponent(window.location.origin + window.location.pathname);
-    window.location.href = `https://nfkyzozrreardklsoehb.supabase.co/auth/v1/authorize?provider=google&redirect_to=${returnUrl}`;
+    const authUrl = `https://nfkyzozrreardklsoehb.supabase.co/auth/v1/authorize?provider=google&redirect_to=${returnUrl}`;
+
+    // Open clean, centered popup window to prevent background screen blinking/reloading
+    const width = 500;
+    const height = 650;
+    const left = Math.max(0, (window.screen.width - width) / 2);
+    const top = Math.max(0, (window.screen.height - height) / 2);
+    
+    let popup: Window | null = null;
+    try {
+      popup = window.open(
+        authUrl,
+        'GoogleSignIn',
+        `width=${width},height=${height},left=${left},top=${top},status=no,menubar=no,toolbar=no,location=yes`
+      );
+    } catch {
+      popup = null;
+    }
+
+    // If popup was blocked by browser or failed, fallback to standard redirect
+    if (!popup || popup.closed || typeof popup.closed === 'undefined') {
+      window.location.href = authUrl;
+      return;
+    }
+
+    // Monitor popup completion
+    const checkTimer = setInterval(() => {
+      if (popup && popup.closed) {
+        clearInterval(checkTimer);
+        setLoading(false);
+      }
+    }, 1000);
   };
 
   // Complete Google simulation login
