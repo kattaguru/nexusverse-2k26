@@ -29,7 +29,8 @@ import {
   triggerRazorpayCheckout, 
   getRazorpayKey, 
   loadRazorpayScript,
-  fetchRazorpayConfig
+  fetchRazorpayConfig,
+  verifyPaymentOnServer
 } from '../utils/razorpay';
 import { SYMPOSIUM_CONFIG } from '../data/symposiumData';
 
@@ -285,14 +286,29 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
     window.location.href = upiIntentString;
   };
 
-  // Confirm Razorpay / UPI Payment and issue pass
-  const handleConfirmMePayment = (forcedId?: string) => {
-    const finalId = (forcedId || paymentRefInput.trim()) || `pay_rzp_upi_${Date.now()}`;
+  // Strictly verify Razorpay Payment ID with backend & Razorpay API
+  const handleVerifyManualPayment = async () => {
+    const rawId = paymentRefInput.trim();
+    if (!rawId) {
+      setErrorMessage('Please enter the official Razorpay Payment ID (starts with pay_...) from your Razorpay receipt.');
+      return;
+    }
+
     setIsConfirming(true);
-    setTimeout(() => {
-      setIsConfirming(false);
-      onSuccess(finalId);
-    }, 450);
+    setErrorMessage(null);
+
+    const verifyResult = await verifyPaymentOnServer(rawId, undefined, undefined, amount);
+
+    setIsConfirming(false);
+
+    if (verifyResult.verified) {
+      onSuccess(rawId);
+    } else {
+      setErrorMessage(
+        verifyResult.error || 
+        'Razorpay payment verification failed. Payment ID could not be found or is not captured in Razorpay. Please complete payment via Razorpay first.'
+      );
+    }
   };
 
   // Trigger Razorpay Checkout SDK popup with prioritized UPI QR flow
@@ -325,11 +341,12 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
       },
       onError: (err) => {
         setIsProcessingRazorpay(false);
-        const desc = err?.description || err?.message || 'Payment could not be completed via popup. You can scan the dynamic UPI QR code directly on screen.';
+        const desc = err?.description || err?.message || 'Payment was not completed. Ticket will only be issued after payment is completed.';
         setErrorMessage(desc);
       },
       onDismiss: () => {
         setIsProcessingRazorpay(false);
+        setErrorMessage('Razorpay checkout was closed before payment completion. Ticket was not generated.');
       }
     });
 
@@ -722,32 +739,37 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
                 </div>
               </div>
 
-              {/* STEP 2: CONFIRMATION / UTR PASS ISSUANCE */}
+              {/* STEP 2: STRICT RAZORPAY VERIFICATION */}
               <div className="p-4 rounded-2xl bg-[#090b10] border border-[#1f283b] space-y-3">
                 <div className="flex items-center justify-between text-xs">
                   <span className="font-bold text-[#f3ecd9] flex items-center gap-1.5">
-                    <CheckCircle2 className="w-4 h-4 text-[#4cc38a]" />
-                    <span>Step 2: Enter UPI UTR or Confirm to Get Pass</span>
+                    <ShieldCheck className="w-4 h-4 text-[#4cc38a]" />
+                    <span>Step 2: Verify Razorpay Payment to Get Pass</span>
                   </span>
-                  <span className="text-[10px] text-[#7ea0c4] font-mono">100% Guaranteed</span>
+                  <span className="text-[10px] text-[#4cc38a] font-mono bg-[#4cc38a]/15 px-2 py-0.5 rounded-full border border-[#4cc38a]/30">
+                    Live Verified Only
+                  </span>
                 </div>
 
                 <p className="text-[11px] text-[#a79f8b] leading-relaxed">
-                  After payment, enter your <strong className="text-white">12-digit UPI Reference / UTR Number</strong> (found in your GPay/PhonePe/Paytm transaction history) or <strong className="text-white">Razorpay ID</strong>:
+                  If you paid via QR Code or Razorpay.me, enter your official <strong className="text-white">Razorpay Payment ID</strong> (starts with <code className="text-[#f2c14e]">pay_</code>, e.g. <code className="text-[#f2c14e]">pay_To1...</code> from your payment receipt) to verify:
                 </p>
 
                 <div className="flex gap-2">
                   <input
                     type="text"
                     value={paymentRefInput}
-                    onChange={(e) => setPaymentRefInput(e.target.value)}
-                    placeholder="e.g. 428901234567 or pay_To1..."
+                    onChange={(e) => {
+                      setPaymentRefInput(e.target.value);
+                      if (errorMessage) setErrorMessage(null);
+                    }}
+                    placeholder="e.g. pay_To1b77abc..."
                     className="flex-1 bg-[#121622] border border-[#23354f] rounded-xl px-3 py-2 text-xs text-white placeholder-[#546b88] focus:outline-none focus:border-[#0088d4] font-mono tracking-wide"
                   />
                   <button
                     type="button"
                     disabled={isConfirming}
-                    onClick={() => handleConfirmMePayment()}
+                    onClick={handleVerifyManualPayment}
                     className="py-2 px-4 rounded-xl font-bold text-xs bg-[#4cc38a] hover:bg-[#3db279] text-black transition-all flex items-center gap-1.5 shrink-0 cursor-pointer disabled:opacity-60 shadow"
                   >
                     {isConfirming ? (
@@ -755,20 +777,16 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
                     ) : (
                       <Check className="w-3.5 h-3.5" />
                     )}
-                    <span>Verify Pass</span>
+                    <span>{isConfirming ? 'Verifying...' : 'Verify with Razorpay'}</span>
                   </button>
                 </div>
 
-                {/* Fast track confirmation */}
-                <div className="pt-2 flex flex-col sm:flex-row items-center justify-between border-t border-[#182030] text-[11px] gap-2">
-                  <span className="text-[#a79f8b]">Completed payment in your UPI app?</span>
-                  <button
-                    type="button"
-                    onClick={() => handleConfirmMePayment(`pay_rzp_veluri_${Date.now()}`)}
-                    className="text-[#70baff] hover:text-[#9fc7e8] font-bold underline underline-offset-2 cursor-pointer"
-                  >
-                    I have scanned and paid ₹{amount} → Issue Pass
-                  </button>
+                {/* Strict security enforcement notice - zero bypass */}
+                <div className="pt-2 flex items-center gap-2 border-t border-[#182030] text-[11px] text-[#7ea0c4]">
+                  <Lock className="w-3.5 h-3.5 text-[#4cc38a] shrink-0" />
+                  <span>
+                    Tickets are strictly generated only after confirmed payment capture by Razorpay. Unpaid attempts are automatically rejected.
+                  </span>
                 </div>
               </div>
             </div>

@@ -502,57 +502,113 @@ apiRouter.post('/razorpay/create-order', async (req: Request, res: Response) => 
   }
 });
 
-// 15. Razorpay: Verify Payment Signature
-apiRouter.post('/razorpay/verify-payment', (req: Request, res: Response) => {
+// 15. Razorpay: Verify Payment Signature & Live API Status
+apiRouter.post('/razorpay/verify-payment', async (req: Request, res: Response) => {
   try {
-    const { razorpay_order_id, razorpay_payment_id, razorpay_signature } = req.body;
-    const { keySecret } = getActiveRazorpayKeys();
+    const { razorpay_order_id, razorpay_payment_id, razorpay_signature, expectedAmount } = req.body;
+    const { keyId, keySecret } = getActiveRazorpayKeys();
 
-    if (!razorpay_payment_id) {
-      return res.status(400).json({ success: false, error: 'Missing payment ID.' });
-    }
-
-    // If order was simulated in sandbox test mode
-    if (razorpay_order_id && razorpay_order_id.startsWith('order_test_')) {
-      return res.json({
-        success: true,
-        verified: true,
-        paymentId: razorpay_payment_id,
-        orderId: razorpay_order_id,
-        mode: 'Sandbox Test Mode'
+    if (!razorpay_payment_id || typeof razorpay_payment_id !== 'string' || !razorpay_payment_id.trim()) {
+      return res.status(400).json({ 
+        success: false, 
+        verified: false, 
+        error: 'Razorpay Payment ID is required for verification.' 
       });
     }
 
+    const cleanPaymentId = razorpay_payment_id.trim();
+
+    // Check if this payment ID was ALREADY used for another registration to prevent reuse
+    const db = readDatabase();
+    const existingReg = db.registrations.find((r: any) => 
+      r.paymentId && r.paymentId.trim().toLowerCase() === cleanPaymentId.toLowerCase()
+    );
+    if (existingReg) {
+      return res.status(400).json({
+        success: false,
+        verified: false,
+        error: `This Razorpay Payment ID has already been verified and used for Pass ${existingReg.regId}. Duplicate ticket generation is not allowed.`
+      });
+    }
+
+    // A. Cryptographic HMAC Signature Verification (from Razorpay Checkout popup)
     if (razorpay_order_id && razorpay_signature) {
       const hmac = crypto.createHmac('sha256', keySecret);
-      hmac.update(`${razorpay_order_id}|${razorpay_payment_id}`);
+      hmac.update(`${razorpay_order_id}|${cleanPaymentId}`);
       const generatedSignature = hmac.digest('hex');
 
-      const isValid = generatedSignature === razorpay_signature;
-      if (isValid) {
-        return res.json({
-          success: true,
-          verified: true,
-          paymentId: razorpay_payment_id,
-          orderId: razorpay_order_id
-        });
-      } else {
+      if (generatedSignature !== razorpay_signature) {
         return res.status(400).json({
           success: false,
           verified: false,
-          error: 'Invalid signature. Payment authenticity could not be verified.'
+          error: 'Invalid Razorpay payment signature. Payment authenticity could not be verified.'
+        });
+      }
+
+      return res.json({
+        success: true,
+        verified: true,
+        paymentId: cleanPaymentId,
+        orderId: razorpay_order_id
+      });
+    }
+
+    // B. Manual Entry or Direct Payment ID Verification: Must be verified by querying Razorpay API
+    const auth = Buffer.from(`${keyId}:${keySecret}`).toString('base64');
+    let rzpRes: any;
+    let paymentData: any;
+
+    try {
+      rzpRes = await fetch(`https://api.razorpay.com/v1/payments/${encodeURIComponent(cleanPaymentId)}`, {
+        headers: { Authorization: `Basic ${auth}` }
+      });
+      paymentData = await rzpRes.json();
+    } catch (networkErr: any) {
+      return res.status(502).json({
+        success: false,
+        verified: false,
+        error: 'Unable to connect to Razorpay verification servers. Please check your internet connection and try again.'
+      });
+    }
+
+    if (!rzpRes.ok || !paymentData || !paymentData.id) {
+      return res.status(400).json({
+        success: false,
+        verified: false,
+        error: paymentData?.error?.description || 'Payment ID could not be found in Razorpay. Payment must be completed in Razorpay first.'
+      });
+    }
+
+    if (paymentData.status !== 'captured' && paymentData.status !== 'authorized') {
+      return res.status(400).json({
+        success: false,
+        verified: false,
+        error: `Payment is not completed. Current Razorpay status: '${paymentData.status}'. Only captured payments can generate tickets.`
+      });
+    }
+
+    // Verify amount if expectedAmount is provided
+    if (expectedAmount && Number(expectedAmount) > 0) {
+      const expectedPaise = Math.round(Number(expectedAmount) * 100);
+      if (paymentData.amount < expectedPaise) {
+        return res.status(400).json({
+          success: false,
+          verified: false,
+          error: `Amount paid in Razorpay (₹${paymentData.amount / 100}) does not match the required registration fee (₹${expectedAmount}).`
         });
       }
     }
 
-    // If standard client payment ID without order signature
-    res.json({
+    return res.json({
       success: true,
       verified: true,
-      paymentId: razorpay_payment_id
+      paymentId: cleanPaymentId,
+      amount: paymentData.amount / 100,
+      method: paymentData.method,
+      status: paymentData.status
     });
   } catch (err: any) {
-    res.status(500).json({ success: false, error: err.message });
+    res.status(500).json({ success: false, verified: false, error: err.message });
   }
 });
 

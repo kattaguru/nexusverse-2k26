@@ -82,4 +82,59 @@ describe('NexusVerse 2K26 Backend API Endpoints Unit Tests', () => {
       throw err;
     }
   });
+
+  it('POST /api/razorpay/verify-payment should reject missing payment ID', async () => {
+    try {
+      const res = await fetch(`${BASE_URL}/api/razorpay/verify-payment`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ razorpay_payment_id: '' })
+      });
+      assert.equal(res.status, 400);
+      const data = await res.json();
+      assert.equal(data.verified, false);
+      assert.ok(data.error);
+    } catch (err: any) {
+      if (err.code === 'ECONNREFUSED') return;
+      throw err;
+    }
+  });
+
+  it('POST /api/razorpay/verify-payment should reject fake or non-existent Razorpay payment ID', async () => {
+    try {
+      const res = await fetch(`${BASE_URL}/api/razorpay/verify-payment`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ razorpay_payment_id: 'pay_fake_unpaid_12345678' })
+      });
+      assert.equal(res.status, 400);
+      const data = await res.json();
+      assert.equal(data.verified, false);
+      assert.ok(data.error);
+    } catch (err: any) {
+      if (err.code === 'ECONNREFUSED') return;
+      throw err;
+    }
+  });
+
+  it('POST /api/razorpay/verify-payment should reject forged signature', async () => {
+    try {
+      const res = await fetch(`${BASE_URL}/api/razorpay/verify-payment`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          razorpay_order_id: 'order_test_12345',
+          razorpay_payment_id: 'pay_test_12345',
+          razorpay_signature: 'invalid_forged_signature_hex'
+        })
+      });
+      assert.equal(res.status, 400);
+      const data = await res.json();
+      assert.equal(data.verified, false);
+      assert.ok(data.error);
+    } catch (err: any) {
+      if (err.code === 'ECONNREFUSED') return;
+      throw err;
+    }
+  });
 });

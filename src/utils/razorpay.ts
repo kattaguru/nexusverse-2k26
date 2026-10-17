@@ -191,7 +191,8 @@ export async function createServerOrder(amountInRupees: number, currency = 'INR'
 export async function verifyPaymentOnServer(
   paymentId: string, 
   orderId?: string, 
-  signature?: string
+  signature?: string,
+  expectedAmount?: number
 ): Promise<{ verified: boolean; error?: string }> {
   try {
     const res = await fetch('/api/razorpay/verify-payment', {
@@ -200,18 +201,18 @@ export async function verifyPaymentOnServer(
       body: JSON.stringify({
         razorpay_payment_id: paymentId,
         razorpay_order_id: orderId,
-        razorpay_signature: signature
+        razorpay_signature: signature,
+        expectedAmount
       })
     });
     const data = await res.json();
     if (res.ok && (data.verified || data.success)) {
       return { verified: true };
     }
-    return { verified: false, error: data.error || 'Payment signature could not be verified.' };
+    return { verified: false, error: data.error || 'Payment could not be verified in Razorpay.' };
   } catch (err: any) {
-    console.warn('Payment verification network warning:', err);
-    // Non-blocking in case of offline dev fallback
-    return { verified: true };
+    console.warn('Payment verification network error:', err);
+    return { verified: false, error: 'Unable to connect to verification server. Please ensure you are online.' };
   }
 }
 
@@ -268,7 +269,8 @@ export async function triggerRazorpayCheckout({
       const verifyResult = await verifyPaymentOnServer(
         response.razorpay_payment_id,
         response.razorpay_order_id || orderId,
-        response.razorpay_signature
+        response.razorpay_signature,
+        amountInRupees
       );
 
       if (verifyResult.verified) {
