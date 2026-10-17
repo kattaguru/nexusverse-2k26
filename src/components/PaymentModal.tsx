@@ -70,12 +70,14 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
   const [gatewayMode, setGatewayMode] = useState<string>('Live UPI');
   const [isLiveGateway, setIsLiveGateway] = useState<boolean>(true);
   const [isProcessingRazorpay, setIsProcessingRazorpay] = useState<boolean>(false);
+  const [paymentMode, setPaymentMode] = useState<'razorpay' | 'upi'>('upi');
   
-  // Official Razorpay.me configuration
+  // Official UPI & Razorpay configuration
   const defaultMeUrl = SYMPOSIUM_CONFIG.razorpayMe?.url || 'https://razorpay.me/@veluriprasanth';
-  const defaultMeName = SYMPOSIUM_CONFIG.razorpayMe?.name || 'VELURI PRASANTH';
-  const defaultUpi = (import.meta as any).env?.VITE_UPI_VPA || 'veluriprasanth@razorpay';
+  const defaultMeName = SYMPOSIUM_CONFIG.razorpayMe?.name || 'NexusVerse 2K26';
+  const defaultUpi = (import.meta as any).env?.VITE_UPI_VPA || '9441759500@ptyes';
   const [upiVpa, setUpiVpa] = useState<string>(defaultUpi);
+  const [upiPayeeName, setUpiPayeeName] = useState<string>('NexusVerse 2K26');
   const [razorpayMeUrl, setRazorpayMeUrl] = useState<string>(defaultMeUrl);
   const [razorpayMeName, setRazorpayMeName] = useState<string>(defaultMeName);
   
@@ -88,15 +90,17 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
   const [copiedLink, setCopiedLink] = useState<boolean>(false);
   const [isConfirming, setIsConfirming] = useState<boolean>(false);
   
-  // Session countdown timer (12 minutes standard Razorpay QR expiry)
+  // Session countdown timer (12 minutes standard QR expiry)
   const [timeLeft, setTimeLeft] = useState<number>(720); // 12 minutes in seconds
   const [sessionKey, setSessionKey] = useState<number>(Date.now());
 
   const qrCanvasRef = useRef<HTMLCanvasElement>(null);
 
+  const effectivePayeeName = (paymentMode === 'upi' ? (upiPayeeName || razorpayMeName) : razorpayMeName) || 'NexusVerse 2K26';
+
   // Standard NPCI UPI URI for PhonePe / GPay / Paytm / BHIM scanner
-  const upiIntentString = `upi://pay?pa=${encodeURIComponent(upiVpa)}&pn=${encodeURIComponent(razorpayMeName)}&am=${amount}&cu=INR&tn=${encodeURIComponent(`NexusVerse 2K26 - ${roll || attendeeName}`)}`;
-  const activeQrPayload = qrDisplayMode === 'rzp_link' ? razorpayMeUrl : upiIntentString;
+  const upiIntentString = `upi://pay?pa=${encodeURIComponent(upiVpa)}&pn=${encodeURIComponent(effectivePayeeName)}&am=${amount}&cu=INR&tn=${encodeURIComponent(`NexusVerse 2K26 - ${roll || attendeeName}`)}`;
+  const activeQrPayload = (paymentMode === 'razorpay' && qrDisplayMode === 'rzp_link') ? razorpayMeUrl : upiIntentString;
 
   // Initialize and load Razorpay configuration
   useEffect(() => {
@@ -118,6 +122,7 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
       setActiveKey(cfg.keyId);
       setIsLiveGateway(cfg.isLive);
       setGatewayMode(cfg.mode);
+      setPaymentMode(cfg.paymentMode || 'upi');
       if (cfg.razorpayMeLink) {
         setRazorpayMeUrl(cfg.razorpayMeLink);
       }
@@ -126,6 +131,9 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
       }
       if (cfg.upiVpa) {
         setUpiVpa(cfg.upiVpa);
+      }
+      if (cfg.upiPayeeName) {
+        setUpiPayeeName(cfg.upiPayeeName);
       }
     });
   }, [isOpen]);
@@ -209,21 +217,21 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
   // Mobile App Deep Link Intent Launchers
   const handleOpenUpiApp = (appName?: 'gpay' | 'phonepe' | 'paytm') => {
     if (appName === 'gpay') {
-      window.location.href = `gpay://upi/pay?pa=${encodeURIComponent(upiVpa)}&pn=${encodeURIComponent(razorpayMeName)}&am=${amount}&cu=INR&tn=${encodeURIComponent(`NexusVerse 2K26 - ${roll || attendeeName}`)}`;
+      window.location.href = `gpay://upi/pay?pa=${encodeURIComponent(upiVpa)}&pn=${encodeURIComponent(effectivePayeeName)}&am=${amount}&cu=INR&tn=${encodeURIComponent(`NexusVerse 2K26 - ${roll || attendeeName}`)}`;
       setTimeout(() => {
         window.location.href = upiIntentString;
       }, 500);
       return;
     }
     if (appName === 'phonepe') {
-      window.location.href = `phonepe://pay?pa=${encodeURIComponent(upiVpa)}&pn=${encodeURIComponent(razorpayMeName)}&am=${amount}&cu=INR&tn=${encodeURIComponent(`NexusVerse 2K26 - ${roll || attendeeName}`)}`;
+      window.location.href = `phonepe://pay?pa=${encodeURIComponent(upiVpa)}&pn=${encodeURIComponent(effectivePayeeName)}&am=${amount}&cu=INR&tn=${encodeURIComponent(`NexusVerse 2K26 - ${roll || attendeeName}`)}`;
       setTimeout(() => {
         window.location.href = upiIntentString;
       }, 500);
       return;
     }
     if (appName === 'paytm') {
-      window.location.href = `paytmmp://pay?pa=${encodeURIComponent(upiVpa)}&pn=${encodeURIComponent(razorpayMeName)}&am=${amount}&cu=INR&tn=${encodeURIComponent(`NexusVerse 2K26 - ${roll || attendeeName}`)}`;
+      window.location.href = `paytmmp://pay?pa=${encodeURIComponent(upiVpa)}&pn=${encodeURIComponent(effectivePayeeName)}&am=${amount}&cu=INR&tn=${encodeURIComponent(`NexusVerse 2K26 - ${roll || attendeeName}`)}`;
       setTimeout(() => {
         window.location.href = upiIntentString;
       }, 500);
@@ -232,18 +240,22 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
     window.location.href = upiIntentString;
   };
 
-  // Strictly verify Razorpay Payment ID with backend & Razorpay API
+  // Strictly verify Payment with backend (Razorpay API or Direct UPI UTR)
   const handleVerifyManualPayment = async () => {
     const rawId = paymentRefInput.trim();
     if (!rawId) {
-      setErrorMessage('Please enter the official Razorpay Payment ID (starts with pay_...) from your Razorpay receipt.');
+      setErrorMessage(
+        paymentMode === 'upi'
+          ? 'Please enter your 12-digit UPI Transaction Reference Number (UTR) from your Google Pay, PhonePe, or Paytm receipt.'
+          : 'Please enter the official Razorpay Payment ID (starts with pay_...) from your Razorpay receipt.'
+      );
       return;
     }
 
     setIsConfirming(true);
     setErrorMessage(null);
 
-    const verifyResult = await verifyPaymentOnServer(rawId, undefined, undefined, amount);
+    const verifyResult = await verifyPaymentOnServer(rawId, undefined, undefined, amount, paymentMode);
 
     setIsConfirming(false);
 
@@ -252,7 +264,9 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
     } else {
       setErrorMessage(
         verifyResult.error || 
-        'Razorpay payment verification failed. Payment ID could not be found or is not captured in Razorpay. Please complete payment via Razorpay first.'
+        (paymentMode === 'upi'
+          ? 'UPI payment verification failed. Please ensure you entered the complete 12-digit UTR from your payment receipt.'
+          : 'Razorpay payment verification failed. Payment ID could not be found or is not captured in Razorpay. Please complete payment via Razorpay first.')
       );
     }
   };
@@ -325,23 +339,36 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
-        <div className="bg-gradient-to-r from-[#07192f] via-[#0c2340] to-[#141b2d] p-4 sm:p-5 border-b border-[#20334f] flex items-center justify-between shrink-0">
+        <div className={`p-4 sm:p-5 border-b flex items-center justify-between shrink-0 ${
+          paymentMode === 'upi'
+            ? 'bg-gradient-to-r from-[#081810] via-[#0d2618] to-[#121e16] border-[#1d442b]'
+            : 'bg-gradient-to-r from-[#07192f] via-[#0c2340] to-[#141b2d] border-[#20334f]'
+        }`}>
           <div className="flex items-center gap-3">
-            <div className="w-11 h-11 rounded-xl bg-gradient-to-br from-[#00629b] to-[#0088d4] flex flex-col items-center justify-center text-white font-black shadow-lg border border-[#3395ff]/40">
-              <span className="text-[13px] tracking-tight leading-none">RZP</span>
-              <span className="text-[9px] font-mono tracking-widest text-[#70baff] mt-0.5 font-bold">UPI</span>
-            </div>
+            {paymentMode === 'upi' ? (
+              <div className="w-11 h-11 rounded-xl bg-gradient-to-br from-[#1b5e39] to-[#27ae60] flex flex-col items-center justify-center text-white font-black shadow-lg border border-[#4cc38a]/40">
+                <span className="text-[13px] tracking-tight leading-none text-white">UPI</span>
+                <span className="text-[8px] font-mono tracking-widest text-[#a3e8c0] mt-0.5 font-bold">DIRECT</span>
+              </div>
+            ) : (
+              <div className="w-11 h-11 rounded-xl bg-gradient-to-br from-[#00629b] to-[#0088d4] flex flex-col items-center justify-center text-white font-black shadow-lg border border-[#3395ff]/40">
+                <span className="text-[13px] tracking-tight leading-none">RZP</span>
+                <span className="text-[9px] font-mono tracking-widest text-[#70baff] mt-0.5 font-bold">GATEWAY</span>
+              </div>
+            )}
             <div>
               <div className="text-[11px] text-[#9fc7e8] flex items-center gap-1.5 font-medium">
                 <ShieldCheck className="w-3.5 h-3.5 text-[#4cc38a]" />
-                <span className="font-semibold">Razorpay Official UPI Portal</span>
+                <span className="font-semibold text-[#a3e8c0]">
+                  {paymentMode === 'upi' ? 'Direct UPI Official Payment' : 'Razorpay Official Gateway'}
+                </span>
                 <span className="w-1.5 h-1.5 rounded-full bg-[#4cc38a] animate-pulse" />
                 <span className="text-[10px] font-mono px-1.5 py-0.2 rounded bg-black/40 text-[#4cc38a] border border-[#4cc38a]/30">
                   NPCI Verified
                 </span>
               </div>
               <h3 id="payment-modal-heading" className="text-sm sm:text-base font-bold text-white tracking-wide">
-                NexusVerse 2K26 · {razorpayMeName}
+                NexusVerse 2K26 · {effectivePayeeName}
               </h3>
             </div>
           </div>
@@ -378,36 +405,48 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
           </div>
         </div>
 
-        {/* Tab Navigation */}
-        <div className="flex border-b border-[#1f283b] bg-[#0c0e14] shrink-0">
-          <button
-            type="button"
-            onClick={() => setActiveTab('upi_qr')}
-            className={`flex-1 py-3 px-4 text-xs font-bold flex items-center justify-center gap-2 transition-all border-b-2 cursor-pointer ${
-              activeTab === 'upi_qr'
-                ? 'border-[#0088d4] text-white bg-gradient-to-t from-[#00629b]/25 to-transparent'
-                : 'border-transparent text-[#7ea0c4] hover:text-white'
-            }`}
-          >
-            <QrCode className="w-4 h-4 text-[#4cc38a]" />
-            <span>Razorpay UPI QR Scanner</span>
-            <span className="text-[9px] px-1.5 py-0.2 rounded-full bg-[#4cc38a]/20 text-[#4cc38a] border border-[#4cc38a]/40 font-mono">
-              Live
+        {/* Tab Navigation / Direct UPI Mode Banner */}
+        {paymentMode === 'upi' ? (
+          <div className="flex border-b border-[#1d442b] bg-[#081810] px-4 py-2.5 items-center justify-between shrink-0 text-xs">
+            <div className="flex items-center gap-2 text-[#a3e8c0] font-semibold">
+              <QrCode className="w-4 h-4 text-[#4cc38a]" />
+              <span>Direct Bank UPI Scanner & Quick Apps</span>
+            </div>
+            <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-[#4cc38a]/20 text-[#4cc38a] border border-[#4cc38a]/40 font-bold">
+              Instant Bank Credit
             </span>
-          </button>
-          <button
-            type="button"
-            onClick={() => setActiveTab('cards_netbanking')}
-            className={`py-3 px-4 text-xs font-semibold flex items-center justify-center gap-1.5 transition-all border-b-2 cursor-pointer ${
-              activeTab === 'cards_netbanking'
-                ? 'border-[#0088d4] text-white bg-[#00629b]/15'
-                : 'border-transparent text-[#7ea0c4] hover:text-white'
-            }`}
-          >
-            <CreditCard className="w-3.5 h-3.5 text-[#70baff]" />
-            <span>Cards / Net Banking</span>
-          </button>
-        </div>
+          </div>
+        ) : (
+          <div className="flex border-b border-[#1f283b] bg-[#0c0e14] shrink-0">
+            <button
+              type="button"
+              onClick={() => setActiveTab('upi_qr')}
+              className={`flex-1 py-3 px-4 text-xs font-bold flex items-center justify-center gap-2 transition-all border-b-2 cursor-pointer ${
+                activeTab === 'upi_qr'
+                  ? 'border-[#0088d4] text-white bg-gradient-to-t from-[#00629b]/25 to-transparent'
+                  : 'border-transparent text-[#7ea0c4] hover:text-white'
+              }`}
+            >
+              <QrCode className="w-4 h-4 text-[#4cc38a]" />
+              <span>Razorpay UPI QR Scanner</span>
+              <span className="text-[9px] px-1.5 py-0.2 rounded-full bg-[#4cc38a]/20 text-[#4cc38a] border border-[#4cc38a]/40 font-mono">
+                Live
+              </span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setActiveTab('cards_netbanking')}
+              className={`py-3 px-4 text-xs font-semibold flex items-center justify-center gap-1.5 transition-all border-b-2 cursor-pointer ${
+                activeTab === 'cards_netbanking'
+                  ? 'border-[#0088d4] text-white bg-[#00629b]/15'
+                  : 'border-transparent text-[#7ea0c4] hover:text-white'
+              }`}
+            >
+              <CreditCard className="w-3.5 h-3.5 text-[#70baff]" />
+              <span>Cards / Net Banking</span>
+            </button>
+          </div>
+        )}
 
         {/* Modal Scrollable Body */}
         <div className="p-4 sm:p-5 space-y-4 overflow-y-auto flex-1">
@@ -517,14 +556,16 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
                         </span>
                       </h4>
                       <p className="text-[11px] text-[#8ea8c9] mt-0.5 leading-relaxed">
-                        Scan using <strong className="text-white">Google Pay, PhonePe, Paytm, or BHIM</strong>. Payment is credited directly to <strong className="text-white">{razorpayMeName}</strong>.
+                        Scan using <strong className="text-white">Google Pay, PhonePe, Paytm, or BHIM</strong>. Payment is credited directly to <strong className="text-white">{effectivePayeeName}</strong>.
                       </p>
                     </div>
 
                     {/* Official VPA Display & Copy */}
                     <div className="p-2.5 rounded-xl bg-[#07101c] border border-[#183659] flex items-center justify-between gap-2 text-xs">
                       <div className="min-w-0">
-                        <span className="text-[10px] uppercase tracking-wider text-[#6484a6] block font-semibold">Razorpay UPI ID (VPA)</span>
+                        <span className="text-[10px] uppercase tracking-wider text-[#6484a6] block font-semibold">
+                          {paymentMode === 'upi' ? 'Direct UPI ID (VPA)' : 'Razorpay UPI ID (VPA)'}
+                        </span>
                         <span className="font-mono text-white font-bold truncate block">{upiVpa}</span>
                       </div>
                       <button
@@ -589,39 +630,51 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
                   </div>
                 </div>
 
-                {/* RAZORPAY CHECKOUT POPUP BUTTON */}
-                <div className="pt-1">
-                  <button
-                    type="button"
-                    onClick={() => handleLaunchSdk('upi')}
-                    disabled={isProcessingRazorpay}
-                    className="w-full py-3.5 px-4 rounded-xl font-bold text-xs sm:text-sm bg-gradient-to-r from-[#00629b] via-[#007cc2] to-[#009bf2] text-white hover:from-[#007cc2] hover:to-[#00aeff] transition-all flex items-center justify-center gap-2 shadow-lg hover:shadow-[#0088d4]/30 cursor-pointer disabled:opacity-60"
-                  >
-                    {isProcessingRazorpay ? (
-                      <Loader2 className="w-4 h-4 animate-spin text-white" />
-                    ) : (
-                      <QrCode className="w-4 h-4 text-[#f2c14e]" />
-                    )}
-                    <span>Launch Razorpay Checkout Popup (Auto Pass)</span>
-                    <ArrowRight className="w-4 h-4 text-white" />
-                  </button>
-                </div>
+                {/* RAZORPAY CHECKOUT POPUP BUTTON (Razorpay Mode Only) */}
+                {paymentMode === 'razorpay' && (
+                  <div className="pt-1">
+                    <button
+                      type="button"
+                      onClick={() => handleLaunchSdk('upi')}
+                      disabled={isProcessingRazorpay}
+                      className="w-full py-3.5 px-4 rounded-xl font-bold text-xs sm:text-sm bg-gradient-to-r from-[#00629b] via-[#007cc2] to-[#009bf2] text-white hover:from-[#007cc2] hover:to-[#00aeff] transition-all flex items-center justify-center gap-2 shadow-lg hover:shadow-[#0088d4]/30 cursor-pointer disabled:opacity-60"
+                    >
+                      {isProcessingRazorpay ? (
+                        <Loader2 className="w-4 h-4 animate-spin text-white" />
+                      ) : (
+                        <QrCode className="w-4 h-4 text-[#f2c14e]" />
+                      )}
+                      <span>Launch Razorpay Checkout Popup (Auto Pass)</span>
+                      <ArrowRight className="w-4 h-4 text-white" />
+                    </button>
+                  </div>
+                )}
               </div>
 
-              {/* STEP 2: STRICT RAZORPAY VERIFICATION */}
+              {/* STEP 2: VERIFICATION CARD */}
               <div className="p-4 rounded-2xl bg-[#090b10] border border-[#1f283b] space-y-3">
                 <div className="flex items-center justify-between text-xs">
                   <span className="font-bold text-[#f3ecd9] flex items-center gap-1.5">
                     <ShieldCheck className="w-4 h-4 text-[#4cc38a]" />
-                    <span>Step 2: Verify Razorpay Payment to Get Pass</span>
+                    <span>
+                      {paymentMode === 'upi' ? 'Step 2: Enter 12-Digit UPI Reference (UTR) to Get Pass' : 'Step 2: Verify Razorpay Payment to Get Pass'}
+                    </span>
                   </span>
                   <span className="text-[10px] text-[#4cc38a] font-mono bg-[#4cc38a]/15 px-2 py-0.5 rounded-full border border-[#4cc38a]/30">
-                    Live Verified Only
+                    {paymentMode === 'upi' ? 'Instant Verification' : 'Live Verified Only'}
                   </span>
                 </div>
 
                 <p className="text-[11px] text-[#a79f8b] leading-relaxed">
-                  If you paid via QR Code or Razorpay.me, enter your official <strong className="text-white">Razorpay Payment ID</strong> (starts with <code className="text-[#f2c14e]">pay_</code>, e.g. <code className="text-[#f2c14e]">pay_To1...</code> from your payment receipt) to verify:
+                  {paymentMode === 'upi' ? (
+                    <>
+                      After completing payment in Google Pay, PhonePe, or Paytm, enter the <strong className="text-white">12-digit UPI Transaction Reference Number / UTR</strong> (e.g. <code className="text-[#f2c14e]">429182749102</code> from your receipt) to verify:
+                    </>
+                  ) : (
+                    <>
+                      If you paid via QR Code or Razorpay.me, enter your official <strong className="text-white">Razorpay Payment ID</strong> (starts with <code className="text-[#f2c14e]">pay_</code>, e.g. <code className="text-[#f2c14e]">pay_To1...</code> from your payment receipt) to verify:
+                    </>
+                  )}
                 </p>
 
                 <div className="flex gap-2">
@@ -632,7 +685,7 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
                       setPaymentRefInput(e.target.value);
                       if (errorMessage) setErrorMessage(null);
                     }}
-                    placeholder="e.g. pay_To1b77abc..."
+                    placeholder={paymentMode === 'upi' ? "e.g. 429182749102 or T241017..." : "e.g. pay_To1b77abc..."}
                     className="flex-1 bg-[#121622] border border-[#23354f] rounded-xl px-3 py-2 text-xs text-white placeholder-[#546b88] focus:outline-none focus:border-[#0088d4] font-mono tracking-wide"
                   />
                   <button
@@ -646,15 +699,17 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
                     ) : (
                       <Check className="w-3.5 h-3.5" />
                     )}
-                    <span>{isConfirming ? 'Verifying...' : 'Verify with Razorpay'}</span>
+                    <span>{isConfirming ? 'Verifying...' : (paymentMode === 'upi' ? 'Verify UTR & Issue Pass' : 'Verify with Razorpay')}</span>
                   </button>
                 </div>
 
-                {/* Strict security enforcement notice - zero bypass */}
+                {/* Strict security enforcement notice */}
                 <div className="pt-2 flex items-center gap-2 border-t border-[#182030] text-[11px] text-[#7ea0c4]">
                   <Lock className="w-3.5 h-3.5 text-[#4cc38a] shrink-0" />
                   <span>
-                    Tickets are strictly generated only after confirmed payment capture by Razorpay. Unpaid attempts are automatically rejected.
+                    {paymentMode === 'upi'
+                      ? 'Each UPI Transaction Reference (UTR) is verified to prevent reuse. Passes are issued instantly upon verification.'
+                      : 'Tickets are strictly generated only after confirmed payment capture by Razorpay. Unpaid attempts are automatically rejected.'}
                   </span>
                 </div>
               </div>
@@ -737,10 +792,12 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
         <div className="p-3 bg-[#080a0f] border-t border-[#1f283b] flex items-center justify-between text-[11px] text-[#7ea0c4] shrink-0 px-4">
           <div className="flex items-center gap-1.5">
             <ShieldCheck className="w-3.5 h-3.5 text-[#4cc38a]" />
-            <span>256-Bit SSL Encrypted · Razorpay UPI Verified</span>
+            <span>
+              {paymentMode === 'upi' ? 'NPCI Instant Bank UPI · 256-Bit SSL' : '256-Bit SSL Encrypted · Razorpay UPI Verified'}
+            </span>
           </div>
           <span className="font-mono text-[10px] text-[#a79f8b]">
-            VPA: {upiVpa}
+            UPI ID: {upiVpa}
           </span>
         </div>
       </div>

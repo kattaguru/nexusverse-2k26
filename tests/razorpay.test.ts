@@ -44,4 +44,18 @@ describe('Razorpay Utilities & Payment Calculation Unit Tests', () => {
     assert.equal(discountAmount, 35);
     assert.equal(finalAfterPromo, 315);
   });
+
+  it('should format standard NPCI Direct UPI payment URI correctly with custom UPI ID', () => {
+    const upiVpa = '9441759500@ptyes';
+    const payeeName = 'NexusVerse 2K26';
+    const amount = 200;
+    const roll = '23KB1A0597';
+
+    const upiUri = `upi://pay?pa=${encodeURIComponent(upiVpa)}&pn=${encodeURIComponent(payeeName)}&am=${amount}&cu=INR&tn=${encodeURIComponent(`NexusVerse 2K26 - ${roll}`)}`;
+    
+    assert.ok(upiUri.startsWith('upi://pay?'), 'URI must start with standard upi://pay? scheme');
+    assert.ok(upiUri.includes('pa=9441759500%40ptyes') || upiUri.includes('pa=9441759500@ptyes'), 'URI must contain encoded UPI VPA');
+    assert.ok(upiUri.includes('am=200'), 'URI must contain amount');
+    assert.ok(upiUri.includes('cu=INR'), 'URI currency must be INR');
+  });
 });

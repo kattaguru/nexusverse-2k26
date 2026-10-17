@@ -33,6 +33,9 @@ export interface DatabaseSchema {
     isRegClosed: boolean;
     closedMessage: string;
     adminPassword?: string;
+    paymentMode?: 'razorpay' | 'upi';
+    upiVpa?: string;
+    upiPayeeName?: string;
     razorpayKeyId?: string;
     razorpayKeySecret?: string;
     razorpayMeLink?: string;
@@ -46,7 +49,12 @@ export const DEFAULT_DB: DatabaseSchema = {
   registrations: [],
   settings: {
     isRegClosed: false,
-    closedMessage: 'Registration is currently closed. For inquiries or spot availability, contact the IEEE-SB desk.'
+    closedMessage: 'Registration is currently closed. For inquiries or spot availability, contact the IEEE-SB desk.',
+    paymentMode: 'upi',
+    upiVpa: '9441759500@ptyes',
+    upiPayeeName: 'NexusVerse 2K26',
+    razorpayMeLink: 'https://razorpay.me/@veluriprasanth',
+    razorpayMeName: 'VELURI PRASANTH'
   },
   photos: [
     {

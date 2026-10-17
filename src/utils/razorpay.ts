@@ -55,9 +55,11 @@ export interface RazorpayPublicConfig {
   keyId: string;
   isLive: boolean;
   mode: string;
+  paymentMode: 'razorpay' | 'upi';
   razorpayMeLink?: string;
   razorpayMeName?: string;
   upiVpa?: string;
+  upiPayeeName?: string;
 }
 
 let cachedConfig: RazorpayPublicConfig | null = null;
@@ -92,7 +94,7 @@ export function loadRazorpayScript(): Promise<boolean> {
 }
 
 /**
- * Fetches active Razorpay public configuration from the server backend.
+ * Fetches active Razorpay and Direct UPI public configuration from the server backend.
  */
 export async function fetchRazorpayConfig(): Promise<RazorpayPublicConfig> {
   try {
@@ -104,9 +106,11 @@ export async function fetchRazorpayConfig(): Promise<RazorpayPublicConfig> {
           keyId: data.keyId,
           isLive: !!data.isLive,
           mode: data.mode || (data.isLive ? 'Live Production' : 'Sandbox / Test Mode'),
+          paymentMode: (data.paymentMode === 'razorpay' ? 'razorpay' : 'upi'),
           razorpayMeLink: data.razorpayMeLink || 'https://razorpay.me/@veluriprasanth',
           razorpayMeName: data.razorpayMeName || 'VELURI PRASANTH',
-          upiVpa: data.upiVpa || (import.meta as any).env?.VITE_UPI_VPA || 'veluriprasanth@razorpay'
+          upiVpa: data.upiVpa || (import.meta as any).env?.VITE_UPI_VPA || '9441759500@ptyes',
+          upiPayeeName: data.upiPayeeName || data.razorpayMeName || 'NexusVerse 2K26'
         };
         return cachedConfig;
       }
@@ -120,9 +124,11 @@ export async function fetchRazorpayConfig(): Promise<RazorpayPublicConfig> {
     keyId: fallbackKey,
     isLive: fallbackKey.startsWith('rzp_live_'),
     mode: fallbackKey.startsWith('rzp_live_') ? 'Live Production' : 'Sandbox / Test Mode',
+    paymentMode: 'upi',
     razorpayMeLink: 'https://razorpay.me/@veluriprasanth',
     razorpayMeName: 'VELURI PRASANTH',
-    upiVpa: (import.meta as any).env?.VITE_UPI_VPA || 'veluriprasanth@razorpay'
+    upiVpa: (import.meta as any).env?.VITE_UPI_VPA || '9441759500@ptyes',
+    upiPayeeName: 'NexusVerse 2K26'
   };
 }
 
@@ -189,13 +195,14 @@ export async function createServerOrder(amountInRupees: number, currency = 'INR'
 }
 
 /**
- * Cryptographically verifies payment signature on server backend.
+ * Cryptographically verifies payment signature or UPI UTR on server backend.
  */
 export async function verifyPaymentOnServer(
   paymentId: string, 
   orderId?: string, 
   signature?: string,
-  expectedAmount?: number
+  expectedAmount?: number,
+  paymentMode?: 'razorpay' | 'upi'
 ): Promise<{ verified: boolean; error?: string }> {
   try {
     const res = await fetch('/api/razorpay/verify-payment', {
@@ -205,14 +212,15 @@ export async function verifyPaymentOnServer(
         razorpay_payment_id: paymentId,
         razorpay_order_id: orderId,
         razorpay_signature: signature,
-        expectedAmount
+        expectedAmount,
+        paymentMode
       })
     });
     const data = await res.json();
     if (res.ok && (data.verified || data.success)) {
       return { verified: true };
     }
-    return { verified: false, error: data.error || 'Payment could not be verified in Razorpay.' };
+    return { verified: false, error: data.error || 'Payment could not be verified.' };
   } catch (err: any) {
     console.warn('Payment verification network error:', err);
     return { verified: false, error: 'Unable to connect to verification server. Please ensure you are online.' };

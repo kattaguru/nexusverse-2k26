@@ -41,7 +41,8 @@ import {
   Key,
   ExternalLink,
   Link,
-  Smartphone
+  Smartphone,
+  QrCode
 } from 'lucide-react';
 import { RegistrationRecord, TeamMemberInfo } from './TicketPass';
 import { EVENTS, ALL_EVENTS, SYMPOSIUM_CONFIG } from '../data/symposiumData';
@@ -222,12 +223,14 @@ export const AdminModal: React.FC<AdminModalProps> = ({
   const [newAdminPassword, setNewAdminPassword] = useState('');
   const [pwdChangeSuccess, setPwdChangeSuccess] = useState(false);
 
-  // Razorpay Gateway Settings state
+  // Payment Gateway & Direct UPI Settings state
+  const [paymentMode, setPaymentMode] = useState<'razorpay' | 'upi'>('upi');
   const [rzpKeyId, setRzpKeyId] = useState('');
   const [rzpKeySecret, setRzpKeySecret] = useState('');
   const [rzpMeLink, setRzpMeLink] = useState('https://razorpay.me/@veluriprasanth');
-  const [rzpMeName, setRzpMeName] = useState('VELURI PRASANTH');
-  const [rzpUpiVpa, setRzpUpiVpa] = useState('veluriprasanth@razorpay');
+  const [rzpMeName, setRzpMeName] = useState('NexusVerse 2K26');
+  const [rzpUpiVpa, setRzpUpiVpa] = useState('9441759500@ptyes');
+  const [upiPayeeName, setUpiPayeeName] = useState('NexusVerse 2K26');
   const [rzpTestStatus, setRzpTestStatus] = useState<{ testing: boolean; success?: boolean; message?: string }>({ testing: false });
   const [rzpSaveStatus, setRzpSaveStatus] = useState<string>('');
 
@@ -309,12 +312,15 @@ export const AdminModal: React.FC<AdminModalProps> = ({
         }
       } catch (e) {}
 
-      // Fetch active Razorpay configuration from server
+      // Fetch active Razorpay & Direct UPI configuration from server
       fetch('/api/razorpay/config')
         .then(res => res.json())
         .then(data => {
           if (data && data.keyId) {
             setRzpKeyId(data.keyId);
+          }
+          if (data && data.paymentMode) {
+            setPaymentMode(data.paymentMode === 'razorpay' ? 'razorpay' : 'upi');
           }
           if (data && data.razorpayMeLink) {
             setRzpMeLink(data.razorpayMeLink);
@@ -324,6 +330,9 @@ export const AdminModal: React.FC<AdminModalProps> = ({
           }
           if (data && data.upiVpa) {
             setRzpUpiVpa(data.upiVpa);
+          }
+          if (data && data.upiPayeeName) {
+            setUpiPayeeName(data.upiPayeeName);
           }
         })
         .catch(() => {});
@@ -458,13 +467,15 @@ export const AdminModal: React.FC<AdminModalProps> = ({
           keySecret: rzpKeySecret,
           razorpayMeLink: rzpMeLink,
           razorpayMeName: rzpMeName,
-          upiVpa: rzpUpiVpa
+          upiVpa: rzpUpiVpa,
+          upiPayeeName: upiPayeeName,
+          paymentMode: paymentMode
         })
       });
       const data = await res.json();
       if (res.ok && data.success) {
-        setRzpSaveStatus('Razorpay credentials & UPI link saved successfully!');
-        setTimeout(() => setRzpSaveStatus(''), 4000);
+        setRzpSaveStatus(`Payment settings saved! Active mode: ${paymentMode === 'upi' ? `Direct UPI (${rzpUpiVpa})` : 'Razorpay Gateway'}`);
+        setTimeout(() => setRzpSaveStatus(''), 4500);
       } else {
         alert('Error saving keys: ' + (data.error || 'Unknown error'));
       }
@@ -2159,202 +2170,323 @@ export const AdminModal: React.FC<AdminModalProps> = ({
               {/* TAB 5: BACKUP, RESTORE & SECURITY */}
               {activeTab === 'settings' && (
                 <div className="space-y-6 max-w-2xl mx-auto">
-                  {/* Razorpay Payment Gateway Setup */}
-                  <div className="p-5 rounded-2xl bg-[#0a0a0d] border border-[#2e2b22] space-y-4">
-                    <div className="flex items-center justify-between">
+                  {/* Payment Mode & Gateway Configuration Card */}
+                  <div className="p-5 rounded-2xl bg-[#0a0a0d] border border-[#2e2b22] space-y-5">
+                    <div className="flex flex-wrap items-center justify-between gap-2">
                       <h4 className="text-base font-bold text-white flex items-center gap-2">
-                        <CreditCard className="w-5 h-5 text-[#00629b]" />
-                        <span>Razorpay Payment Gateway Configuration</span>
+                        <CreditCard className="w-5 h-5 text-[#f2c14e]" />
+                        <span>Payment Mode & Gateway Control</span>
                       </h4>
-                      <span className={`text-[10px] font-mono px-2 py-0.5 rounded-full border ${
-                        rzpKeyId.startsWith('rzp_live_')
-                          ? 'bg-[#00629b]/20 border-[#00629b] text-[#70baff]'
-                          : 'bg-[#2a1b0e] border-[#f2c14e]/40 text-[#f2c14e]'
+                      <span className={`text-[10px] font-mono px-2.5 py-0.5 rounded-full border flex items-center gap-1.5 ${
+                        paymentMode === 'upi'
+                          ? 'bg-[#0f2e1e] border-[#4cc38a]/50 text-[#4cc38a]'
+                          : 'bg-[#07192f] border-[#0088d4]/50 text-[#70baff]'
                       }`}>
-                        {rzpKeyId.startsWith('rzp_live_') ? 'Live Production' : 'Sandbox / Test Mode'}
+                        <span className="w-1.5 h-1.5 rounded-full bg-current animate-pulse" />
+                        <span>Active Mode: {paymentMode === 'upi' ? 'Normal Direct UPI' : 'Razorpay Gateway'}</span>
                       </span>
                     </div>
 
                     <p className="text-xs text-[#a79f8b] leading-relaxed">
-                      Configure your Razorpay API credentials for collecting symposium registration fees. 
-                      Supports instant UPI (GPay, PhonePe, Paytm), Credit/Debit Cards, NetBanking, and Wallets.
+                      Select how delegates pay their symposium registration fee. You can switch between <strong className="text-white">Normal Direct UPI</strong> (QR code direct to bank) and <strong className="text-white">Razorpay Gateway</strong> at any time. Only the mode selected here is active for participants.
                     </p>
 
-                    <div className="space-y-3">
-                      <div>
-                        <label className="text-xs text-[#a79f8b] block mb-1 flex items-center justify-between">
-                          <span>Razorpay Key ID</span>
-                          <span className="text-[10px] text-[#70baff] font-mono">Public key: rzp_test_... or rzp_live_...</span>
-                        </label>
-                        <input
-                          type="text"
-                          value={rzpKeyId}
-                          onChange={(e) => setRzpKeyId(e.target.value)}
-                          placeholder="rzp_test_1234567890ABCD"
-                          className="w-full px-3.5 py-2 text-xs font-mono rounded-xl bg-[#131318] border border-[#2e2b22] text-[#f3ecd9] focus:outline-none focus:border-[#00629b]"
-                        />
-                      </div>
-
-                      <div>
-                        <label className="text-xs text-[#a79f8b] block mb-1 flex items-center justify-between">
-                          <span>Razorpay Key Secret</span>
-                          <span className="text-[10px] text-[#a79f8b] font-mono">Used for backend HMAC signature verification</span>
-                        </label>
-                        <input
-                          type="password"
-                          value={rzpKeySecret}
-                          onChange={(e) => setRzpKeySecret(e.target.value)}
-                          placeholder="Enter your Razorpay Key Secret..."
-                          className="w-full px-3.5 py-2 text-xs font-mono rounded-xl bg-[#131318] border border-[#2e2b22] text-[#f3ecd9] focus:outline-none focus:border-[#00629b]"
-                        />
-                      </div>
-
-                      <div>
-                        <label className="text-xs text-[#a79f8b] block mb-1 flex items-center justify-between">
-                          <span>Razorpay.me UPI Link</span>
-                          <span className="text-[10px] text-[#4cc38a] font-mono">Direct UPI payment handle</span>
-                        </label>
-                        <input
-                          type="text"
-                          value={rzpMeLink}
-                          onChange={(e) => setRzpMeLink(e.target.value)}
-                          placeholder="https://razorpay.me/@veluriprasanth"
-                          className="w-full px-3.5 py-2 text-xs font-mono rounded-xl bg-[#131318] border border-[#2e2b22] text-[#f3ecd9] focus:outline-none focus:border-[#00629b]"
-                        />
-                      </div>
-
-                      <div>
-                        <label className="text-xs text-[#a79f8b] block mb-1 flex items-center justify-between">
-                          <span>Merchant / Beneficiary Name</span>
-                          <span className="text-[10px] text-[#a79f8b]">Shown on UPI checkout and passes</span>
-                        </label>
-                        <input
-                          type="text"
-                          value={rzpMeName}
-                          onChange={(e) => setRzpMeName(e.target.value)}
-                          placeholder="VELURI PRASANTH"
-                          className="w-full px-3.5 py-2 text-xs font-mono rounded-xl bg-[#131318] border border-[#2e2b22] text-[#f3ecd9] focus:outline-none focus:border-[#00629b]"
-                        />
-                      </div>
-
-                      <div>
-                        <label className="text-xs text-[#a79f8b] block mb-1 flex items-center justify-between">
-                          <span>Direct UPI ID / VPA (for PhonePe & GPay QR scan)</span>
-                          <span className="text-[10px] text-[#4cc38a] font-mono">Instant Bank Credit</span>
-                        </label>
-                        <input
-                          type="text"
-                          value={rzpUpiVpa}
-                          onChange={(e) => setRzpUpiVpa(e.target.value)}
-                          placeholder="e.g. veluriprasanth@razorpay or 9491501919@ybl"
-                          className="w-full px-3.5 py-2 text-xs font-mono rounded-xl bg-[#131318] border border-[#2e2b22] text-[#f3ecd9] focus:outline-none focus:border-[#00629b]"
-                        />
-                        <p className="text-[10px] text-[#8ea8c9] mt-1">
-                          If your Razorpay account is under review, set your active PhonePe or Google Pay UPI ID here so students scanning with PhonePe / GPay do not get temporary technical errors.
-                        </p>
-                      </div>
-
-                      <div className="flex items-center justify-between text-[11px] text-[#a79f8b] pt-1">
-                        <a 
-                          href="https://dashboard.razorpay.com/app/keys" 
-                          target="_blank" 
-                          rel="noreferrer"
-                          className="text-[#70baff] hover:underline flex items-center gap-1 cursor-pointer"
-                        >
-                          <ExternalLink className="w-3 h-3" />
-                          <span>Get keys from Razorpay Dashboard</span>
-                        </a>
-                        <a
-                          href={rzpMeLink}
-                          target="_blank"
-                          rel="noreferrer"
-                          className="text-[#4cc38a] hover:underline flex items-center gap-1 cursor-pointer"
-                        >
-                          <ExternalLink className="w-3 h-3" />
-                          <span>Test Razorpay.me Page</span>
-                        </a>
-                      </div>
-
-                      {/* Status banners */}
-                      {rzpTestStatus.message && (
-                        <div className={`p-3 rounded-xl border text-xs flex items-start gap-2 ${
-                          rzpTestStatus.success
-                            ? 'bg-[#0f2e1e] border-[#4cc38a]/40 text-[#a3e8c0]'
-                            : 'bg-[#2a1315] border-[#ff8a80]/30 text-[#ffb4ab]'
-                        }`}>
-                          {rzpTestStatus.success ? (
-                            <Check className="w-4 h-4 text-[#4cc38a] shrink-0 mt-0.5" />
-                          ) : (
-                            <AlertCircle className="w-4 h-4 text-[#ff8a80] shrink-0 mt-0.5" />
-                          )}
-                          <div>
-                            <span className="font-semibold block">{rzpTestStatus.success ? 'Verified Connection:' : 'Test Failed:'}</span>
-                            <span>{rzpTestStatus.message}</span>
+                    {/* Interactive Mode Switcher Cards */}
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      {/* Mode 1: Normal Direct UPI */}
+                      <div
+                        onClick={() => setPaymentMode('upi')}
+                        className={`p-4 rounded-xl border transition-all cursor-pointer relative flex flex-col justify-between ${
+                          paymentMode === 'upi'
+                            ? 'bg-gradient-to-br from-[#0f2e1e] to-[#081810] border-[#4cc38a] shadow-lg shadow-[#4cc38a]/15 ring-1 ring-[#4cc38a]'
+                            : 'bg-[#131318] border-[#2e2b22] hover:border-[#4cc38a]/40 opacity-75 hover:opacity-100'
+                        }`}
+                      >
+                        <div>
+                          <div className="flex items-center justify-between mb-2">
+                            <div className="flex items-center gap-2">
+                              <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${
+                                paymentMode === 'upi' ? 'bg-[#4cc38a] text-black' : 'bg-[#1e1e24] text-[#4cc38a]'
+                              }`}>
+                                <QrCode className="w-4 h-4" />
+                              </div>
+                              <div>
+                                <span className="text-xs font-bold text-white block">Normal Direct UPI</span>
+                                <span className="text-[10px] text-[#4cc38a] font-medium">Zero Commission Fees</span>
+                              </div>
+                            </div>
+                            {paymentMode === 'upi' ? (
+                              <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-[#4cc38a] text-black">
+                                ACTIVE
+                              </span>
+                            ) : (
+                              <span className="text-[10px] text-[#a79f8b] border border-[#2e2b22] px-2 py-0.5 rounded-full">
+                                Click to select
+                              </span>
+                            )}
                           </div>
+                          <p className="text-[11px] text-[#a79f8b] leading-relaxed mt-2">
+                            Shows dynamic UPI QR code (`upi://pay?pa=...`) for instant scanning via PhonePe, GPay, Paytm, or BHIM. Delegate submits 12-digit UPI UTR.
+                          </p>
                         </div>
-                      )}
-
-                      {rzpSaveStatus && (
-                        <div className="p-3 rounded-xl bg-[#0f2e1e] border border-[#4cc38a]/40 text-xs text-[#a3e8c0] flex items-center gap-2">
-                          <Check className="w-4 h-4 text-[#4cc38a]" />
-                          <span>{rzpSaveStatus}</span>
+                        <div className="mt-3 pt-2 border-t border-[#2e2b22]/60 text-[10px] font-mono text-[#a3e8c0] flex items-center justify-between">
+                          <span>Target UPI ID:</span>
+                          <span className="font-bold">{rzpUpiVpa}</span>
                         </div>
-                      )}
-
-                      {/* Action buttons */}
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 pt-1">
-                        <button
-                          type="button"
-                          disabled={rzpTestStatus.testing}
-                          onClick={handleTestRazorpayConnection}
-                          className="py-2 px-3 text-xs font-bold rounded-xl bg-[#181820] border border-[#2e2b22] text-[#70baff] hover:bg-[#00629b]/20 hover:border-[#00629b] transition-all flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-60"
-                        >
-                          {rzpTestStatus.testing ? (
-                            <>
-                              <RefreshCw className="w-3.5 h-3.5 animate-spin" />
-                              <span>Testing API...</span>
-                            </>
-                          ) : (
-                            <>
-                              <Key className="w-3.5 h-3.5" />
-                              <span>Test Credentials Connection</span>
-                            </>
-                          )}
-                        </button>
-
-                        <button
-                          type="button"
-                          onClick={handleSaveRazorpayKeys}
-                          className="py-2 px-3 text-xs font-bold rounded-xl bg-[#00629b] text-white hover:bg-[#0077bc] transition-all flex items-center justify-center gap-1.5 shadow-md shadow-[#00629b]/20 cursor-pointer"
-                        >
-                          <Save className="w-3.5 h-3.5" />
-                          <span>Save & Apply Keys</span>
-                        </button>
                       </div>
 
-                      {/* Webhook Endpoint Guide */}
-                      <div className="p-3.5 rounded-xl bg-[#131318] border border-[#2e2b22] text-xs space-y-2 mt-2">
-                        <div className="flex flex-wrap items-center justify-between gap-1 text-[11px]">
-                          <span className="text-[#a79f8b] font-medium">Razorpay Webhook Endpoint:</span>
-                          <span className="text-[10px] text-[#4cc38a] font-mono bg-[#4cc38a]/10 px-2 py-0.5 rounded border border-[#4cc38a]/30">
-                            POST /api/razorpay/webhook
+                      {/* Mode 2: Razorpay Gateway */}
+                      <div
+                        onClick={() => setPaymentMode('razorpay')}
+                        className={`p-4 rounded-xl border transition-all cursor-pointer relative flex flex-col justify-between ${
+                          paymentMode === 'razorpay'
+                            ? 'bg-gradient-to-br from-[#07192f] to-[#040e1b] border-[#0088d4] shadow-lg shadow-[#0088d4]/15 ring-1 ring-[#0088d4]'
+                            : 'bg-[#131318] border-[#2e2b22] hover:border-[#0088d4]/40 opacity-75 hover:opacity-100'
+                        }`}
+                      >
+                        <div>
+                          <div className="flex items-center justify-between mb-2">
+                            <div className="flex items-center gap-2">
+                              <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${
+                                paymentMode === 'razorpay' ? 'bg-[#0088d4] text-white' : 'bg-[#1e1e24] text-[#70baff]'
+                              }`}>
+                                <CreditCard className="w-4 h-4" />
+                              </div>
+                              <div>
+                                <span className="text-xs font-bold text-white block">Razorpay Gateway</span>
+                                <span className="text-[10px] text-[#70baff] font-medium">Cards, NetBanking & UPI</span>
+                              </div>
+                            </div>
+                            {paymentMode === 'razorpay' ? (
+                              <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-[#0088d4] text-white">
+                                ACTIVE
+                              </span>
+                            ) : (
+                              <span className="text-[10px] text-[#a79f8b] border border-[#2e2b22] px-2 py-0.5 rounded-full">
+                                Click to select
+                              </span>
+                            )}
+                          </div>
+                          <p className="text-[11px] text-[#a79f8b] leading-relaxed mt-2">
+                            Opens embedded Razorpay checkout popup supporting Credit/Debit Cards, NetBanking (+50 banks), Wallets, and Razorpay UPI with automatic signature verification.
+                          </p>
+                        </div>
+                        <div className="mt-3 pt-2 border-t border-[#2e2b22]/60 text-[10px] font-mono text-[#70baff] flex items-center justify-between">
+                          <span>Mode:</span>
+                          <span>{rzpKeyId.startsWith('rzp_live_') ? 'Live Production' : 'Sandbox / Test'}</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* DIRECT UPI CONFIGURATION */}
+                    <div className="p-4 rounded-xl bg-[#0f1118] border border-[#23354f] space-y-3">
+                      <div className="flex items-center justify-between">
+                        <h5 className="text-xs font-bold text-white flex items-center gap-1.5">
+                          <Smartphone className="w-4 h-4 text-[#4cc38a]" />
+                          <span>Direct UPI Configuration (Receiving Account)</span>
+                        </h5>
+                        <span className="text-[10px] text-[#4cc38a] font-mono bg-[#4cc38a]/10 px-2 py-0.5 rounded border border-[#4cc38a]/30">
+                          Direct Bank Settlement
+                        </span>
+                      </div>
+
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        <div>
+                          <label className="text-[11px] text-[#a79f8b] block mb-1 flex items-center justify-between">
+                            <span>Direct UPI ID / VPA *</span>
+                            <span className="text-[9px] text-[#4cc38a] font-mono">Receives payment</span>
+                          </label>
+                          <input
+                            type="text"
+                            value={rzpUpiVpa}
+                            onChange={(e) => setRzpUpiVpa(e.target.value.trim())}
+                            placeholder="e.g. 9441759500@ptyes"
+                            className="w-full px-3.5 py-2 text-xs font-mono font-bold rounded-xl bg-[#131318] border border-[#4cc38a]/40 text-[#4cc38a] focus:outline-none focus:border-[#4cc38a]"
+                          />
+                          <span className="text-[10px] text-[#8ea8c9] mt-1 block">
+                            Active UPI ID: <strong className="text-white font-mono">{rzpUpiVpa}</strong> (Change here anytime)
                           </span>
                         </div>
-                        <p className="text-[11px] text-[#a79f8b] leading-relaxed">
-                          Add this endpoint in your <strong className="text-white">Razorpay Dashboard → Settings → Webhooks</strong> to enable server-to-server sync for <code className="text-[#f2c14e]">payment.captured</code> and <code className="text-[#f2c14e]">order.paid</code> events.
-                        </p>
+
+                        <div>
+                          <label className="text-[11px] text-[#a79f8b] block mb-1">
+                            <span>Payee / Beneficiary Name *</span>
+                          </label>
+                          <input
+                            type="text"
+                            value={upiPayeeName}
+                            onChange={(e) => setUpiPayeeName(e.target.value)}
+                            placeholder="NexusVerse 2K26"
+                            className="w-full px-3.5 py-2 text-xs font-mono rounded-xl bg-[#131318] border border-[#2e2b22] text-[#f3ecd9] focus:outline-none focus:border-[#00629b]"
+                          />
+                          <span className="text-[10px] text-[#a79f8b] mt-1 block">
+                            Shown on participant UPI payment screens
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* RAZORPAY API CREDENTIALS CONFIGURATION */}
+                    <div className="p-4 rounded-xl bg-[#0f1118] border border-[#23354f] space-y-3">
+                      <div className="flex items-center justify-between">
+                        <h5 className="text-xs font-bold text-white flex items-center gap-1.5">
+                          <CreditCard className="w-4 h-4 text-[#0088d4]" />
+                          <span>Razorpay API Keys & Gateway Credentials</span>
+                        </h5>
+                        <span className={`text-[10px] font-mono px-2 py-0.5 rounded-full border ${
+                          rzpKeyId.startsWith('rzp_live_')
+                            ? 'bg-[#00629b]/20 border-[#00629b] text-[#70baff]'
+                            : 'bg-[#2a1b0e] border-[#f2c14e]/40 text-[#f2c14e]'
+                        }`}>
+                          {rzpKeyId.startsWith('rzp_live_') ? 'Live Production' : 'Sandbox / Test Mode'}
+                        </span>
                       </div>
 
-                      {/* Razorpay UPI Configuration Note */}
-                      <div className="p-3.5 rounded-xl bg-[#0a1926] border border-[#00629b]/40 text-xs space-y-1.5 mt-2">
-                        <div className="flex items-center gap-1.5 text-[#70baff] font-bold text-[11px]">
-                          <Smartphone className="w-3.5 h-3.5 text-[#4cc38a]" />
-                          <span>Razorpay UPI Activation & Checkout Guide</span>
+                      <div className="space-y-3">
+                        <div>
+                          <label className="text-xs text-[#a79f8b] block mb-1 flex items-center justify-between">
+                            <span>Razorpay Key ID</span>
+                            <span className="text-[10px] text-[#70baff] font-mono">Public key: rzp_test_... or rzp_live_...</span>
+                          </label>
+                          <input
+                            type="text"
+                            value={rzpKeyId}
+                            onChange={(e) => setRzpKeyId(e.target.value)}
+                            placeholder="rzp_test_1234567890ABCD"
+                            className="w-full px-3.5 py-2 text-xs font-mono rounded-xl bg-[#131318] border border-[#2e2b22] text-[#f3ecd9] focus:outline-none focus:border-[#00629b]"
+                          />
                         </div>
-                        <p className="text-[11px] text-[#9fc7e8] leading-relaxed">
-                          Razorpay UPI (Google Pay, PhonePe, Paytm, BHIM, QR) is configured as the default first payment method for NexusVerse 2K26 checkout. In your <strong className="text-white">Razorpay Dashboard → Settings → Payment Methods</strong>, confirm that <strong>UPI</strong> is enabled. In sandbox test mode, you can test UPI by entering any mock VPA (e.g. <code className="text-[#f2c14e]">success@razorpay</code>) or scanning the test QR.
-                        </p>
+
+                        <div>
+                          <label className="text-xs text-[#a79f8b] block mb-1 flex items-center justify-between">
+                            <span>Razorpay Key Secret</span>
+                            <span className="text-[10px] text-[#a79f8b] font-mono">Used for backend HMAC signature verification</span>
+                          </label>
+                          <input
+                            type="password"
+                            value={rzpKeySecret}
+                            onChange={(e) => setRzpKeySecret(e.target.value)}
+                            placeholder="Enter your Razorpay Key Secret..."
+                            className="w-full px-3.5 py-2 text-xs font-mono rounded-xl bg-[#131318] border border-[#2e2b22] text-[#f3ecd9] focus:outline-none focus:border-[#00629b]"
+                          />
+                        </div>
+
+                        <div>
+                          <label className="text-xs text-[#a79f8b] block mb-1 flex items-center justify-between">
+                            <span>Razorpay.me UPI Link</span>
+                            <span className="text-[10px] text-[#4cc38a] font-mono">Direct UPI payment handle</span>
+                          </label>
+                          <input
+                            type="text"
+                            value={rzpMeLink}
+                            onChange={(e) => setRzpMeLink(e.target.value)}
+                            placeholder="https://razorpay.me/@veluriprasanth"
+                            className="w-full px-3.5 py-2 text-xs font-mono rounded-xl bg-[#131318] border border-[#2e2b22] text-[#f3ecd9] focus:outline-none focus:border-[#00629b]"
+                          />
+                        </div>
+
+                        <div className="flex items-center justify-between text-[11px] text-[#a79f8b] pt-1">
+                          <a 
+                            href="https://dashboard.razorpay.com/app/keys" 
+                            target="_blank" 
+                            rel="noreferrer"
+                            className="text-[#70baff] hover:underline flex items-center gap-1 cursor-pointer"
+                          >
+                            <ExternalLink className="w-3 h-3" />
+                            <span>Get keys from Razorpay Dashboard</span>
+                          </a>
+                          <a
+                            href={rzpMeLink}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="text-[#4cc38a] hover:underline flex items-center gap-1 cursor-pointer"
+                          >
+                            <ExternalLink className="w-3 h-3" />
+                            <span>Test Razorpay.me Page</span>
+                          </a>
+                        </div>
                       </div>
+                    </div>
+
+                    {/* Status banners */}
+                    {rzpTestStatus.message && (
+                      <div className={`p-3 rounded-xl border text-xs flex items-start gap-2 ${
+                        rzpTestStatus.success
+                          ? 'bg-[#0f2e1e] border-[#4cc38a]/40 text-[#a3e8c0]'
+                          : 'bg-[#2a1315] border-[#ff8a80]/30 text-[#ffb4ab]'
+                      }`}>
+                        {rzpTestStatus.success ? (
+                          <Check className="w-4 h-4 text-[#4cc38a] shrink-0 mt-0.5" />
+                        ) : (
+                          <AlertCircle className="w-4 h-4 text-[#ff8a80] shrink-0 mt-0.5" />
+                        )}
+                        <div>
+                          <span className="font-semibold block">{rzpTestStatus.success ? 'Verified Connection:' : 'Test Failed:'}</span>
+                          <span>{rzpTestStatus.message}</span>
+                        </div>
+                      </div>
+                    )}
+
+                    {rzpSaveStatus && (
+                      <div className="p-3.5 rounded-xl bg-[#0f2e1e] border border-[#4cc38a]/50 text-xs text-[#a3e8c0] flex items-center gap-2 shadow-lg">
+                        <Check className="w-4 h-4 text-[#4cc38a] shrink-0" />
+                        <span className="font-semibold">{rzpSaveStatus}</span>
+                      </div>
+                    )}
+
+                    {/* Action buttons */}
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 pt-1">
+                      <button
+                        type="button"
+                        disabled={rzpTestStatus.testing}
+                        onClick={handleTestRazorpayConnection}
+                        className="py-2.5 px-3 text-xs font-bold rounded-xl bg-[#181820] border border-[#2e2b22] text-[#70baff] hover:bg-[#00629b]/20 hover:border-[#00629b] transition-all flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-60"
+                      >
+                        {rzpTestStatus.testing ? (
+                          <>
+                            <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                            <span>Testing API...</span>
+                          </>
+                        ) : (
+                          <>
+                            <Key className="w-3.5 h-3.5" />
+                            <span>Test Razorpay Connection</span>
+                          </>
+                        )}
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={handleSaveRazorpayKeys}
+                        className="py-2.5 px-3 text-xs font-bold rounded-xl bg-gradient-to-r from-[#d4a935] to-[#f2c14e] text-black hover:brightness-110 transition-all flex items-center justify-center gap-1.5 shadow-lg shadow-[#d4a935]/20 cursor-pointer"
+                      >
+                        <Save className="w-3.5 h-3.5" />
+                        <span>Save Payment Settings & Switch Mode</span>
+                      </button>
+                    </div>
+
+                    {/* Webhook Endpoint Guide */}
+                    <div className="p-3.5 rounded-xl bg-[#131318] border border-[#2e2b22] text-xs space-y-2 mt-2">
+                      <div className="flex flex-wrap items-center justify-between gap-1 text-[11px]">
+                        <span className="text-[#a79f8b] font-medium">Razorpay Webhook Endpoint:</span>
+                        <span className="text-[10px] text-[#4cc38a] font-mono bg-[#4cc38a]/10 px-2 py-0.5 rounded border border-[#4cc38a]/30">
+                          POST /api/razorpay/webhook
+                        </span>
+                      </div>
+                      <p className="text-[11px] text-[#a79f8b] leading-relaxed">
+                        Add this endpoint in your <strong className="text-white">Razorpay Dashboard → Settings → Webhooks</strong> to enable server-to-server sync for <code className="text-[#f2c14e]">payment.captured</code> and <code className="text-[#f2c14e]">order.paid</code> events.
+                      </p>
+                    </div>
+
+                    {/* Razorpay UPI Configuration Note */}
+                    <div className="p-3.5 rounded-xl bg-[#0a1926] border border-[#00629b]/40 text-xs space-y-1.5 mt-2">
+                      <div className="flex items-center gap-1.5 text-[#70baff] font-bold text-[11px]">
+                        <Smartphone className="w-3.5 h-3.5 text-[#4cc38a]" />
+                        <span>Razorpay UPI Activation & Checkout Guide</span>
+                      </div>
+                      <p className="text-[11px] text-[#9fc7e8] leading-relaxed">
+                        Razorpay UPI (Google Pay, PhonePe, Paytm, BHIM, QR) is configured as the default first payment method for NexusVerse 2K26 checkout. In your <strong className="text-white">Razorpay Dashboard → Settings → Payment Methods</strong>, confirm that <strong>UPI</strong> is enabled. In sandbox test mode, you can test UPI by entering any mock VPA (e.g. <code className="text-[#f2c14e]">success@razorpay</code>) or scanning the test QR.
+                      </p>
                     </div>
                   </div>
 

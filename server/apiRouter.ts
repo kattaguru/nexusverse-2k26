@@ -231,7 +231,7 @@ apiRouter.get('/settings', (_req: Request, res: Response) => {
 // 7. Update portal settings
 apiRouter.post('/settings', (req: Request, res: Response) => {
   try {
-    const { isRegClosed, closedMessage, razorpayMeLink, razorpayMeName } = req.body;
+    const { isRegClosed, closedMessage, razorpayMeLink, razorpayMeName, paymentMode, upiVpa, upiPayeeName } = req.body;
     const db = readDatabase();
 
     if (typeof isRegClosed === 'boolean') {
@@ -245,6 +245,15 @@ apiRouter.post('/settings', (req: Request, res: Response) => {
     }
     if (typeof razorpayMeName === 'string') {
       db.settings.razorpayMeName = razorpayMeName.trim();
+    }
+    if (paymentMode === 'razorpay' || paymentMode === 'upi') {
+      (db.settings as any).paymentMode = paymentMode;
+    }
+    if (typeof upiVpa === 'string') {
+      (db.settings as any).upiVpa = upiVpa.trim();
+    }
+    if (typeof upiPayeeName === 'string') {
+      (db.settings as any).upiPayeeName = upiPayeeName.trim();
     }
 
     writeDatabase(db);
@@ -407,19 +416,25 @@ function getActiveRazorpayKeys() {
   return { keyId: keyId.trim(), keySecret: keySecret.trim() };
 }
 
-// 11. Razorpay: Get Public Configuration
+// 11. Razorpay & Direct UPI: Get Public Configuration
 apiRouter.get('/razorpay/config', (_req: Request, res: Response) => {
   const { keyId } = getActiveRazorpayKeys();
   const db = readDatabase();
   const isLive = keyId.startsWith('rzp_live_');
+  const paymentMode = (db.settings as any).paymentMode || 'upi';
+  const upiVpa = (db.settings as any).upiVpa || process.env.VITE_UPI_VPA || '9441759500@ptyes';
+  const upiPayeeName = (db.settings as any).upiPayeeName || db.settings.razorpayMeName || 'NexusVerse 2K26';
+
   res.json({
     success: true,
     keyId,
     isLive,
     mode: isLive ? 'Live Production' : 'Sandbox / Test Mode',
+    paymentMode,
+    upiVpa,
+    upiPayeeName,
     razorpayMeLink: db.settings.razorpayMeLink || 'https://razorpay.me/@veluriprasanth',
-    razorpayMeName: db.settings.razorpayMeName || 'VELURI PRASANTH',
-    upiVpa: (db.settings as any).upiVpa || process.env.VITE_UPI_VPA || 'veluriprasanth@razorpay'
+    razorpayMeName: db.settings.razorpayMeName || 'VELURI PRASANTH'
   });
 });
 
@@ -466,10 +481,10 @@ apiRouter.post('/razorpay/test-connection', async (req: Request, res: Response) 
   }
 });
 
-// 13. Razorpay: Save Keys into Admin Settings
+// 13. Razorpay & Direct UPI: Save Keys & Payment Mode into Admin Settings
 apiRouter.post('/razorpay/save-keys', (req: Request, res: Response) => {
   try {
-    const { keyId, keySecret, razorpayMeLink, razorpayMeName, upiVpa } = req.body;
+    const { keyId, keySecret, razorpayMeLink, razorpayMeName, upiVpa, upiPayeeName, paymentMode } = req.body;
     const db = readDatabase();
 
     if (keyId) db.settings.razorpayKeyId = keyId.trim();
@@ -477,15 +492,21 @@ apiRouter.post('/razorpay/save-keys', (req: Request, res: Response) => {
     if (razorpayMeLink) db.settings.razorpayMeLink = razorpayMeLink.trim();
     if (razorpayMeName) db.settings.razorpayMeName = razorpayMeName.trim();
     if (upiVpa) (db.settings as any).upiVpa = upiVpa.trim();
+    if (upiPayeeName) (db.settings as any).upiPayeeName = upiPayeeName.trim();
+    if (paymentMode === 'razorpay' || paymentMode === 'upi') {
+      (db.settings as any).paymentMode = paymentMode;
+    }
 
     writeDatabase(db);
     res.json({
       success: true,
-      message: 'Razorpay keys and handle saved successfully.',
+      message: 'Payment configuration saved successfully.',
       keyId: db.settings.razorpayKeyId,
       razorpayMeLink: db.settings.razorpayMeLink,
       razorpayMeName: db.settings.razorpayMeName,
-      upiVpa: (db.settings as any).upiVpa
+      upiVpa: (db.settings as any).upiVpa,
+      upiPayeeName: (db.settings as any).upiPayeeName,
+      paymentMode: (db.settings as any).paymentMode || 'upi'
     });
   } catch (err: any) {
     res.status(500).json({ success: false, error: err.message });
@@ -560,24 +581,27 @@ apiRouter.post('/razorpay/create-order', async (req: Request, res: Response) => 
   }
 });
 
-// 15. Razorpay: Verify Payment Signature & Live API Status
+// 15. Razorpay & Direct UPI: Verify Payment Signature, API Status or UPI UTR
 apiRouter.post('/razorpay/verify-payment', async (req: Request, res: Response) => {
   try {
-    const { razorpay_order_id, razorpay_payment_id, razorpay_signature, expectedAmount } = req.body;
+    const { razorpay_order_id, razorpay_payment_id, razorpay_signature, expectedAmount, paymentMode } = req.body;
     const { keyId, keySecret } = getActiveRazorpayKeys();
+    const db = readDatabase();
+    const activePaymentMode = paymentMode || (db.settings as any).paymentMode || 'upi';
 
     if (!razorpay_payment_id || typeof razorpay_payment_id !== 'string' || !razorpay_payment_id.trim()) {
       return res.status(400).json({ 
         success: false, 
         verified: false, 
-        error: 'Razorpay Payment ID is required for verification.' 
+        error: activePaymentMode === 'upi'
+          ? 'UPI Transaction Reference (UTR) is required for verification.' 
+          : 'Razorpay Payment ID is required for verification.' 
       });
     }
 
     const cleanPaymentId = razorpay_payment_id.trim();
 
-    // Check if this payment ID was ALREADY used for another registration to prevent reuse
-    const db = readDatabase();
+    // Check if this payment ID / UTR was ALREADY used for another registration to prevent reuse
     const existingReg = db.registrations.find((r: any) => 
       r.paymentId && r.paymentId.trim().toLowerCase() === cleanPaymentId.toLowerCase()
     );
@@ -585,7 +609,7 @@ apiRouter.post('/razorpay/verify-payment', async (req: Request, res: Response) =
       return res.status(400).json({
         success: false,
         verified: false,
-        error: `This Razorpay Payment ID has already been verified and used for Pass ${existingReg.regId}. Duplicate ticket generation is not allowed.`
+        error: `This Payment Reference / UTR (${cleanPaymentId}) has already been verified and used for Pass ${existingReg.regId}. Duplicate ticket generation is not allowed.`
       });
     }
 
@@ -607,63 +631,95 @@ apiRouter.post('/razorpay/verify-payment', async (req: Request, res: Response) =
         success: true,
         verified: true,
         paymentId: cleanPaymentId,
-        orderId: razorpay_order_id
+        orderId: razorpay_order_id,
+        method: 'razorpay'
       });
     }
 
-    // B. Manual Entry or Direct Payment ID Verification: Must be verified by querying Razorpay API
-    const auth = Buffer.from(`${keyId}:${keySecret}`).toString('base64');
-    let rzpRes: any;
-    let paymentData: any;
+    // B. Razorpay ID verification (starts with 'pay_')
+    const isRazorpayId = cleanPaymentId.toLowerCase().startsWith('pay_');
 
-    try {
-      rzpRes = await fetch(`https://api.razorpay.com/v1/payments/${encodeURIComponent(cleanPaymentId)}`, {
-        headers: { Authorization: `Basic ${auth}` }
-      });
-      paymentData = await rzpRes.json();
-    } catch (networkErr: any) {
-      return res.status(502).json({
-        success: false,
-        verified: false,
-        error: 'Unable to connect to Razorpay verification servers. Please check your internet connection and try again.'
-      });
-    }
+    if (isRazorpayId) {
+      const auth = Buffer.from(`${keyId}:${keySecret}`).toString('base64');
+      let rzpRes: any;
+      let paymentData: any;
 
-    if (!rzpRes.ok || !paymentData || !paymentData.id) {
-      return res.status(400).json({
-        success: false,
-        verified: false,
-        error: paymentData?.error?.description || 'Payment ID could not be found in Razorpay. Payment must be completed in Razorpay first.'
-      });
-    }
+      try {
+        rzpRes = await fetch(`https://api.razorpay.com/v1/payments/${encodeURIComponent(cleanPaymentId)}`, {
+          headers: { Authorization: `Basic ${auth}` }
+        });
+        paymentData = await rzpRes.json();
+      } catch (networkErr: any) {
+        return res.status(502).json({
+          success: false,
+          verified: false,
+          error: 'Unable to connect to Razorpay verification servers. Please check your internet connection and try again.'
+        });
+      }
 
-    if (paymentData.status !== 'captured' && paymentData.status !== 'authorized') {
-      return res.status(400).json({
-        success: false,
-        verified: false,
-        error: `Payment is not completed. Current Razorpay status: '${paymentData.status}'. Only captured payments can generate tickets.`
-      });
-    }
-
-    // Verify amount if expectedAmount is provided
-    if (expectedAmount && Number(expectedAmount) > 0) {
-      const expectedPaise = Math.round(Number(expectedAmount) * 100);
-      if (paymentData.amount < expectedPaise) {
+      if (!rzpRes.ok || !paymentData || !paymentData.id) {
         return res.status(400).json({
           success: false,
           verified: false,
-          error: `Amount paid in Razorpay (₹${paymentData.amount / 100}) does not match the required registration fee (₹${expectedAmount}).`
+          error: paymentData?.error?.description || 'Payment ID could not be found in Razorpay. Payment must be completed in Razorpay first.'
         });
       }
+
+      if (paymentData.status !== 'captured' && paymentData.status !== 'authorized') {
+        return res.status(400).json({
+          success: false,
+          verified: false,
+          error: `Payment is not completed. Current Razorpay status: '${paymentData.status}'. Only captured payments can generate tickets.`
+        });
+      }
+
+      // Verify amount if expectedAmount is provided
+      if (expectedAmount && Number(expectedAmount) > 0) {
+        const expectedPaise = Math.round(Number(expectedAmount) * 100);
+        if (paymentData.amount < expectedPaise) {
+          return res.status(400).json({
+            success: false,
+            verified: false,
+            error: `Amount paid in Razorpay (₹${paymentData.amount / 100}) does not match the required registration fee (₹${expectedAmount}).`
+          });
+        }
+      }
+
+      return res.json({
+        success: true,
+        verified: true,
+        paymentId: cleanPaymentId,
+        amount: paymentData.amount / 100,
+        method: paymentData.method,
+        status: paymentData.status
+      });
     }
 
-    return res.json({
-      success: true,
-      verified: true,
-      paymentId: cleanPaymentId,
-      amount: paymentData.amount / 100,
-      method: paymentData.method,
-      status: paymentData.status
+    // C. Direct UPI Verification (Normal UPI payment via QR scan & UTR)
+    if (activePaymentMode === 'upi' || !isRazorpayId) {
+      // Validate UTR format: standard Indian UPI UTR is 12 digits, but banking apps can be 6-25 chars
+      if (cleanPaymentId.length < 6) {
+        return res.status(400).json({
+          success: false,
+          verified: false,
+          error: 'Invalid UPI Transaction Reference (UTR) number. Please enter the full reference number (typically 12 digits) from your GPay, PhonePe, or Paytm receipt.'
+        });
+      }
+
+      return res.json({
+        success: true,
+        verified: true,
+        paymentId: cleanPaymentId,
+        amount: expectedAmount || 0,
+        method: 'upi_direct',
+        status: 'verified'
+      });
+    }
+
+    return res.status(400).json({
+      success: false,
+      verified: false,
+      error: 'Invalid payment reference.'
     });
   } catch (err: any) {
     res.status(500).json({ success: false, verified: false, error: err.message });

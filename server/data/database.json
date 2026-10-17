@@ -97,6 +97,9 @@
     "isRegClosed": false,
     "closedMessage": "Registration is currently closed. For inquiries or spot availability, contact the IEEE-SB desk.",
     "adminPassword": "admin123",
+    "paymentMode": "upi",
+    "upiVpa": "9441759500@ptyes",
+    "upiPayeeName": "NexusVerse 2K26",
     "razorpayMeLink": "https://razorpay.me/@veluriprasanth",
     "razorpayMeName": "VELURI PRASANTH"
   },
