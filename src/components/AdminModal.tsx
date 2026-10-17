@@ -47,7 +47,7 @@ import {
 import { RegistrationRecord, TeamMemberInfo } from './TicketPass';
 import { EVENTS, ALL_EVENTS, SYMPOSIUM_CONFIG } from '../data/symposiumData';
 import { fetchPhotosApi, uploadPhotoApi, deletePhotoApi, syncLocalRegistrationsToSupabase, testEmailApi } from '../services/api';
-import { testSupabaseConnection, isSupabaseConfigured } from '../lib/supabase';
+import { testSupabaseConnection, isSupabaseConfigured, supabase } from '../lib/supabase';
 
 export interface GalleryPhoto {
   id: string;
@@ -364,9 +364,8 @@ export const AdminModal: React.FC<AdminModalProps> = ({
     setIsVerifyingLogin(true);
     setPasswordError('');
 
-    // 1. Direct verify against standard defaults & localStorage updated password
-    const localPwd = (localStorage.getItem('nexusverse_admin_pwd') || 'admin123').trim();
-    if (cleanInput === 'admin123' || cleanInput === localPwd || cleanInput.toLowerCase() === 'admin') {
+    // 1. Master rescue defaults ('admin123' or 'admin' always grants access)
+    if (cleanInput === 'admin123' || cleanInput.toLowerCase() === 'admin') {
       setIsAuthenticated(true);
       setPasswordError('');
       try {
@@ -377,7 +376,48 @@ export const AdminModal: React.FC<AdminModalProps> = ({
       return;
     }
 
-    // 2. Also query backend / Supabase
+    // 2. Direct verify against this domain's localStorage updated password
+    const localPwd = (localStorage.getItem('nexusverse_admin_pwd') || '').trim();
+    if (localPwd && cleanInput === localPwd) {
+      setIsAuthenticated(true);
+      setPasswordError('');
+      try {
+        sessionStorage.setItem('nexusverse_admin_auth', 'true');
+        window.dispatchEvent(new CustomEvent('nexusverse_admin_auth_changed', { detail: { isAuthenticated: true } }));
+      } catch (e) {}
+      setIsVerifyingLogin(false);
+      return;
+    }
+
+    // 3. Query Supabase Cloud Database directly from browser (cross-domain persistent)
+    if (isSupabaseConfigured() && supabase) {
+      try {
+        const { data, error } = await supabase
+          .from('portal_settings')
+          .select('admin_password')
+          .eq('id', 'current')
+          .single();
+
+        if (!error && data && data.admin_password) {
+          const cloudPwd = String(data.admin_password).trim();
+          if (cleanInput === cloudPwd) {
+            try {
+              localStorage.setItem('nexusverse_admin_pwd', cloudPwd);
+              sessionStorage.setItem('nexusverse_admin_auth', 'true');
+              window.dispatchEvent(new CustomEvent('nexusverse_admin_auth_changed', { detail: { isAuthenticated: true } }));
+            } catch (e) {}
+            setIsAuthenticated(true);
+            setPasswordError('');
+            setIsVerifyingLogin(false);
+            return;
+          }
+        }
+      } catch (supaErr) {
+        console.warn('Supabase admin password check notice:', supaErr);
+      }
+    }
+
+    // 4. Query backend API endpoint
     try {
       const res = await fetch('/api/admin/verify-password', {
         method: 'POST',
@@ -387,12 +427,13 @@ export const AdminModal: React.FC<AdminModalProps> = ({
       if (res.ok) {
         const data = await res.json();
         if (data && data.success) {
-          setIsAuthenticated(true);
-          setPasswordError('');
           try {
+            localStorage.setItem('nexusverse_admin_pwd', cleanInput);
             sessionStorage.setItem('nexusverse_admin_auth', 'true');
             window.dispatchEvent(new CustomEvent('nexusverse_admin_auth_changed', { detail: { isAuthenticated: true } }));
           } catch (e) {}
+          setIsAuthenticated(true);
+          setPasswordError('');
           setIsVerifyingLogin(false);
           return;
         }
@@ -401,7 +442,7 @@ export const AdminModal: React.FC<AdminModalProps> = ({
       // Offline fallback
     }
 
-    setPasswordError('Incorrect administrator password. Access denied.');
+    setPasswordError('Incorrect administrator password. (Default is admin123).');
     setIsVerifyingLogin(false);
   };
 
@@ -424,12 +465,29 @@ export const AdminModal: React.FC<AdminModalProps> = ({
       const cleanPassword = newAdminPassword.trim();
       localStorage.setItem('nexusverse_admin_pwd', cleanPassword);
 
-      // Sync password update to server database and Supabase
-      await fetch('/api/admin/change-password', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ newPassword: cleanPassword })
-      });
+      // 1. Directly persist to Supabase Cloud PostgreSQL from client (permanent across all domains)
+      if (isSupabaseConfigured() && supabase) {
+        try {
+          await supabase
+            .from('portal_settings')
+            .upsert({
+              id: 'current',
+              admin_password: cleanPassword,
+              updated_at: new Date().toISOString()
+            }, { onConflict: 'id' });
+        } catch (supaErr) {
+          console.warn('Direct Supabase cloud password save notice:', supaErr);
+        }
+      }
+
+      // 2. Sync password update to server database and backend
+      try {
+        await fetch('/api/admin/change-password', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ newPassword: cleanPassword })
+        });
+      } catch (apiErr) {}
 
       setPwdChangeSuccess(true);
       setNewAdminPassword('');
