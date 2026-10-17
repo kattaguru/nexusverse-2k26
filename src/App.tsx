@@ -13,8 +13,10 @@ import {
   ParticipantUser, 
   getStoredParticipant, 
   saveStoredParticipant, 
-  fetchCurrentParticipant 
+  fetchCurrentParticipant,
+  googleLoginParticipant 
 } from './services/auth';
+import { supabase, isSupabaseConfigured } from './lib/supabase';
 import { getLeftLogo, getRightLogo, setLeftLogo, setRightLogo } from './utils/logoManager';
 import { TimelineSection } from './components/TimelineSection';
 import { FaqSection } from './components/FaqSection';
@@ -139,6 +141,31 @@ export default function App() {
           setCurrentUser(res.user);
         }
       }).catch(() => {});
+    }
+  }, []);
+
+  // Listen for Supabase OAuth login events (e.g. Google OAuth redirect)
+  useEffect(() => {
+    if (isSupabaseConfigured() && supabase) {
+      const { data: authSub } = supabase.auth.onAuthStateChange(async (event, session) => {
+        if ((event === 'SIGNED_IN' || event === 'USER_UPDATED') && session?.user?.email) {
+          try {
+            const googleRes = await googleLoginParticipant({
+              email: session.user.email,
+              name: session.user.user_metadata?.full_name || session.user.user_metadata?.name || session.user.email.split('@')[0],
+              avatarUrl: session.user.user_metadata?.avatar_url,
+            });
+            if (googleRes.success && googleRes.user) {
+              setCurrentUser(googleRes.user);
+            }
+          } catch (e) {
+            console.error('Failed to sync Supabase Google user:', e);
+          }
+        }
+      });
+      return () => {
+        authSub?.subscription?.unsubscribe();
+      };
     }
   }, []);
 

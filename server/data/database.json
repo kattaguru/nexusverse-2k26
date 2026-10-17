@@ -192,6 +192,18 @@
       "authProvider": "local",
       "createdAt": "2026-10-16T00:10:58.789Z",
       "updatedAt": "2026-10-16T00:10:59.228Z"
+    },
+    {
+      "id": "usr_5b9d4158ba26",
+      "name": "Test Student",
+      "email": "teststudent@gmail.com",
+      "username": "teststudent",
+      "avatarUrl": "",
+      "phone": "",
+      "college": "N.B.K.R. Institute of Science & Technology",
+      "roll": "",
+      "authProvider": "google",
+      "createdAt": "2026-10-17T04:50:26.552Z"
     }
   ]
 }

@@ -64,6 +64,10 @@ export const SYMPOSIUM_CONFIG = {
     url: "https://razorpay.me/@veluriprasanth",
     handle: "@veluriprasanth",
     name: "VELURI PRASANTH"
+  },
+  whatsappGroup: {
+    url: "https://chat.whatsapp.com/GEpv2i56odNEV0LpLizzaO?s=cl&p=a&mlu=4&ilr=4&iam=2",
+    name: "NexusVerse 2K26 Official Participant Group"
   }
 };
 

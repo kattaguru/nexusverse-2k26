@@ -14,7 +14,9 @@ import {
   Award, 
   Phone, 
   Users, 
-  Layers 
+  Layers,
+  MessageCircle,
+  ExternalLink 
 } from 'lucide-react';
 import { SymposiumEvent, SYMPOSIUM_CONFIG, SPOT_EVENT } from '../data/symposiumData';
 
@@ -98,6 +100,15 @@ export const TicketPass: React.FC<TicketPassProps> = ({
     setTimeout(() => setCopied(false), 2000);
   };
 
+  const [copiedWa, setCopiedWa] = useState(false);
+  const waGroupUrl = SYMPOSIUM_CONFIG.whatsappGroup?.url || "https://chat.whatsapp.com/GEpv2i56odNEV0LpLizzaO?s=cl&p=a&mlu=4&ilr=4&iam=2";
+
+  const copyWaLink = () => {
+    navigator.clipboard.writeText(waGroupUrl);
+    setCopiedWa(true);
+    setTimeout(() => setCopiedWa(false), 2000);
+  };
+
   const handlePrint = () => {
     window.print();
   };
@@ -166,6 +177,56 @@ export const TicketPass: React.FC<TicketPassProps> = ({
           >
             {copied ? <Check className="w-4 h-4 text-[#4cc38a]" /> : <Copy className="w-4 h-4" />}
           </button>
+        </div>
+      </div>
+
+      {/* Mandatory Official WhatsApp Group Notification Card */}
+      <div className="no-print p-4 sm:p-5 rounded-2xl bg-gradient-to-r from-[#0d2a1a] via-[#123824] to-[#0d2a1a] border-2 border-[#25d366]/70 shadow-2xl shadow-[#25d366]/20 space-y-3 animate-in zoom-in-95 duration-300 relative overflow-hidden">
+        <div className="absolute -top-12 -right-12 w-32 h-32 rounded-full bg-[#25d366]/10 blur-2xl pointer-events-none" />
+        
+        <div className="flex flex-col sm:flex-row items-center justify-between gap-4 relative z-10">
+          <div className="flex items-center gap-3.5 text-center sm:text-left">
+            <div className="w-12 h-12 rounded-2xl bg-[#25d366] text-[#052e16] flex items-center justify-center shrink-0 shadow-lg shadow-[#25d366]/40">
+              <MessageCircle className="w-6 h-6 fill-current" />
+            </div>
+            <div>
+              <div className="flex flex-wrap items-center justify-center sm:justify-start gap-2">
+                <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-[#25d366]/20 text-[#25d366] border border-[#25d366]/40">
+                  Mandatory Next Step
+                </span>
+                <span className="text-xs text-[#a7f3d0] font-semibold">Join Official Community</span>
+              </div>
+              <h3 className="font-serif-title text-lg sm:text-xl font-bold text-[#ffffff] mt-0.5">
+                Join the NexusVerse 2K26 WhatsApp Group
+              </h3>
+              <p className="text-xs text-[#a7f3d0]/80 mt-0.5 leading-relaxed">
+                Stay updated with live event schedules, lab & room allocations, spot event timings, and coordinator announcements.
+              </p>
+            </div>
+          </div>
+
+          <div className="flex flex-col sm:flex-row items-center gap-2 w-full sm:w-auto shrink-0">
+            <a
+              href={waGroupUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="w-full sm:w-auto px-5 py-3 rounded-xl bg-[#25d366] text-[#052e16] font-bold text-sm hover:bg-[#20ba5a] hover:scale-[1.02] active:scale-95 transition-all shadow-xl shadow-[#25d366]/30 flex items-center justify-center gap-2 cursor-pointer"
+            >
+              <MessageCircle className="w-4 h-4 fill-current" />
+              <span>Join WhatsApp Group</span>
+              <ExternalLink className="w-4 h-4" />
+            </a>
+
+            <button
+              type="button"
+              onClick={copyWaLink}
+              className="w-full sm:w-auto px-3.5 py-3 rounded-xl bg-[#092215] border border-[#25d366]/40 text-[#a7f3d0] hover:text-[#ffffff] hover:border-[#25d366] text-xs font-semibold flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
+              title="Copy WhatsApp Group Link"
+            >
+              {copiedWa ? <Check className="w-4 h-4 text-[#25d366]" /> : <Copy className="w-4 h-4" />}
+              <span>{copiedWa ? 'Copied Link!' : 'Copy Link'}</span>
+            </button>
+          </div>
         </div>
       </div>
 
@@ -438,7 +499,7 @@ export const TicketPass: React.FC<TicketPassProps> = ({
         <div className="bg-[#181820] px-6 py-4 border-t border-[#2e2b22] flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-[#a79f8b]">
           <div className="flex items-center gap-1.5">
             <MapPin className="w-3.5 h-3.5 text-[#d4a935]" />
-            <span>Bring this pass & original College Identity Card</span>
+            <span>Bring this pass & original College Identity Card · Join WhatsApp group for live hall allocations</span>
           </div>
           <div className="font-mono text-[11px]">
             Amount Paid: <span className="text-[#f2c14e] font-bold">₹{record.totalPaid}</span> (Razorpay Ref: {record.paymentId})
@@ -448,6 +509,17 @@ export const TicketPass: React.FC<TicketPassProps> = ({
 
       {/* Action Buttons */}
       <div className="flex flex-wrap items-center justify-center gap-3 pt-4 no-print">
+        <a
+          href={waGroupUrl}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-6 py-2.5 rounded-xl bg-[#25d366] text-[#052e16] font-bold text-sm hover:bg-[#20ba5a] active:scale-95 transition-all shadow-md shadow-[#25d366]/20 cursor-pointer"
+        >
+          <MessageCircle className="w-4 h-4 fill-current" />
+          <span>Join WhatsApp Group</span>
+          <ExternalLink className="w-4 h-4" />
+        </a>
+
         <button
           type="button"
           onClick={handlePrint}

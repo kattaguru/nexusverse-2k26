@@ -27,6 +27,12 @@ describe('Symposium Data & Configuration Unit Tests', () => {
     assert.equal(SYMPOSIUM_CONFIG.razorpayMe.name, 'VELURI PRASANTH');
   });
 
+  it('should have valid official WhatsApp group configuration for participants', () => {
+    assert.ok(SYMPOSIUM_CONFIG.whatsappGroup, 'whatsappGroup should be defined');
+    assert.ok(SYMPOSIUM_CONFIG.whatsappGroup.url.includes('chat.whatsapp.com'), 'WhatsApp group must be a valid chat invite URL');
+    assert.equal(SYMPOSIUM_CONFIG.whatsappGroup.url, 'https://chat.whatsapp.com/GEpv2i56odNEV0LpLizzaO?s=cl&p=a&mlu=4&ilr=4&iam=2');
+  });
+
   it('should contain all 5 required technical events with correct IDs', () => {
     const eventIds = EVENTS.map(e => e.id);
     assert.equal(EVENTS.length, 5);

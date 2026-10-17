@@ -141,13 +141,16 @@ function generateTicketEmailHtml(payload: EmailTicketPayload, passUrl: string): 
             </td>
           </tr>
 
-          <!-- CTA Button -->
+          <!-- CTA Buttons -->
           <tr>
             <td style="padding:20px 24px;text-align:center;">
-              <a href="${passUrl}" target="_blank" style="display:inline-block;padding:14px 32px;background:#f2c14e;color:#1a1300;text-decoration:none;font-size:14px;font-weight:800;border-radius:12px;box-shadow:0 4px 16px rgba(242,193,78,0.3);letter-spacing:0.5px;">
+              <a href="${passUrl}" target="_blank" style="display:inline-block;padding:14px 28px;background:#f2c14e;color:#1a1300;text-decoration:none;font-size:14px;font-weight:800;border-radius:12px;box-shadow:0 4px 16px rgba(242,193,78,0.3);letter-spacing:0.5px;margin:6px;">
                 🎟️ View & Download QR Ticket Pass
               </a>
-              <p style="margin:12px 0 0 0;font-size:11px;color:#857e6c;">
+              <a href="https://chat.whatsapp.com/GEpv2i56odNEV0LpLizzaO?s=cl&p=a&mlu=4&ilr=4&iam=2" target="_blank" style="display:inline-block;padding:14px 28px;background:#25d366;color:#052e16;text-decoration:none;font-size:14px;font-weight:800;border-radius:12px;box-shadow:0 4px 16px rgba(37,211,102,0.3);letter-spacing:0.5px;margin:6px;">
+                💬 Join Official WhatsApp Group
+              </a>
+              <p style="margin:14px 0 0 0;font-size:11px;color:#857e6c;">
                 You can also look up your pass anytime on the website using your roll number: <strong style="color:#d4a935;">${payload.roll}</strong>
               </p>
             </td>

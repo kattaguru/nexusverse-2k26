@@ -20,7 +20,8 @@ import {
   Phone,
   Clock,
   MapPin,
-  ExternalLink
+  ExternalLink,
+  MessageCircle
 } from 'lucide-react';
 import { 
   ParticipantUser, 
@@ -33,6 +34,7 @@ import {
 } from '../services/auth';
 import { RegistrationRecord } from './TicketPass';
 import { ALL_EVENTS } from '../data/symposiumData';
+import { supabase, isSupabaseConfigured } from '../lib/supabase';
 
 interface ParticipantSpaceModalProps {
   isOpen: boolean;
@@ -195,11 +197,34 @@ export const ParticipantSpaceModal: React.FC<ParticipantSpaceModalProps> = ({
   };
 
   // Handle Google Sign-In Click
-  const handleGoogleClick = () => {
+  const handleGoogleClick = async () => {
     setErrorMsg('');
     if (identifier.includes('@')) {
       setGoogleSimEmail(identifier.trim());
     }
+
+    // If Supabase OAuth is active and configured, launch official Google OAuth
+    if (isSupabaseConfigured() && supabase) {
+      setLoading(true);
+      try {
+        const { error } = await supabase.auth.signInWithOAuth({
+          provider: 'google',
+          options: {
+            redirectTo: window.location.origin + window.location.pathname,
+          },
+        });
+        if (!error) {
+          // Supabase redirects browser directly to accounts.google.com
+          return;
+        }
+        console.warn('Google OAuth error, using fallback:', error.message);
+      } catch (err: any) {
+        console.warn('OAuth launch error, using fallback:', err);
+      } finally {
+        setLoading(false);
+      }
+    }
+
     setGooglePromptOpen(true);
   };
 
@@ -854,6 +879,28 @@ export const ParticipantSpaceModal: React.FC<ParticipantSpaceModalProps> = ({
                       <span>Prize Distribution & Valedictory Ceremony at Seminar Hall.</span>
                     </li>
                   </ul>
+                </div>
+
+                {/* Official WhatsApp Participant Group */}
+                <div className="p-3.5 rounded-xl bg-gradient-to-r from-[#0d2a1a] via-[#123824] to-[#0d2a1a] border border-[#25d366]/50 text-xs flex flex-wrap items-center justify-between gap-3 shadow-md">
+                  <div className="flex items-center gap-2.5">
+                    <div className="w-8 h-8 rounded-lg bg-[#25d366] text-[#052e16] flex items-center justify-center shrink-0">
+                      <MessageCircle className="w-4 h-4 fill-current" />
+                    </div>
+                    <div>
+                      <span className="font-bold text-[#ffffff] block text-xs">Official WhatsApp Participant Group</span>
+                      <span className="text-[#a7f3d0] text-[11px]">Join for live event schedules, room allocations & announcements.</span>
+                    </div>
+                  </div>
+                  <a
+                    href="https://chat.whatsapp.com/GEpv2i56odNEV0LpLizzaO?s=cl&p=a&mlu=4&ilr=4&iam=2"
+                    target="_blank"
+                    rel="noreferrer"
+                    className="px-3 py-1.5 rounded-lg bg-[#25d366] text-[#052e16] hover:bg-[#20ba5a] font-bold text-xs flex items-center gap-1.5 transition-all shadow cursor-pointer shrink-0"
+                  >
+                    <span>Join Group</span>
+                    <ExternalLink className="w-3 h-3" />
+                  </a>
                 </div>
 
                 {/* Coordinator Helpline */}
