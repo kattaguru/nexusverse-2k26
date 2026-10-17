@@ -211,9 +211,29 @@ export default function App() {
         }
       });
 
-      // 3. Listen for popup message completion
-      const handlePopupMessage = (e: MessageEvent) => {
+      // 3. Listen for popup message completion (even across origins)
+      const handlePopupMessage = async (e: MessageEvent) => {
         if (e.data?.type === 'GOOGLE_AUTH_SUCCESS') {
+          if (e.data.hash && supabase) {
+            try {
+              const hashParams = new URLSearchParams(e.data.hash.replace(/^#/, ''));
+              const accessToken = hashParams.get('access_token');
+              const refreshToken = hashParams.get('refresh_token');
+              if (accessToken && refreshToken) {
+                const { data } = await supabase.auth.setSession({
+                  access_token: accessToken,
+                  refresh_token: refreshToken
+                });
+                if (data?.session) {
+                  syncSessionUser(data.session);
+                  return;
+                }
+              }
+            } catch (err) {
+              console.warn('Notice parsing popup tokens:', err);
+            }
+          }
+
           supabase.auth.getSession().then(({ data }) => {
             if (data?.session) {
               syncSessionUser(data.session);
