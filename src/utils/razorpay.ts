@@ -57,6 +57,7 @@ export interface RazorpayPublicConfig {
   mode: string;
   razorpayMeLink?: string;
   razorpayMeName?: string;
+  upiVpa?: string;
 }
 
 let cachedConfig: RazorpayPublicConfig | null = null;
@@ -104,7 +105,8 @@ export async function fetchRazorpayConfig(): Promise<RazorpayPublicConfig> {
           isLive: !!data.isLive,
           mode: data.mode || (data.isLive ? 'Live Production' : 'Sandbox / Test Mode'),
           razorpayMeLink: data.razorpayMeLink || 'https://razorpay.me/@veluriprasanth',
-          razorpayMeName: data.razorpayMeName || 'VELURI PRASANTH'
+          razorpayMeName: data.razorpayMeName || 'VELURI PRASANTH',
+          upiVpa: data.upiVpa || (import.meta as any).env?.VITE_UPI_VPA || 'veluriprasanth@razorpay'
         };
         return cachedConfig;
       }
@@ -119,7 +121,8 @@ export async function fetchRazorpayConfig(): Promise<RazorpayPublicConfig> {
     isLive: fallbackKey.startsWith('rzp_live_'),
     mode: fallbackKey.startsWith('rzp_live_') ? 'Live Production' : 'Sandbox / Test Mode',
     razorpayMeLink: 'https://razorpay.me/@veluriprasanth',
-    razorpayMeName: 'VELURI PRASANTH'
+    razorpayMeName: 'VELURI PRASANTH',
+    upiVpa: (import.meta as any).env?.VITE_UPI_VPA || 'veluriprasanth@razorpay'
   };
 }
 

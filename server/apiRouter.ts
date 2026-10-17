@@ -363,7 +363,8 @@ apiRouter.get('/razorpay/config', (_req: Request, res: Response) => {
     isLive,
     mode: isLive ? 'Live Production' : 'Sandbox / Test Mode',
     razorpayMeLink: db.settings.razorpayMeLink || 'https://razorpay.me/@veluriprasanth',
-    razorpayMeName: db.settings.razorpayMeName || 'VELURI PRASANTH'
+    razorpayMeName: db.settings.razorpayMeName || 'VELURI PRASANTH',
+    upiVpa: (db.settings as any).upiVpa || process.env.VITE_UPI_VPA || 'veluriprasanth@razorpay'
   });
 });
 
@@ -413,13 +414,14 @@ apiRouter.post('/razorpay/test-connection', async (req: Request, res: Response) 
 // 13. Razorpay: Save Keys into Admin Settings
 apiRouter.post('/razorpay/save-keys', (req: Request, res: Response) => {
   try {
-    const { keyId, keySecret, razorpayMeLink, razorpayMeName } = req.body;
+    const { keyId, keySecret, razorpayMeLink, razorpayMeName, upiVpa } = req.body;
     const db = readDatabase();
 
     if (keyId) db.settings.razorpayKeyId = keyId.trim();
     if (keySecret) db.settings.razorpayKeySecret = keySecret.trim();
     if (razorpayMeLink) db.settings.razorpayMeLink = razorpayMeLink.trim();
     if (razorpayMeName) db.settings.razorpayMeName = razorpayMeName.trim();
+    if (upiVpa) (db.settings as any).upiVpa = upiVpa.trim();
 
     writeDatabase(db);
     res.json({
@@ -427,7 +429,8 @@ apiRouter.post('/razorpay/save-keys', (req: Request, res: Response) => {
       message: 'Razorpay keys and handle saved successfully.',
       keyId: db.settings.razorpayKeyId,
       razorpayMeLink: db.settings.razorpayMeLink,
-      razorpayMeName: db.settings.razorpayMeName
+      razorpayMeName: db.settings.razorpayMeName,
+      upiVpa: (db.settings as any).upiVpa
     });
   } catch (err: any) {
     res.status(500).json({ success: false, error: err.message });

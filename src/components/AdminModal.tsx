@@ -227,6 +227,7 @@ export const AdminModal: React.FC<AdminModalProps> = ({
   const [rzpKeySecret, setRzpKeySecret] = useState('');
   const [rzpMeLink, setRzpMeLink] = useState('https://razorpay.me/@veluriprasanth');
   const [rzpMeName, setRzpMeName] = useState('VELURI PRASANTH');
+  const [rzpUpiVpa, setRzpUpiVpa] = useState('veluriprasanth@razorpay');
   const [rzpTestStatus, setRzpTestStatus] = useState<{ testing: boolean; success?: boolean; message?: string }>({ testing: false });
   const [rzpSaveStatus, setRzpSaveStatus] = useState<string>('');
 
@@ -320,6 +321,9 @@ export const AdminModal: React.FC<AdminModalProps> = ({
           }
           if (data && data.razorpayMeName) {
             setRzpMeName(data.razorpayMeName);
+          }
+          if (data && data.upiVpa) {
+            setRzpUpiVpa(data.upiVpa);
           }
         })
         .catch(() => {});
@@ -453,7 +457,8 @@ export const AdminModal: React.FC<AdminModalProps> = ({
           keyId: rzpKeyId, 
           keySecret: rzpKeySecret,
           razorpayMeLink: rzpMeLink,
-          razorpayMeName: rzpMeName
+          razorpayMeName: rzpMeName,
+          upiVpa: rzpUpiVpa
         })
       });
       const data = await res.json();
@@ -2230,6 +2235,23 @@ export const AdminModal: React.FC<AdminModalProps> = ({
                           placeholder="VELURI PRASANTH"
                           className="w-full px-3.5 py-2 text-xs font-mono rounded-xl bg-[#131318] border border-[#2e2b22] text-[#f3ecd9] focus:outline-none focus:border-[#00629b]"
                         />
+                      </div>
+
+                      <div>
+                        <label className="text-xs text-[#a79f8b] block mb-1 flex items-center justify-between">
+                          <span>Direct UPI ID / VPA (for PhonePe & GPay QR scan)</span>
+                          <span className="text-[10px] text-[#4cc38a] font-mono">Instant Bank Credit</span>
+                        </label>
+                        <input
+                          type="text"
+                          value={rzpUpiVpa}
+                          onChange={(e) => setRzpUpiVpa(e.target.value)}
+                          placeholder="e.g. veluriprasanth@razorpay or 9491501919@ybl"
+                          className="w-full px-3.5 py-2 text-xs font-mono rounded-xl bg-[#131318] border border-[#2e2b22] text-[#f3ecd9] focus:outline-none focus:border-[#00629b]"
+                        />
+                        <p className="text-[10px] text-[#8ea8c9] mt-1">
+                          If your Razorpay account is under review, set your active PhonePe or Google Pay UPI ID here so students scanning with PhonePe / GPay do not get temporary technical errors.
+                        </p>
                       </div>
 
                       <div className="flex items-center justify-between text-[11px] text-[#a79f8b] pt-1">

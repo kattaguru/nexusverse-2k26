@@ -76,7 +76,8 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
   // Official Razorpay.me configuration
   const defaultMeUrl = SYMPOSIUM_CONFIG.razorpayMe?.url || 'https://razorpay.me/@veluriprasanth';
   const defaultMeName = SYMPOSIUM_CONFIG.razorpayMe?.name || 'VELURI PRASANTH';
-  const upiVpa = 'veluriprasanth@razorpay';
+  const defaultUpi = (import.meta as any).env?.VITE_UPI_VPA || 'veluriprasanth@razorpay';
+  const [upiVpa, setUpiVpa] = useState<string>(defaultUpi);
   const [razorpayMeUrl, setRazorpayMeUrl] = useState<string>(defaultMeUrl);
   const [razorpayMeName, setRazorpayMeName] = useState<string>(defaultMeName);
   
@@ -131,6 +132,9 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
       }
       if (cfg.razorpayMeName) {
         setRazorpayMeName(cfg.razorpayMeName);
+      }
+      if (cfg.upiVpa) {
+        setUpiVpa(cfg.upiVpa);
       }
     });
   }, [isOpen]);
