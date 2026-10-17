@@ -400,4 +400,132 @@ html.light ::-webkit-scrollbar-thumb:hover {
   background: #a16207;
 }
 
+/* ==============================================================================
+   8. Event Schedule Timeline Styles & Light Theme Luxury Contrast
+   ============================================================================== */
+.timeline-schedule-card {
+  background-color: #131318;
+  border-color: #2e2b22;
+}
+
+.timeline-time-badge {
+  background: rgba(31, 27, 14, 0.85);
+  color: #f6c85f;
+  border-color: rgba(212, 169, 53, 0.35);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.4);
+}
+
+.timeline-time-icon {
+  color: #d4a935;
+}
+
+html.light .timeline-schedule-card {
+  background-color: #ffffff !important;
+  border-color: #e2dac9 !important;
+  box-shadow: 0 4px 18px rgba(184, 134, 11, 0.05), 0 1px 3px rgba(0, 0, 0, 0.04) !important;
+}
+
+html.light .timeline-schedule-card:hover {
+  border-color: rgba(184, 134, 11, 0.5) !important;
+  box-shadow: 0 8px 24px rgba(184, 134, 11, 0.1) !important;
+}
+
+html.light .timeline-time-badge {
+  background: linear-gradient(135deg, #fffbeb 0%, #fef3c7 100%) !important;
+  color: #78350f !important; /* Premium dark amber-bronze with high contrast */
+  border: 1px solid rgba(212, 169, 53, 0.5) !important;
+  box-shadow: 0 2px 6px rgba(180, 130, 20, 0.12), inset 0 1px 0 rgba(255, 255, 255, 0.9) !important;
+  font-weight: 700 !important;
+}
+
+html.light .timeline-time-icon {
+  color: #b45309 !important; /* Deep rich amber clock icon */
+}
+
+html.light .timeline-card-title {
+  color: #171511 !important;
+}
+
+html.light .timeline-venue {
+  color: #92400e !important; /* Rich amber brown */
+}
+
+html.light .timeline-venue svg {
+  color: #b45309 !important;
+}
+
+html.light .timeline-note {
+  color: #4b4437 !important;
+}
+
+html.light .timeline-vertical-container::before {
+  background-color: #ded7c8 !important;
+}
+
+/* ==============================================================================
+   9. Logo Animations (Hover, Pulsing Glow, Floating Shimmer)
+   ============================================================================== */
+@keyframes logoPulseGlow {
+  0%, 100% {
+    transform: translateY(0px) scale(1);
+    box-shadow: 0 0 10px rgba(242, 193, 78, 0.35), 0 2px 6px rgba(0, 0, 0, 0.3);
+    border-color: rgba(212, 169, 53, 0.45);
+  }
+  50% {
+    transform: translateY(-2.5px) scale(1.05);
+    box-shadow: 0 0 20px rgba(242, 193, 78, 0.75), 0 4px 12px rgba(242, 193, 78, 0.25);
+    border-color: rgba(242, 193, 78, 0.85);
+  }
+}
+
+@keyframes logoPulseGlowRight {
+  0%, 100% {
+    transform: translateY(0px) scale(1);
+    box-shadow: 0 0 8px rgba(0, 98, 155, 0.25), 0 2px 6px rgba(0, 0, 0, 0.2);
+    border-color: rgba(0, 98, 155, 0.35);
+  }
+  50% {
+    transform: translateY(-2.5px) scale(1.05);
+    box-shadow: 0 0 18px rgba(0, 98, 155, 0.65), 0 4px 12px rgba(0, 98, 155, 0.2);
+    border-color: rgba(0, 115, 185, 0.75);
+  }
+}
+
+@keyframes logoShimmerImg {
+  0%, 100% {
+    filter: drop-shadow(0 0 2px rgba(242, 193, 78, 0.25));
+    transform: scale(1);
+  }
+  50% {
+    filter: drop-shadow(0 0 8px rgba(242, 193, 78, 0.7));
+    transform: scale(1.03);
+  }
+}
+
+.logo-animated-badge {
+  animation: logoPulseGlow 3.6s ease-in-out infinite;
+  will-change: transform, box-shadow;
+}
+
+.logo-animated-badge-right {
+  animation: logoPulseGlowRight 3.6s ease-in-out infinite;
+  animation-delay: 1.8s;
+  will-change: transform, box-shadow;
+}
+
+.logo-glow-effect {
+  animation: logoShimmerImg 3.6s ease-in-out infinite;
+}
+
+html.light .logo-animated-badge {
+  box-shadow: 0 2px 8px rgba(184, 134, 11, 0.2) !important;
+  border-color: rgba(184, 134, 11, 0.5) !important;
+}
+
+html.light .logo-animated-badge-right {
+  box-shadow: 0 2px 8px rgba(0, 98, 155, 0.2) !important;
+  border-color: rgba(0, 98, 155, 0.4) !important;
+}
+
+
 

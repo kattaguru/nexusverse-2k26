@@ -20,28 +20,28 @@ export const TimelineSection: React.FC = () => {
         </div>
 
         {/* Timeline List */}
-        <div className="space-y-4 relative before:absolute before:left-4 sm:before:left-24 before:top-4 before:bottom-4 before:w-px before:bg-[#2e2b22]">
+        <div className="timeline-vertical-container space-y-4 relative before:absolute before:left-4 sm:before:left-24 before:top-4 before:bottom-4 before:w-px before:bg-[#2e2b22]">
           {TIMELINE.map((item, idx) => (
             <div 
               key={idx}
-              className="relative flex flex-col sm:flex-row items-start gap-4 sm:gap-8 bg-[#131318] p-5 rounded-2xl border border-[#2e2b22] hover:border-[#d4a935]/40 transition-colors"
+              className="timeline-schedule-card relative flex flex-col sm:flex-row items-start gap-4 sm:gap-8 bg-[#131318] p-5 rounded-2xl border border-[#2e2b22] hover:border-[#d4a935]/40 transition-all"
             >
               {/* Time column */}
-              <div className="sm:w-56 shrink-0 flex items-center gap-2 text-[#f2c14e] font-mono text-xs sm:text-sm font-bold whitespace-nowrap bg-[#1f1b0e]/70 px-3 py-1.5 rounded-xl border border-[#d4a935]/30 shadow-sm">
-                <Clock className="w-4 h-4 text-[#d4a935] shrink-0" />
+              <div className="timeline-time-badge sm:w-56 shrink-0 flex items-center gap-2.5 font-mono text-xs sm:text-sm font-bold whitespace-nowrap px-3.5 py-2 rounded-xl border shadow-sm transition-all">
+                <Clock className="timeline-time-icon w-4 h-4 shrink-0" />
                 <span>{item.time}</span>
               </div>
 
               {/* Event Content */}
               <div className="flex-1 space-y-1">
-                <h3 className="font-serif-title text-xl font-bold text-[#ffffff]">
+                <h3 className="timeline-card-title font-serif-title text-xl font-bold text-[#ffffff]">
                   {item.title}
                 </h3>
-                <div className="flex items-center gap-1.5 text-xs text-[#d4a935] font-semibold">
-                  <MapPin className="w-3.5 h-3.5 text-[#d4a935] shrink-0" />
+                <div className="timeline-venue flex items-center gap-1.5 text-xs text-[#d4a935] font-semibold">
+                  <MapPin className="w-3.5 h-3.5 shrink-0" />
                   <span>{item.venue}</span>
                 </div>
-                <p className="text-xs text-[#a79f8b] mt-1 leading-relaxed">
+                <p className="timeline-note text-xs text-[#a79f8b] mt-1 leading-relaxed">
                   {item.note}
                 </p>
               </div>

@@ -61,8 +61,10 @@ body{background:radial-gradient(ellipse at 50% 42%,#142450 0%,#0a1230 50%,#04060
 .page{position:relative;z-index:1;min-height:100vh;height:auto;display:flex;flex-direction:column;justify-content:space-between;align-items:center;text-align:center;padding:1.5vh 3vw 2.5vh 3vw;gap:1.5vh}
 
 .top{width:100%;display:flex;align-items:center;justify-content:space-between;gap:2vw;animation:down .9s ease both}
-.logo{flex:none;height:clamp(46px,min(13vw,14vh),130px);width:auto;filter:drop-shadow(0 0 12px rgba(240,201,106,.45));animation:glow 4s ease-in-out infinite alternate}
-@keyframes glow{to{filter:drop-shadow(0 0 20px rgba(240,201,106,.8))}}
+.logo{flex:none;height:clamp(46px,min(13vw,14vh),130px);width:auto;filter:drop-shadow(0 0 14px rgba(240,201,106,.55));animation:logoFloat 4.2s ease-in-out infinite alternate, glow 3.5s ease-in-out infinite alternate;transition:transform .3s ease}
+.logo:hover{transform:scale(1.06) rotate(1deg);filter:drop-shadow(0 0 24px rgba(240,201,106,.85))}
+@keyframes logoFloat{0%{transform:translateY(0px) rotate(0deg)}50%{transform:translateY(-4px) rotate(1deg) scale(1.02)}100%{transform:translateY(0px) rotate(0deg)}}
+@keyframes glow{to{filter:drop-shadow(0 0 24px rgba(240,201,106,.85))}}
 .ribbon{flex:1;min-width:0;border:1px solid rgba(240,201,106,.65);border-radius:10px;background:linear-gradient(180deg,rgba(10,18,48,.85),rgba(4,7,18,.85));backdrop-filter:blur(6px);padding:.8vh 1.6vw;position:relative;overflow:hidden}
 .ribbon::after{content:"";position:absolute;top:0;bottom:0;width:30%;left:-40%;background:linear-gradient(100deg,transparent,rgba(255,240,184,.22),transparent);animation:shine 5s ease-in-out infinite}
 @keyframes shine{to{left:130%}}
@@ -115,7 +117,6 @@ body{background:radial-gradient(ellipse at 50% 42%,#142450 0%,#0a1230 50%,#04060
   .events li{font-size:clamp(10px,2.8vw,13px);padding:.5vh 2.5vw}
   .fees{font-size:clamp(10px,2.8vw,13px)}
   .foot .reg-btn{width:100%;max-width:320px;font-size:14px;padding:12px 20px}
-  .theme-btn{top:8px;right:8px;padding:4px 10px;font-size:11px}
 }
 @media (max-width: 520px) {.ribbon p{display:none}}
 @media (max-height: 600px) and (min-width: 641px) {
@@ -124,157 +125,14 @@ body{background:radial-gradient(ellipse at 50% 42%,#142450 0%,#0a1230 50%,#04060
 }
 @media (prefers-reduced-motion:reduce){*,*::before,*::after{animation:none!important;transition:none!important}}
 
-/* ===== LIGHT THEME ADJUSTMENTS & AUTOMATIC CONTRAST ===== */
-html.light, body.light {
-  --gold: #b8860b;
-  --gold2: #d4af37;
-  --gold3: #855800;
-  --ink: #0f172a;
-  --soft: #334155;
-  color-scheme: light;
-}
-body.light {
-  background: radial-gradient(ellipse at 50% 42%, #ffffff 0%, #f4f7fd 50%, #dbe7f8 100%) !important;
-  color: var(--ink) !important;
-}
-body.light .ribbon {
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.96), rgba(245, 248, 255, 0.96)) !important;
-  border-color: rgba(184, 134, 11, 0.65) !important;
-  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08) !important;
-}
-body.light .ribbon h1 {
-  color: #0f172a !important;
-}
-body.light .ribbon .auto {
-  color: #b8860b !important;
-}
-body.light .ribbon p {
-  color: #334155 !important;
-}
-body.light .hero {
-  text-shadow: 0 1px 6px rgba(255, 255, 255, 0.8) !important;
-}
-body.light .presents {
-  color: #855800 !important;
-}
-body.light .title {
-  background: linear-gradient(100deg, #855800 20%, #d4af37 45%, #b8860b 60%, #855800 85%) !important;
-  background-size: 250% 100% !important;
-  -webkit-background-clip: text !important;
-  background-clip: text !important;
-  color: transparent !important;
-  filter: drop-shadow(0 0 14px rgba(184, 134, 11, 0.35)) drop-shadow(0 2px 4px rgba(0, 0, 0, 0.15)) !important;
-}
-body.light .sub {
-  color: #1e293b !important;
-}
-body.light .when {
-  background: rgba(255, 255, 255, 0.95) !important;
-  color: #855800 !important;
-  border-color: rgba(184, 134, 11, 0.7) !important;
-  box-shadow: 0 2px 14px rgba(0, 0, 0, 0.06) !important;
-}
-body.light .when i {
-  background: #b8860b !important;
-}
-body.light .events li {
-  background: rgba(255, 255, 255, 0.94) !important;
-  color: #0f172a !important;
-  border-color: rgba(184, 134, 11, 0.5) !important;
-  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.06) !important;
-}
-body.light .fees {
-  color: #334155 !important;
-}
-body.light .fees b {
-  color: #855800 !important;
-}
-body.light .o1 {
-  background: #93c5fd !important;
-  opacity: .45 !important;
-}
-body.light .o2 {
-  background: #fde68a !important;
-  opacity: .45 !important;
-}
-body.light .o3 {
-  background: #a7f3d0 !important;
-  opacity: .35 !important;
-}
-body.light .beam {
-  background: linear-gradient(90deg, transparent, rgba(184, 134, 11, 0.12), transparent) !important;
-}
-body.light .floor::before {
-  background-image: linear-gradient(rgba(184, 134, 11, .35) 1px, transparent 1px), linear-gradient(90deg, rgba(184, 134, 11, .35) 1px, transparent 1px) !important;
-}
-body.light .ring {
-  border-color: rgba(184, 134, 11, .3) !important;
-}
-body.light .mark {
-  mix-blend-mode: multiply !important;
-  opacity: .2 !important;
-}
-body.light .status-badge {
-  color: #334155 !important;
-}
-body.light .status-badge .live {
-  color: #15803d !important;
-}
-body.light .status-badge .live::before {
-  background: #15803d !important;
-  box-shadow: 0 0 8px #15803d !important;
-}
-body.light .foot small {
-  color: #475569 !important;
-}
-body.light .foot small b {
-  color: #855800 !important;
-}
-
-/* Floating Theme Toggle Switch */
-.theme-btn {
-  position: fixed;
-  top: 12px;
-  right: 14px;
-  z-index: 99;
-  cursor: pointer;
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  border: 1px solid rgba(240, 201, 106, 0.7);
-  background: rgba(10, 18, 48, 0.85);
-  color: var(--gold2);
-  backdrop-filter: blur(8px);
-  border-radius: 99px;
-  padding: .5vh 1.4vw;
-  font: 600 clamp(9px, min(1.6vw, 1.8vh), 13px) Poppins, sans-serif;
-  box-shadow: 0 0 16px rgba(240, 201, 106, 0.35);
-  transition: all .25s ease;
-  user-select: none;
-}
-.theme-btn:hover {
-  transform: scale(1.06);
-  box-shadow: 0 0 24px rgba(240, 201, 106, 0.65);
-}
-body.light .theme-btn {
-  background: rgba(255, 255, 255, 0.94) !important;
-  color: #855800 !important;
-  border-color: rgba(184, 134, 11, 0.7) !important;
-  box-shadow: 0 2px 14px rgba(0, 0, 0, 0.08) !important;
-}
-
 </style>
 
 <script>
 (function(){
   try {
-    var t = localStorage.getItem('nexusverse_theme');
-    if (!t && window.matchMedia && window.matchMedia('(prefers-color-scheme: light)').matches) {
-      t = 'light';
-    }
-    if (t === 'light') {
-      document.documentElement.classList.add('light');
-    }
+    // Home poster is locked permanently to original dark cyber-gold theme
+    document.documentElement.classList.remove('light');
+    document.documentElement.classList.add('dark');
   } catch(e){}
 })();
 </script>
@@ -289,11 +147,6 @@ body.light .theme-btn {
   <div class="floor"></div>
 </div>
 
-
-<button type="button" id="themeToggleBtn" class="theme-btn" title="Toggle Dark / Light Theme" aria-label="Toggle Theme">
-  <span id="themeIcon">☀️</span>
-  <span id="themeLabel">Light Mode</span>
-</button>
 
 <main class="page">
   <header class="top">
@@ -342,52 +195,20 @@ body.light .theme-btn {
   }
   function draw(){
     x.clearRect(0,0,W,H);var L=Math.min(150,Math.max(W,H)/6);
-    var isL=document.documentElement.classList.contains('light');
+    var isL=false;
     for(var i=0;i<P.length;i++){
       var a=P[i];
       if(!still){a.x+=a.vx;a.y+=a.vy;if(a.x<0||a.x>W)a.vx*=-1;if(a.y<0||a.y>H)a.vy*=-1;}
-      x.fillStyle=isL?'rgba(184,134,11,.85)':'rgba(255,232,150,.9)';x.beginPath();x.arc(a.x,a.y,a.r,0,6.283);x.fill();
+      x.fillStyle='rgba(255,232,150,.9)';x.beginPath();x.arc(a.x,a.y,a.r,0,6.283);x.fill();
       for(var j=i+1;j<P.length;j++){
         var b=P[j],dx=a.x-b.x,dy=a.y-b.y,d=Math.sqrt(dx*dx+dy*dy);
-        if(d<L){x.strokeStyle=isL?('rgba(184,134,11,'+(0.28*(1-d/L))+')'):('rgba(240,201,106,'+(0.3*(1-d/L))+')');x.lineWidth=.8;x.beginPath();x.moveTo(a.x,a.y);x.lineTo(b.x,b.y);x.stroke();}
+        if(d<L){x.strokeStyle='rgba(240,201,106,'+(0.3*(1-d/L))+')';x.lineWidth=.8;x.beginPath();x.moveTo(a.x,a.y);x.lineTo(b.x,b.y);x.stroke();}
       }
     }
     if(!still)requestAnimationFrame(draw);
   }
   addEventListener('resize',size);size();draw();
 
-  // Dark / Light Theme Toggle Interaction
-  var themeBtn = document.getElementById('themeToggleBtn');
-  var themeIcon = document.getElementById('themeIcon');
-  var themeLabel = document.getElementById('themeLabel');
-
-  function updateThemeUI(isLight) {
-    if (isLight) {
-      document.documentElement.classList.add('light');
-      document.body.classList.add('light');
-      if (themeIcon) themeIcon.textContent = '🌙';
-      if (themeLabel) themeLabel.textContent = 'Dark Mode';
-    } else {
-      document.documentElement.classList.remove('light');
-      document.body.classList.remove('light');
-      if (themeIcon) themeIcon.textContent = '☀️';
-      if (themeLabel) themeLabel.textContent = 'Light Mode';
-    }
-  }
-
-  // Initial UI sync
-  var currentIsLight = document.documentElement.classList.contains('light') || (localStorage.getItem('nexusverse_theme') === 'light');
-  updateThemeUI(currentIsLight);
-
-  if (themeBtn) {
-    themeBtn.addEventListener('click', function() {
-      var isNowLight = !document.documentElement.classList.contains('light');
-      try {
-        localStorage.setItem('nexusverse_theme', isNowLight ? 'light' : 'dark');
-      } catch(e){}
-      updateThemeUI(isNowLight);
-    });
-  }
 })();
 </script>
 </body>

@@ -39,12 +39,12 @@ export const Navbar: React.FC<NavbarProps> = ({
             className="flex items-center gap-2.5 group cursor-pointer"
             title="N.B.K.R. Institute of Science & Technology"
           >
-            {/* Top Left Logo: Main Logo from Background Poster */}
-            <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-xl bg-black/60 p-1 border border-[#d4a935]/40 shadow-md flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform overflow-hidden">
+            {/* Top Left Logo: Main Logo from Background Poster with Floating Glow Animation */}
+            <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-xl bg-black/60 p-1 border border-[#d4a935]/40 shadow-md flex items-center justify-center shrink-0 group-hover:scale-105 transition-all overflow-hidden logo-animated-badge">
               <img 
                 src={leftLogo || '/symposium-poster.jpg'} 
                 alt="NexusVerse 2K26 Main Logo" 
-                className="max-h-full max-w-full object-contain"
+                className="max-h-full max-w-full object-contain logo-glow-effect"
               />
             </div>
 
@@ -147,9 +147,9 @@ export const Navbar: React.FC<NavbarProps> = ({
             </button>
           )}
 
-          {/* Top Right Logo: Image-2 (IEEE Student Branch NBKRIST) */}
+          {/* Top Right Logo: Image-2 (IEEE Student Branch NBKRIST) with Dynamic Pulse Animation */}
           <div 
-            className="w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-white p-1 border border-[#2e2b22] shadow-md flex items-center justify-center shrink-0 hover:scale-105 transition-transform"
+            className="w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-white p-1 border border-[#2e2b22] shadow-md flex items-center justify-center shrink-0 hover:scale-105 transition-all logo-animated-badge-right"
             title="IEEE Student Branch NBKRIST"
           >
             <img 

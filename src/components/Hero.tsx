@@ -111,11 +111,11 @@ export const Hero: React.FC<HeroProps> = ({
           {/* Left Column: Heading and Event Highlights */}
           <div className="lg:col-span-7 space-y-6">
             <div className="flex flex-wrap items-center gap-3">
-              <div className="flex items-center gap-2">
-                <div className="w-9 h-9 rounded-xl bg-black/60 p-1 border border-[#d4a935]/40 shadow flex items-center justify-center overflow-hidden">
-                  <img src={leftLogo || '/symposium-poster.jpg'} alt="NexusVerse" className="max-h-full max-w-full object-contain" />
+              <div className="flex items-center gap-2.5">
+                <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-black/60 p-1 border border-[#d4a935]/40 shadow flex items-center justify-center overflow-hidden logo-animated-badge">
+                  <img src={leftLogo || '/symposium-poster.jpg'} alt="NexusVerse" className="max-h-full max-w-full object-contain logo-glow-effect" />
                 </div>
-                <div className="w-9 h-9 rounded-xl bg-white p-1 border border-[#2e2b22] shadow flex items-center justify-center overflow-hidden">
+                <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-white p-1 border border-[#2e2b22] shadow flex items-center justify-center overflow-hidden logo-animated-badge-right">
                   <img src={rightLogo} alt="IEEE-SB" className="max-h-full max-w-full object-contain" />
                 </div>
               </div>
