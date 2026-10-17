@@ -354,15 +354,52 @@ apiRouter.get('/photos', (_req: Request, res: Response) => {
 });
 
 // 9. Upload photo
-apiRouter.post('/photos', (req: Request, res: Response) => {
+apiRouter.post('/photos', async (req: Request, res: Response) => {
   try {
-    const { url, title, category } = req.body;
+    let { url, title, category } = req.body;
     if (!url) {
       return res.status(400).json({ success: false, error: 'Photo URL or Base64 data is required.' });
     }
 
+    const photoId = 'photo-' + Date.now();
+
+    // If base64 data URL is provided, upload to Supabase Storage bucket for high-speed CDN delivery
+    if (url.startsWith('data:') && supabaseServer) {
+      try {
+        let mime = 'image/jpeg';
+        let ext = 'jpg';
+        if (url.startsWith('data:image/png')) {
+          mime = 'image/png';
+          ext = 'png';
+        } else if (url.startsWith('data:image/webp')) {
+          mime = 'image/webp';
+          ext = 'webp';
+        }
+        const base64Data = url.replace(/^data:image\/\w+;base64,/, '');
+        const buffer = Buffer.from(base64Data, 'base64');
+        const fileName = `${photoId}.${ext}`;
+
+        const { error: upErr } = await supabaseServer.storage
+          .from('nexusverse-gallery')
+          .upload(fileName, buffer, { contentType: mime, upsert: true });
+
+        if (!upErr) {
+          const { data: pubData } = supabaseServer.storage
+            .from('nexusverse-gallery')
+            .getPublicUrl(fileName);
+          if (pubData?.publicUrl) {
+            url = pubData.publicUrl;
+          }
+        } else {
+          console.warn('Supabase storage upload notice:', upErr.message);
+        }
+      } catch (storageErr: any) {
+        console.warn('Storage processing error:', storageErr.message);
+      }
+    }
+
     const newPhoto = {
-      id: 'photo-' + Date.now(),
+      id: photoId,
       url,
       title: title || 'Symposium Memory',
       category: category || 'Symposium Highlights',

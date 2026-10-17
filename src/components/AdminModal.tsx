@@ -536,36 +536,88 @@ export const AdminModal: React.FC<AdminModalProps> = ({
     setTimeout(() => setPhotoAddSuccess(''), 4000);
   };
 
-  const handlePhotoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  // Helper to compress camera/large photos before upload for fast transfer and storage
+  const compressImageFile = (file: File, maxWidth = 1920, quality = 0.85): Promise<string> => {
+    return new Promise((resolve) => {
+      // If svg or gif, read as data url directly
+      if (file.type === 'image/svg+xml' || file.type === 'image/gif') {
+        const reader = new FileReader();
+        reader.onload = (e) => resolve(e.target?.result as string);
+        reader.onerror = () => resolve('');
+        reader.readAsDataURL(file);
+        return;
+      }
+
+      const img = new Image();
+      const objUrl = URL.createObjectURL(file);
+      img.onload = () => {
+        URL.revokeObjectURL(objUrl);
+        let { width, height } = img;
+        if (width > maxWidth) {
+          height = Math.round((height * maxWidth) / width);
+          width = maxWidth;
+        }
+        const canvas = document.createElement('canvas');
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext('2d');
+        if (!ctx) {
+          const reader = new FileReader();
+          reader.onload = (e) => resolve(e.target?.result as string);
+          reader.readAsDataURL(file);
+          return;
+        }
+        ctx.drawImage(img, 0, 0, width, height);
+        resolve(canvas.toDataURL('image/jpeg', quality));
+      };
+      img.onerror = () => {
+        URL.revokeObjectURL(objUrl);
+        const reader = new FileReader();
+        reader.onload = (e) => resolve(e.target?.result as string);
+        reader.readAsDataURL(file);
+      };
+      img.src = objUrl;
+    });
+  };
+
+  const handlePhotoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    const reader = new FileReader();
-    reader.onload = async (event) => {
-      const dataUrl = event.target?.result as string;
+
+    try {
+      setIsAddingPhoto(true);
+      const dataUrl = await compressImageFile(file);
       if (dataUrl) {
-        setIsAddingPhoto(true);
-        const newPhoto: GalleryPhoto = {
+        const tempPhoto: GalleryPhoto = {
           id: 'photo-' + Date.now(),
           url: dataUrl,
           title: newPhotoTitle.trim() || file.name.replace(/\.[^/.]+$/, ''),
           category: newPhotoCategory,
           uploadedAt: new Date().toISOString()
         };
-        const updated = [newPhoto, ...galleryPhotos];
+
+        // Upload to server/Supabase Storage bucket to obtain permanent high-speed CDN URL
+        const savedPhoto = await uploadPhotoApi(tempPhoto);
+        const finalPhoto: GalleryPhoto = savedPhoto && savedPhoto.url ? savedPhoto : tempPhoto;
+
+        const updated = [finalPhoto, ...galleryPhotos.filter(p => p.id !== finalPhoto.id)];
         setGalleryPhotos(updated);
         try {
           localStorage.setItem('nexusverse_gallery_photos', JSON.stringify(updated));
         } catch (err) {}
-        await uploadPhotoApi(newPhoto);
+
         window.dispatchEvent(new CustomEvent('nexusverse_photos_updated'));
         setNewPhotoTitle('');
-        setIsAddingPhoto(false);
-        setPhotoAddSuccess('Photo uploaded to gallery successfully!');
+        setPhotoAddSuccess('Photo uploaded and synced to symposium gallery successfully!');
         setTimeout(() => setPhotoAddSuccess(''), 4000);
         if (photoUploadRef.current) photoUploadRef.current.value = '';
       }
-    };
-    reader.readAsDataURL(file);
+    } catch (err: any) {
+      console.error('Photo upload error:', err);
+      alert('Failed to process image. Please try another image.');
+    } finally {
+      setIsAddingPhoto(false);
+    }
   };
 
   const handleDeletePhoto = async (id: string) => {

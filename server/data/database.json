@@ -105,60 +105,151 @@
   },
   "photos": [
     {
-      "id": "symp-1",
-      "url": "https://images.unsplash.com/photo-1540575467063-178a50c2df87?w=1200&auto=format&fit=crop&q=80",
-      "title": "Inaugural Keynote & National Tech Symposium Hall",
+      "id": "photo-1792236091566",
+      "url": "https://nfkyzozrreardklsoehb.supabase.co/storage/v1/object/public/nexusverse-gallery/photo-1792236091566.jpg",
+      "title": "20251008_102732",
       "category": "Symposium Highlights",
-      "uploadedAt": "2026-10-10T09:30:00Z"
+      "uploadedAt": "2026-10-17T11:21:31.566+00:00"
     },
     {
-      "id": "symp-2",
-      "url": "https://images.unsplash.com/photo-1517245386807-bb43f82c33c4?w=1200&auto=format&fit=crop&q=80",
-      "title": "Coding Sprints & Flaghunt 24H Cyber CTF Arena",
+      "id": "photo-1792235750554",
+      "url": "https://nfkyzozrreardklsoehb.supabase.co/storage/v1/object/public/nexusverse-gallery/photo-1792235750554.jpg",
+      "title": "Technical Coding & Debugging Carnivals",
       "category": "Technical Events",
-      "uploadedAt": "2026-10-11T14:15:00Z"
+      "uploadedAt": "2026-10-17T11:15:50.554+00:00"
     },
     {
-      "id": "symp-3",
-      "url": "https://images.unsplash.com/photo-1531482615713-2afd69097998?w=1200&auto=format&fit=crop&q=80",
-      "title": "Hardware Expo & IoT Autonomous Robotics Prototype",
+      "id": "photo-1792235542071",
+      "url": "https://nfkyzozrreardklsoehb.supabase.co/storage/v1/object/public/nexusverse-gallery/photo-1792235542071.jpg",
+      "title": "20251011_093225",
+      "category": "Symposium Highlights",
+      "uploadedAt": "2026-10-17T11:12:22.071+00:00"
+    },
+    {
+      "id": "photo-1792235268037",
+      "url": "https://nfkyzozrreardklsoehb.supabase.co/storage/v1/object/public/nexusverse-gallery/photo-1792235268037.jpg",
+      "title": "Inspiring Words & Forward-Thinking Ideas Fom Dignitaries",
+      "category": "Guest Dignitaries",
+      "uploadedAt": "2026-10-17T11:07:48.037+00:00"
+    },
+    {
+      "id": "photo-1792235168739",
+      "url": "https://nfkyzozrreardklsoehb.supabase.co/storage/v1/object/public/nexusverse-gallery/photo-1792235168739.jpg",
+      "title": "Inspiring words & Forward Thinking Ideas from Dignitaries",
+      "category": "Guest Dignitaries",
+      "uploadedAt": "2026-10-17T11:06:08.739+00:00"
+    },
+    {
+      "id": "photo-1792234947263",
+      "url": "https://nfkyzozrreardklsoehb.supabase.co/storage/v1/object/public/nexusverse-gallery/photo-1792234947263.jpg",
+      "title": "Campaigning & Promotions",
+      "category": "Campus & Venue",
+      "uploadedAt": "2026-10-17T11:02:27.263+00:00"
+    },
+    {
+      "id": "photo-1792234839558",
+      "url": "https://nfkyzozrreardklsoehb.supabase.co/storage/v1/object/public/nexusverse-gallery/photo-1792234839558.jpg",
+      "title": "Team Leads & Volunteers",
+      "category": "Symposium Highlights",
+      "uploadedAt": "2026-10-17T11:00:39.558+00:00"
+    },
+    {
+      "id": "photo-1792234486168",
+      "url": "https://nfkyzozrreardklsoehb.supabase.co/storage/v1/object/public/nexusverse-gallery/photo-1792234486168.jpg",
+      "title": "Technology is Communication",
+      "category": "Technical Events",
+      "uploadedAt": "2026-10-17T10:54:46.168+00:00"
+    },
+    {
+      "id": "photo-1792234451899",
+      "url": "https://nfkyzozrreardklsoehb.supabase.co/storage/v1/object/public/nexusverse-gallery/photo-1792234451899.jpg",
+      "title": "Technology is Communication",
+      "category": "Technical Events",
+      "uploadedAt": "2026-10-17T10:54:11.899+00:00"
+    },
+    {
+      "id": "photo-1792234203255",
+      "url": "https://nfkyzozrreardklsoehb.supabase.co/storage/v1/object/public/nexusverse-gallery/photo-1792234203255.jpg",
+      "title": "Sharing Their Valuable Insights About NEXUSVERSE",
+      "category": "Guest Dignitaries",
+      "uploadedAt": "2026-10-17T10:50:03.255+00:00"
+    },
+    {
+      "id": "photo-1792234119688",
+      "url": "https://nfkyzozrreardklsoehb.supabase.co/storage/v1/object/public/nexusverse-gallery/photo-1792234119688.jpg",
+      "title": "20251011_095440",
+      "category": "Guest Dignitaries",
+      "uploadedAt": "2026-10-17T10:48:39.688+00:00"
+    },
+    {
+      "id": "photo-1792233525169",
+      "url": "https://nfkyzozrreardklsoehb.supabase.co/storage/v1/object/public/nexusverse-gallery/photo-1792233525169.jpg",
+      "title": "Ideas to Impact",
       "category": "Expo & Projects",
-      "uploadedAt": "2026-10-12T11:45:00Z"
+      "uploadedAt": "2026-10-17T10:38:45.169+00:00"
     },
     {
-      "id": "symp-4",
-      "url": "https://images.unsplash.com/photo-1475721027785-f74eccf877e2?w=1200&auto=format&fit=crop&q=80",
-      "title": "IEEE Distinguished Faculty & Chief Guest Address",
-      "category": "Guest Dignitaries",
-      "uploadedAt": "2026-10-12T16:00:00Z"
+      "id": "photo-1792233113542",
+      "url": "https://nfkyzozrreardklsoehb.supabase.co/storage/v1/object/public/nexusverse-gallery/photo-1792233113542.jpg",
+      "title": "Campaigning & Promotions",
+      "category": "Campus & Venue",
+      "uploadedAt": "2026-10-17T10:31:53.542+00:00"
     },
     {
-      "id": "symp-5",
-      "url": "https://images.unsplash.com/photo-1523580494863-6f3031224c94?w=1200&auto=format&fit=crop&q=80",
-      "title": "Innovrush Grand Finale Project Presentation & Jury Defense",
-      "category": "Technical Events",
-      "uploadedAt": "2026-10-13T10:20:00Z"
+      "id": "photo-1792232903912",
+      "url": "https://nfkyzozrreardklsoehb.supabase.co/storage/v1/object/public/nexusverse-gallery/photo-1792232903912.jpg",
+      "title": "InnoVision Symposium",
+      "category": "Expo & Projects",
+      "uploadedAt": "2026-10-17T10:28:23.912+00:00"
     },
     {
-      "id": "symp-6",
-      "url": "https://images.unsplash.com/photo-1523240795612-9a054b0db644?w=1200&auto=format&fit=crop&q=80",
-      "title": "Grand Award Felicitation & Valedictory Ceremony",
-      "category": "Symposium Highlights",
-      "uploadedAt": "2026-10-13T17:30:00Z"
-    },
-    {
-      "id": "symp-7",
-      "url": "https://images.unsplash.com/photo-1515187029135-18ee286d815b?w=1200&auto=format&fit=crop&q=80",
+      "id": "photo-1792232220111",
+      "url": "https://nfkyzozrreardklsoehb.supabase.co/storage/v1/object/public/nexusverse-gallery/photo-1792232220111.jpg",
       "title": "Technical Panel Discussion & Emerging Tech Fireside",
-      "category": "Guest Dignitaries",
-      "uploadedAt": "2026-10-13T14:40:00Z"
+      "category": "Technical Events",
+      "uploadedAt": "2026-10-17T10:17:00.111+00:00"
     },
     {
-      "id": "symp-8",
-      "url": "https://images.unsplash.com/photo-1504384308090-c894fdcc538d?w=1200&auto=format&fit=crop&q=80",
-      "title": "Code Genesis Live Hackathon Showdown & Mentorship",
+      "id": "photo-1792232005152",
+      "url": "https://nfkyzozrreardklsoehb.supabase.co/storage/v1/object/public/nexusverse-gallery/photo-1792232005152.jpg",
+      "title": "IEEE Distinguished Faculty & Cheif Guest Address",
+      "category": "Guest Dignitaries",
+      "uploadedAt": "2026-10-17T10:13:25.152+00:00"
+    },
+    {
+      "id": "photo-1792231834505",
+      "url": "https://nfkyzozrreardklsoehb.supabase.co/storage/v1/object/public/nexusverse-gallery/photo-1792231834505.jpg",
+      "title": "Tech That Moves Us Forward",
       "category": "Technical Events",
-      "uploadedAt": "2026-10-14T11:00:00Z"
+      "uploadedAt": "2026-10-17T10:10:34.505+00:00"
+    },
+    {
+      "id": "photo-1792231787577",
+      "url": "https://nfkyzozrreardklsoehb.supabase.co/storage/v1/object/public/nexusverse-gallery/photo-1792231787577.jpg",
+      "title": "National Tech Symposium Hall",
+      "category": "Symposium Highlights",
+      "uploadedAt": "2026-10-17T10:09:47.577+00:00"
+    },
+    {
+      "id": "photo-1792231633828",
+      "url": "https://nfkyzozrreardklsoehb.supabase.co/storage/v1/object/public/nexusverse-gallery/photo-1792231633828.jpg",
+      "title": "20241109_121739",
+      "category": "Technical Events",
+      "uploadedAt": "2026-10-17T10:07:13.828+00:00"
+    },
+    {
+      "id": "photo-1792231602442",
+      "url": "https://nfkyzozrreardklsoehb.supabase.co/storage/v1/object/public/nexusverse-gallery/photo-1792231602442.jpg",
+      "title": "Tech that moves us forward",
+      "category": "Technical Events",
+      "uploadedAt": "2026-10-17T10:06:42.442+00:00"
+    },
+    {
+      "id": "photo-1792230935130",
+      "url": "https://nfkyzozrreardklsoehb.supabase.co/storage/v1/object/public/nexusverse-gallery/photo-1792230935130.jpg",
+      "title": "Inaguration ceremony",
+      "category": "Symposium Highlights",
+      "uploadedAt": "2026-10-17T09:55:35.13+00:00"
     }
   ],
   "users": [

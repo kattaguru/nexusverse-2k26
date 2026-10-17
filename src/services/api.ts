@@ -357,7 +357,22 @@ export async function uploadPhotoApi(photo: { url: string; title: string; catego
     uploadedAt: new Date().toISOString()
   };
 
-  // Supabase
+  // Express API (handles upload to Supabase Storage bucket for CDN delivery)
+  try {
+    const res = await fetch(`${API_BASE}/photos`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(photo)
+    });
+    if (res.ok) {
+      const json = await res.json();
+      if (json.success && json.data) {
+        return json.data;
+      }
+    }
+  } catch (e) {}
+
+  // Supabase fallback
   if (isSupabaseConfigured() && supabase) {
     try {
       const { data, error } = await supabase
@@ -377,19 +392,6 @@ export async function uploadPhotoApi(photo: { url: string; title: string; catego
       }
     } catch (e) {}
   }
-
-  // Express API
-  try {
-    const res = await fetch(`${API_BASE}/photos`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(photo)
-    });
-    if (res.ok) {
-      const json = await res.json();
-      return json.data;
-    }
-  } catch (e) {}
 
   return newPhoto;
 }
