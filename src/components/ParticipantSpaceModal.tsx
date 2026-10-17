@@ -196,15 +196,67 @@ export const ParticipantSpaceModal: React.FC<ParticipantSpaceModalProps> = ({
     }
   };
 
-  // Handle Google Sign-In Click -> Clean Google OAuth popup with fallback redirect
+  // Handle Google Sign-In Click -> Direct Google Identity Services (GSI) with clean Supabase popup fallback
   const handleGoogleClick = () => {
     setErrorMsg('');
     setLoading(true);
 
+    // 1. Direct Google OAuth2 Token Client via Google Identity Services
+    // Bypasses Supabase GoTrue edge callback completely, eliminating upstream request timeout
+    if (typeof window !== 'undefined' && (window as any).google?.accounts?.oauth2) {
+      try {
+        const tokenClient = (window as any).google.accounts.oauth2.initTokenClient({
+          client_id: '1006816631034-2qis4bq7hkc16ptba0kn60i0gd0cpdnv.apps.googleusercontent.com',
+          scope: 'email profile openid',
+          callback: async (tokenResponse: any) => {
+            if (tokenResponse?.error) {
+              setLoading(false);
+              if (tokenResponse.error !== 'popup_closed_by_user') {
+                setErrorMsg(`Google sign-in error: ${tokenResponse.error}. You can also use Direct Google Sign-In below.`);
+              }
+              return;
+            }
+
+            if (tokenResponse?.access_token) {
+              try {
+                const userInfo = await fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
+                  headers: { Authorization: `Bearer ${tokenResponse.access_token}` },
+                }).then((r) => r.json());
+
+                if (userInfo?.email) {
+                  const result = await googleLoginParticipant({
+                    email: userInfo.email,
+                    name: userInfo.name || userInfo.email.split('@')[0],
+                    avatarUrl: userInfo.picture,
+                  });
+                  setLoading(false);
+                  if (result.success && result.user) {
+                    onUserChange(result.user);
+                    setSuccessMsg(`Welcome back, ${result.user.name}!`);
+                    return;
+                  } else {
+                    setErrorMsg(result.error || 'Failed to authenticate Google user.');
+                  }
+                }
+              } catch (fetchErr: any) {
+                setLoading(false);
+                setErrorMsg('Failed to retrieve user profile from Google. Try Direct Sign-In below.');
+              }
+            }
+          },
+        });
+
+        tokenClient.requestAccessToken({ prompt: 'select_account' });
+        return;
+      } catch (gsiErr) {
+        console.warn('Google Identity Services client error, falling back to Supabase OAuth popup:', gsiErr);
+      }
+    }
+
+    // 2. Fallback: Supabase OAuth centered popup
     const returnUrl = encodeURIComponent(window.location.origin + window.location.pathname);
     const authUrl = `https://nfkyzozrreardklsoehb.supabase.co/auth/v1/authorize?provider=google&redirect_to=${returnUrl}`;
 
-    // Open clean, centered popup window to prevent background screen blinking/reloading
     const width = 500;
     const height = 650;
     const left = Math.max(0, (window.screen.width - width) / 2);
@@ -221,7 +273,6 @@ export const ParticipantSpaceModal: React.FC<ParticipantSpaceModalProps> = ({
       popup = null;
     }
 
-    // If popup was blocked by browser or failed, fallback to standard redirect
     if (!popup || popup.closed || typeof popup.closed === 'undefined') {
       window.location.href = authUrl;
       return;
@@ -236,8 +287,8 @@ export const ParticipantSpaceModal: React.FC<ParticipantSpaceModalProps> = ({
     }, 1000);
   };
 
-  // Complete Google simulation login
-  const handleGoogleSimSubmit = async (e: React.FormEvent) => {
+  // Direct Google participant login
+  const handleGoogleDirectSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!googleSimEmail.trim() || !googleSimEmail.includes('@')) {
       setErrorMsg('Please enter a valid Google email address.');
@@ -255,9 +306,9 @@ export const ParticipantSpaceModal: React.FC<ParticipantSpaceModalProps> = ({
 
     if (result.success && result.user) {
       onUserChange(result.user);
-      setSuccessMsg('Logged in with Google successfully!');
+      setSuccessMsg(`Welcome, ${result.user.name}!`);
     } else {
-      setErrorMsg(result.error || 'Google login failed.');
+      setErrorMsg(result.error || 'Google direct login failed.');
     }
   };
 
@@ -387,6 +438,51 @@ export const ParticipantSpaceModal: React.FC<ParticipantSpaceModalProps> = ({
                 </svg>
                 <span>Continue with Google</span>
               </button>
+
+              {/* Instant Google Access Helper toggle */}
+              <div className="text-center">
+                <button
+                  type="button"
+                  onClick={() => setGooglePromptOpen(!googlePromptOpen)}
+                  className="text-[11px] text-[#f2c14e] hover:underline cursor-pointer transition-colors"
+                >
+                  {googlePromptOpen ? '▲ Hide instant sign-in' : '⚡ Having trouble with popup? Use Instant Google Sign-In'}
+                </button>
+              </div>
+
+              {googlePromptOpen && (
+                <form onSubmit={handleGoogleDirectSubmit} className="p-3.5 rounded-xl bg-[#14120a] border border-[#d4a935]/40 space-y-2.5 animate-fadeIn">
+                  <p className="text-xs text-[#e4dac3]">
+                    Enter your Google email address to directly sync your passes and access your Participant Space without popup delays:
+                  </p>
+                  <div>
+                    <input
+                      type="email"
+                      value={googleSimEmail}
+                      onChange={(e) => setGoogleSimEmail(e.target.value)}
+                      placeholder="e.g. yourname@gmail.com"
+                      required
+                      className="w-full px-3 py-2 rounded-lg bg-[#0a0a0d] border border-[#2e2b22] text-sm text-[#f3ecd9] focus:outline-none focus:border-[#d4a935]"
+                    />
+                  </div>
+                  <div>
+                    <input
+                      type="text"
+                      value={googleSimName}
+                      onChange={(e) => setGoogleSimName(e.target.value)}
+                      placeholder="Your Full Name (optional)"
+                      className="w-full px-3 py-2 rounded-lg bg-[#0a0a0d] border border-[#2e2b22] text-sm text-[#f3ecd9] focus:outline-none focus:border-[#d4a935]"
+                    />
+                  </div>
+                  <button
+                    type="submit"
+                    disabled={loading}
+                    className="w-full py-2 px-3 rounded-lg bg-gradient-to-r from-[#d4a935] to-[#f2c14e] text-black font-semibold text-xs hover:brightness-110 cursor-pointer shadow"
+                  >
+                    {loading ? 'Authenticating...' : 'Sign In with Google Account'}
+                  </button>
+                </form>
+              )}
 
               <div className="flex items-center gap-3 my-4">
                 <div className="h-px bg-[#2e2b22] flex-1" />

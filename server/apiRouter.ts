@@ -38,6 +38,18 @@ const supabaseServer = process.env.SUPABASE_URL && (process.env.SUPABASE_SECRET_
   ? createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SECRET_KEY || process.env.SUPABASE_PUBLISHABLE_KEY!)
   : null;
 
+// Resilient, non-blocking helper for syncing to Supabase Cloud PostgreSQL with 2.5s maximum timeout
+function syncToSupabaseAsync(syncFn: (client: any) => Promise<any>): void {
+  if (!supabaseServer) return;
+  Promise.race([
+    syncFn(supabaseServer),
+    new Promise((_, reject) => setTimeout(() => reject(new Error('Supabase sync timeout after 2500ms')), 2500))
+  ]).catch((err: any) => {
+    // Non-fatal warning; local database handles 100% operational integrity
+    console.warn('⚡ [Supabase Sync Notice]:', err?.message || err);
+  });
+}
+
 export const apiRouter = Router();
 
 // 1. Health check
@@ -91,33 +103,27 @@ apiRouter.post('/registrations', async (req: Request, res: Response) => {
 
     writeDatabase(db);
 
-    // Sync to Supabase Cloud PostgreSQL
-    if (supabaseServer) {
-      try {
-        await supabaseServer.from('registrations').upsert({
-          reg_id: record.regId,
-          payment_id: record.paymentId || '',
-          name: record.name,
-          email: record.email || '',
-          phone: record.phone || '',
-          college: record.college || '',
-          class_name: record.className || '',
-          section: record.section || '',
-          dept: record.dept || '',
-          year: record.year || '',
-          roll: record.roll,
-          is_ieee_member: Boolean(record.isIeeeMember),
-          ieee_id: record.ieeeId || '',
-          event_ids: record.eventIds || [],
-          team_details: record.teamDetails || {},
-          total_paid: Number(record.totalPaid || 0),
-          promo_code: record.promoCode || '',
-          timestamp: record.timestamp || new Date().toISOString(),
-        }, { onConflict: 'reg_id' });
-      } catch (cloudErr) {
-        // Safe fallback to primary database
-      }
-    }
+    // Sync to Supabase Cloud PostgreSQL in resilient background task
+    syncToSupabaseAsync((client) => client.from('registrations').upsert({
+      reg_id: record.regId,
+      payment_id: record.paymentId || '',
+      name: record.name,
+      email: record.email || '',
+      phone: record.phone || '',
+      college: record.college || '',
+      class_name: record.className || '',
+      section: record.section || '',
+      dept: record.dept || '',
+      year: record.year || '',
+      roll: record.roll,
+      is_ieee_member: Boolean(record.isIeeeMember),
+      ieee_id: record.ieeeId || '',
+      event_ids: record.eventIds || [],
+      team_details: record.teamDetails || {},
+      total_paid: Number(record.totalPaid || 0),
+      promo_code: record.promoCode || '',
+      timestamp: record.timestamp || new Date().toISOString(),
+    }, { onConflict: 'reg_id' }));
 
     res.status(201).json({
       success: true,
@@ -670,27 +676,20 @@ apiRouter.post('/razorpay/webhook', async (req: Request, res: Response) => {
         const regId = notes.regId || 'NV26-' + Math.random().toString(36).slice(2, 8).toUpperCase();
         const totalPaid = payment.amount ? payment.amount / 100 : Number(notes.totalPaid || 0);
 
-        // 1. Sync directly to Supabase Cloud Database if configured
-        if (supabaseServer) {
-          try {
-            await supabaseServer.from('registrations').upsert({
-              reg_id: regId,
-              payment_id: payment.id,
-              name: studentName,
-              email: studentEmail,
-              phone: payment.contact || notes.phone || '',
-              college: notes.college || '',
-              dept: notes.department || notes.dept || '',
-              roll: roll,
-              event_ids: notes.eventIds ? (Array.isArray(notes.eventIds) ? notes.eventIds : [notes.eventIds]) : ['symposium'],
-              total_paid: totalPaid,
-              timestamp: new Date().toISOString()
-            }, { onConflict: 'reg_id' });
-            console.log(`✅ [Webhook] Registration ${regId} (${roll}) automatically recorded in Supabase!`);
-          } catch (dbErr: any) {
-            console.error('Webhook Supabase upsert error:', dbErr.message);
-          }
-        }
+        // 1. Sync directly to Supabase Cloud Database in background
+        syncToSupabaseAsync((client) => client.from('registrations').upsert({
+          reg_id: regId,
+          payment_id: payment.id,
+          name: studentName,
+          email: studentEmail,
+          phone: payment.contact || notes.phone || '',
+          college: notes.college || '',
+          dept: notes.department || notes.dept || '',
+          roll: roll,
+          event_ids: notes.eventIds ? (Array.isArray(notes.eventIds) ? notes.eventIds : [notes.eventIds]) : ['symposium'],
+          total_paid: totalPaid,
+          timestamp: new Date().toISOString()
+        }, { onConflict: 'reg_id' }));
 
         // 2. Dispatch automatic pass receipt email to student
         if (studentEmail) {
@@ -810,30 +809,24 @@ apiRouter.post('/auth/register', async (req: Request, res: Response) => {
     db.users.push(newUser);
     writeDatabase(db);
 
-    // Sync user to Supabase Cloud PostgreSQL
-    if (supabaseServer) {
-      try {
-        await supabaseServer.from('participant_users').upsert({
-          id: newUser.id,
-          name: newUser.name,
-          email: newUser.email,
-          username: newUser.username,
-          password_hash: newUser.passwordHash,
-          phone: newUser.phone || '',
-          college: newUser.college || '',
-          roll: newUser.roll || '',
-          branch: newUser.branch || '',
-          year: newUser.year || '',
-          is_ieee_member: Boolean(newUser.isIeeeMember),
-          ieee_id: newUser.ieeeId || '',
-          auth_provider: newUser.authProvider,
-          created_at: newUser.createdAt,
-          updated_at: new Date().toISOString()
-        }, { onConflict: 'email' });
-      } catch (cloudErr) {
-        // Safe fallback
-      }
-    }
+    // Sync user to Supabase Cloud PostgreSQL in resilient background task
+    syncToSupabaseAsync((client) => client.from('participant_users').upsert({
+      id: newUser.id,
+      name: newUser.name,
+      email: newUser.email,
+      username: newUser.username,
+      password_hash: newUser.passwordHash,
+      phone: newUser.phone || '',
+      college: newUser.college || '',
+      roll: newUser.roll || '',
+      branch: newUser.branch || '',
+      year: newUser.year || '',
+      is_ieee_member: Boolean(newUser.isIeeeMember),
+      ieee_id: newUser.ieeeId || '',
+      auth_provider: newUser.authProvider,
+      created_at: newUser.createdAt,
+      updated_at: new Date().toISOString()
+    }, { onConflict: 'email' }));
 
     const userRegistrations = findUserRegistrations(newUser.email, newUser.roll, newUser.phone);
 
@@ -931,26 +924,20 @@ apiRouter.post('/auth/google', async (req: Request, res: Response) => {
 
     writeDatabase(db);
 
-    // Sync Google user to Supabase Cloud PostgreSQL
-    if (supabaseServer) {
-      try {
-        await supabaseServer.from('participant_users').upsert({
-          id: user.id,
-          name: user.name,
-          email: user.email,
-          username: user.username,
-          avatar_url: user.avatarUrl || '',
-          phone: user.phone || '',
-          college: user.college || '',
-          roll: user.roll || '',
-          auth_provider: 'google',
-          created_at: user.createdAt,
-          updated_at: new Date().toISOString()
-        }, { onConflict: 'email' });
-      } catch (cloudErr) {
-        // Safe fallback
-      }
-    }
+    // Sync Google user to Supabase Cloud PostgreSQL in resilient background task
+    syncToSupabaseAsync((client) => client.from('participant_users').upsert({
+      id: user.id,
+      name: user.name,
+      email: user.email,
+      username: user.username,
+      avatar_url: user.avatarUrl || '',
+      phone: user.phone || '',
+      college: user.college || '',
+      roll: user.roll || '',
+      auth_provider: 'google',
+      created_at: user.createdAt,
+      updated_at: new Date().toISOString()
+    }, { onConflict: 'email' }));
 
     const userRegistrations = findUserRegistrations(user.email, user.roll, user.phone);
 
