@@ -11,7 +11,8 @@
     "start": "tsx server/index.ts",
     "clean": "rm -rf dist server.js",
     "lint": "tsc --noEmit",
-    "test": "tsx --test \"tests/**/*.test.ts\""
+    "test": "tsx --test \"tests/**/*.test.ts\"",
+    "sync:supabase": "node scripts/sync-supabase.js"
   },
   "dependencies": {
     "@google/genai": "^2.4.0",
@@ -26,6 +27,7 @@
     "lucide-react": "^0.546.0",
     "motion": "^12.23.24",
     "nodemailer": "^10.1.1",
+    "pg": "^8.23.1",
     "qrcode": "^1.5.4",
     "react": "^19.0.1",
     "react-dom": "^19.0.1",

@@ -154,6 +154,30 @@ apiRouter.put('/registrations/:regId', (req: Request, res: Response) => {
     };
 
     writeDatabase(db);
+
+    // Sync updated registration to Supabase Cloud PostgreSQL
+    const updatedRecord = db.registrations[index];
+    syncToSupabaseAsync((client) => client.from('registrations').upsert({
+      reg_id: regId,
+      payment_id: updatedRecord.paymentId || '',
+      name: updatedRecord.name,
+      email: updatedRecord.email || '',
+      phone: updatedRecord.phone || '',
+      college: updatedRecord.college || '',
+      class_name: updatedRecord.className || '',
+      section: updatedRecord.section || '',
+      dept: updatedRecord.dept || '',
+      year: updatedRecord.year || '',
+      roll: updatedRecord.roll,
+      is_ieee_member: Boolean(updatedRecord.isIeeeMember),
+      ieee_id: updatedRecord.ieeeId || '',
+      event_ids: updatedRecord.eventIds || [],
+      team_details: updatedRecord.teamDetails || {},
+      total_paid: Number(updatedRecord.totalPaid || 0),
+      promo_code: updatedRecord.promoCode || '',
+      timestamp: updatedRecord.timestamp || new Date().toISOString(),
+    }, { onConflict: 'reg_id' }));
+
     res.json({
       success: true,
       message: `Registration ${regId} updated successfully.`,
@@ -178,6 +202,10 @@ apiRouter.delete('/registrations/:regId', (req: Request, res: Response) => {
     }
 
     writeDatabase(db);
+
+    // Sync deletion to Supabase Cloud PostgreSQL
+    syncToSupabaseAsync((client) => client.from('registrations').delete().eq('reg_id', regId));
+
     res.json({
       success: true,
       message: `Registration ${regId} deleted successfully.`
@@ -220,6 +248,15 @@ apiRouter.post('/settings', (req: Request, res: Response) => {
     }
 
     writeDatabase(db);
+
+    // Sync portal open/closed settings to Supabase Cloud PostgreSQL
+    syncToSupabaseAsync((client) => client.from('portal_settings').upsert({
+      id: 'current',
+      is_reg_closed: Boolean(db.settings.isRegClosed),
+      closed_message: db.settings.closedMessage || 'Registration is currently closed.',
+      updated_at: new Date().toISOString()
+    }, { onConflict: 'id' }));
+
     res.json({
       success: true,
       message: 'Portal settings updated.',
@@ -327,6 +364,15 @@ apiRouter.post('/photos', (req: Request, res: Response) => {
     db.photos.unshift(newPhoto);
     writeDatabase(db);
 
+    // Sync uploaded photo to Supabase Cloud PostgreSQL
+    syncToSupabaseAsync((client) => client.from('gallery_photos').upsert({
+      id: newPhoto.id,
+      url: newPhoto.url,
+      title: newPhoto.title,
+      category: newPhoto.category,
+      uploaded_at: newPhoto.uploadedAt
+    }, { onConflict: 'id' }));
+
     res.status(201).json({
       success: true,
       data: newPhoto
@@ -343,6 +389,9 @@ apiRouter.delete('/photos/:id', (req: Request, res: Response) => {
     const db = readDatabase();
     db.photos = db.photos.filter((p: any) => p.id !== id);
     writeDatabase(db);
+
+    // Sync photo deletion to Supabase Cloud PostgreSQL
+    syncToSupabaseAsync((client) => client.from('gallery_photos').delete().eq('id', id));
 
     res.json({ success: true, message: 'Photo deleted successfully.' });
   } catch (err: any) {
@@ -1011,6 +1060,27 @@ apiRouter.put('/auth/profile', (req: Request, res: Response) => {
     user.updatedAt = new Date().toISOString();
 
     writeDatabase(db);
+
+    // Sync updated participant profile to Supabase Cloud PostgreSQL
+    syncToSupabaseAsync((client) => client.from('participant_users').upsert({
+      id: user.id,
+      name: user.name,
+      email: user.email,
+      username: user.username,
+      password_hash: user.passwordHash || '',
+      phone: user.phone || '',
+      college: user.college || '',
+      roll: user.roll || '',
+      branch: user.branch || '',
+      year: user.year || '',
+      is_ieee_member: Boolean(user.isIeeeMember),
+      ieee_id: user.ieeeId || '',
+      avatar_url: user.avatarUrl || '',
+      auth_provider: user.authProvider || 'local',
+      created_at: user.createdAt || new Date().toISOString(),
+      updated_at: user.updatedAt || new Date().toISOString()
+    }, { onConflict: 'email' }));
+
     const userRegistrations = findUserRegistrations(user.email, user.roll, user.phone);
 
     res.json({
@@ -1018,6 +1088,111 @@ apiRouter.put('/auth/profile', (req: Request, res: Response) => {
       message: 'Profile updated successfully!',
       user: sanitizeUser(user),
       registrations: userRegistrations
+    });
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// 25. Complete Two-Way Cloud Sync with Supabase (Mirrors all local records to Supabase)
+apiRouter.post('/admin/sync-supabase', async (_req: Request, res: Response) => {
+  try {
+    if (!supabaseServer) {
+      return res.status(503).json({
+        success: false,
+        error: 'Supabase client is not configured. Check SUPABASE_URL and SUPABASE_SECRET_KEY in .env.'
+      });
+    }
+
+    const db = readDatabase();
+    let syncedRegistrations = 0;
+    let syncedUsers = 0;
+    const errors: string[] = [];
+
+    // 1. Sync all registrations
+    if (db.registrations && db.registrations.length > 0) {
+      const regRows = db.registrations.map((r: any) => ({
+        reg_id: r.regId,
+        payment_id: r.paymentId || '',
+        name: r.name,
+        email: r.email || '',
+        phone: r.phone || '',
+        college: r.college || '',
+        class_name: r.className || '',
+        section: r.section || '',
+        dept: r.dept || '',
+        year: r.year || '',
+        roll: r.roll,
+        is_ieee_member: Boolean(r.isIeeeMember),
+        ieee_id: r.ieeeId || '',
+        event_ids: r.eventIds || [],
+        team_details: r.teamDetails || {},
+        total_paid: Number(r.totalPaid || 0),
+        promo_code: r.promoCode || '',
+        timestamp: r.timestamp || new Date().toISOString(),
+      }));
+
+      const { data, error } = await supabaseServer
+        .from('registrations')
+        .upsert(regRows, { onConflict: 'reg_id' })
+        .select('reg_id');
+
+      if (error) {
+        errors.push(`Registrations sync notice: ${error.message}`);
+      } else {
+        syncedRegistrations = data ? data.length : regRows.length;
+      }
+    }
+
+    // 2. Sync all participant users
+    if (db.users && db.users.length > 0) {
+      const userRows = db.users.map((u: any) => ({
+        id: u.id,
+        name: u.name,
+        email: u.email,
+        username: u.username,
+        password_hash: u.passwordHash || '',
+        phone: u.phone || '',
+        college: u.college || '',
+        roll: u.roll || '',
+        branch: u.branch || '',
+        year: u.year || '',
+        is_ieee_member: Boolean(u.isIeeeMember),
+        ieee_id: u.ieeeId || '',
+        avatar_url: u.avatarUrl || '',
+        auth_provider: u.authProvider || 'local',
+        created_at: u.createdAt || new Date().toISOString(),
+        updated_at: u.updatedAt || new Date().toISOString()
+      }));
+
+      const { data, error } = await supabaseServer
+        .from('participant_users')
+        .upsert(userRows, { onConflict: 'email' })
+        .select('id');
+
+      if (error) {
+        errors.push(`Participant users sync notice: ${error.message}`);
+      } else {
+        syncedUsers = data ? data.length : userRows.length;
+      }
+    }
+
+    // 3. Sync portal settings
+    await supabaseServer.from('portal_settings').upsert({
+      id: 'current',
+      is_reg_closed: Boolean(db.settings.isRegClosed),
+      closed_message: db.settings.closedMessage || 'Registration is currently closed.',
+      updated_at: new Date().toISOString()
+    }, { onConflict: 'id' });
+
+    res.json({
+      success: true,
+      message: `Cloud synchronization completed: ${syncedRegistrations} registrations and ${syncedUsers} participant users mirrored to Supabase.`,
+      syncedRegistrations,
+      syncedUsers,
+      totalLocalRegistrations: db.registrations.length,
+      totalLocalUsers: (db.users || []).length,
+      notices: errors
     });
   } catch (err: any) {
     res.status(500).json({ success: false, error: err.message });
