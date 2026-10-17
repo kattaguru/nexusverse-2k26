@@ -1594,14 +1594,23 @@ export default function App() {
                           </button>
                         </div>
                       ) : (
-                        <div className="p-3.5 rounded-xl bg-[#0a0a0d] border border-dashed border-[#2e2b22] text-xs text-[#a79f8b] flex items-center justify-between">
-                          <span>No Technical Event selected. Choose one above, or proceed with Spot Events below.</span>
+                        <div className="p-4 rounded-xl bg-[#fff9ea] dark:bg-[#1f1a0e] border-2 border-[#d4a935] shadow-lg text-xs sm:text-sm text-[#2a1e05] dark:text-[#f5ebd6] flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 transition-all">
+                          <div className="flex items-center gap-3">
+                            <div className="p-2 rounded-lg bg-[#f2c14e]/25 text-[#b38600] dark:text-[#f2c14e] shrink-0">
+                              <Info className="w-4 h-4" />
+                            </div>
+                            <span className="font-medium leading-relaxed">
+                              <strong className="text-[#b38600] dark:text-[#f2c14e] font-bold">No Technical Event selected.</strong>{' '}
+                              Choose one above, or proceed with Spot Events below.
+                            </span>
+                          </div>
                           <button
                             type="button"
                             onClick={() => selectEvent('ctf')}
-                            className="text-[#f2c14e] font-semibold hover:underline"
+                            className="px-3.5 py-2 rounded-lg bg-[#f2c14e] text-[#1a1300] hover:bg-[#d4a935] font-bold text-xs shadow-md transition-all shrink-0 hover:scale-[1.03] cursor-pointer flex items-center gap-1.5 self-end sm:self-auto"
                           >
-                            Select FLAGHUNT →
+                            <span>Select FLAGHUNT</span>
+                            <span aria-hidden="true">&rarr;</span>
                           </button>
                         </div>
                       )}
