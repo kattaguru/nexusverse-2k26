@@ -206,7 +206,7 @@ export const ParticipantSpaceModal: React.FC<ParticipantSpaceModalProps> = ({
     if (typeof window !== 'undefined' && (window as any).google?.accounts?.oauth2) {
       try {
         const tokenClient = (window as any).google.accounts.oauth2.initTokenClient({
-          client_id: '1006816631034-2qis4bq7hkc16ptba0kn60i0gd0cpdnv.apps.googleusercontent.com',
+          client_id: import.meta.env.VITE_GOOGLE_CLIENT_ID || '1006816631034-2qis4bq7hkc16ptba0kn60i0gd0cpdnv.apps.googleusercontent.com',
           scope: 'email profile openid',
           callback: async (tokenResponse: any) => {
             if (tokenResponse?.error) {
