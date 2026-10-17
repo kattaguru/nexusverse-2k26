@@ -113,9 +113,7 @@ export default function App() {
     }
   });
 
-  // Promo code & terms
-  const [promoCode, setPromoCode] = useState('');
-  const [promoMessage, setPromoMessage] = useState<{ text: string; valid: boolean } | null>(null);
+  // Terms
   const [termsAccepted, setTermsAccepted] = useState(false);
 
   // Field errors
@@ -424,21 +422,6 @@ export default function App() {
     }
   };
 
-  // Update promo validation
-  useEffect(() => {
-    const clean = promoCode.trim().toUpperCase();
-    if (!clean) {
-      setPromoMessage(null);
-      return;
-    }
-    const discount = SYMPOSIUM_CONFIG.promoCodes[clean];
-    if (discount) {
-      setPromoMessage({ text: `Code applied: ${discount}% discount off total!`, valid: true });
-    } else {
-      setPromoMessage({ text: 'Invalid promo code.', valid: false });
-    }
-  }, [promoCode]);
-
   // Pricing calculations: Technical events: ₹200 (₹150 IEEE); Spot Events: ₹100 flat
   const calculateTotal = () => {
     let subtotal = 0;
@@ -462,15 +445,11 @@ export default function App() {
       subtotal += SPOT_EVENT.feeNonMember; // ₹100
     }
 
-    const cleanCode = promoCode.trim().toUpperCase();
-    const discountPercent = SYMPOSIUM_CONFIG.promoCodes[cleanCode] || 0;
-    const discountAmount = Math.round((subtotal * discountPercent) / 100);
-    const total = Math.max(0, subtotal - discountAmount);
-
-    return { subtotal, discountPercent, discountAmount, total };
+    const total = subtotal;
+    return { subtotal, total };
   };
 
-  const { subtotal, discountPercent, discountAmount, total } = calculateTotal();
+  const { subtotal, total } = calculateTotal();
 
   // Validate form
   const validateForm = () => {
@@ -635,7 +614,7 @@ export default function App() {
       eventIds: combinedEventIds,
       teamDetails: formattedTeamDetails,
       totalPaid: total,
-      promoCode: promoCode.trim().toUpperCase() || undefined,
+      promoCode: undefined,
       timestamp: new Date().toISOString()
     };
 
@@ -800,10 +779,10 @@ export default function App() {
                   {/* Left Column: Form Details & Events Selection */}
                   <div className="lg:col-span-8 space-y-8">
                     {/* 1. PARTICIPANT INFORMATION CARD */}
-                    <div className="bg-[#131318] p-6 sm:p-8 rounded-2xl border border-[#2e2b22]">
+                    <div className="bg-[#131318] p-4 sm:p-6 md:p-8 rounded-2xl border border-[#2e2b22]">
                       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-6">
-                        <h3 className="font-serif-title text-2xl font-bold text-[#ffffff] flex items-center gap-2">
-                          <User className="w-6 h-6 text-[#d4a935]" />
+                        <h3 className="font-serif-title text-xl sm:text-2xl font-bold text-[#ffffff] flex items-center gap-2">
+                          <User className="w-5 h-5 sm:w-6 sm:h-6 text-[#d4a935]" />
                           <span>1. Participant Information (Team Lead / Delegate)</span>
                         </h3>
                         <span className="text-xs font-sans text-[#a79f8b] font-normal">All fields required</span>
@@ -1059,10 +1038,10 @@ export default function App() {
                     </div>
 
                     {/* 2. CHOOSE YOUR EVENTS (TECHNICAL & SPOT) */}
-                    <div className="bg-[#131318] p-6 sm:p-8 rounded-2xl border border-[#2e2b22] space-y-6" id="events-section">
+                    <div className="bg-[#131318] p-4 sm:p-6 md:p-8 rounded-2xl border border-[#2e2b22] space-y-6" id="events-section">
                       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-[#2e2b22] pb-4">
                         <div>
-                          <h3 className="font-serif-title text-2xl font-bold text-[#ffffff]">
+                          <h3 className="font-serif-title text-xl sm:text-2xl font-bold text-[#ffffff]">
                             2. Choose Your Events
                           </h3>
                           <p className="text-xs text-[#a79f8b] mt-1">
@@ -1617,7 +1596,7 @@ export default function App() {
 
                 {/* Right Column: Checkout Summary & Proceed Button */}
                 <div className="lg:col-span-4 space-y-6 lg:sticky lg:top-24">
-                  <div className="bg-[#131318] p-6 rounded-2xl border border-[#2e2b22] space-y-6 shadow-xl">
+                  <div id="checkout-card" className="bg-[#131318] p-5 sm:p-6 rounded-2xl border border-[#2e2b22] space-y-6 shadow-xl scroll-mt-24">
                     <div className="flex items-center justify-between border-b border-[#2e2b22] pb-4">
                       <h4 className="font-serif-title text-xl font-bold text-[#ffffff]">
                         Registration Summary
@@ -1692,39 +1671,8 @@ export default function App() {
                       )}
                     </div>
 
-                      {/* Promo Code Box */}
-                      <div className="pt-2 border-t border-[#2e2b22]">
-                        <label className="block text-xs font-semibold text-[#f3ecd9] mb-1.5">
-                          Promo Code (Optional)
-                        </label>
-                        <div className="flex gap-2">
-                          <input
-                            type="text"
-                            value={promoCode}
-                            onChange={(e) => setPromoCode(e.target.value.toUpperCase())}
-                            placeholder="e.g. IEEE10, NEXUS20"
-                            className="flex-1 px-3 py-2 text-xs font-mono rounded-xl bg-[#0a0a0d] border border-[#2e2b22] text-[#f3ecd9] uppercase focus:outline-none focus:border-[#d4a935]"
-                          />
-                        </div>
-                        {promoMessage && (
-                          <p className={`text-[11px] mt-1.5 ${promoMessage.valid ? 'text-[#4cc38a]' : 'text-[#ff8a80]'}`}>
-                            {promoMessage.text}
-                          </p>
-                        )}
-                      </div>
-
                       {/* Cost Breakdown */}
                       <div className="space-y-2 pt-2 border-t border-[#2e2b22] text-xs">
-                        <div className="flex justify-between text-[#a79f8b]">
-                          <span>Subtotal</span>
-                          <span className="font-mono text-[#f3ecd9]">₹{subtotal}</span>
-                        </div>
-                        {discountAmount > 0 && (
-                          <div className="flex justify-between text-[#4cc38a]">
-                            <span>Discount ({discountPercent}%)</span>
-                            <span className="font-mono">-₹{discountAmount}</span>
-                          </div>
-                        )}
                         <div className="flex justify-between items-baseline pt-2 border-t border-[#2e2b22] font-bold text-sm text-[#ffffff]">
                           <span>Total Payable</span>
                           <div className="text-right">
@@ -1778,6 +1726,34 @@ export default function App() {
                     </div>
                   </div>
                 </form>
+
+                {/* Mobile Sticky Quick-Checkout Bar (Only visible on screens < lg when events are chosen and registration not confirmed) */}
+                {!confirmedRecord && (selectedEvents.length > 0 || includeSpotEvents) && (
+                  <div className="lg:hidden fixed bottom-0 left-0 right-0 z-30 p-3 bg-[#0a0a0d]/95 backdrop-blur-md border-t border-[#2e2b22] flex items-center justify-between gap-3 shadow-2xl">
+                    <div className="min-w-0">
+                      <span className="text-[10px] uppercase font-bold text-[#a79f8b] block">Total Payable</span>
+                      <div className="flex items-baseline gap-1.5">
+                        <span className="text-xl font-mono font-extrabold text-[#f2c14e]">₹{total}</span>
+                        <span className="text-[10px] text-[#4cc38a] font-medium truncate">
+                          {selectedEvents.length > 0 && includeSpotEvents ? 'Tech + Spot' : includeSpotEvents ? 'Spot Pass' : 'Tech Event'}
+                        </span>
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const el = document.getElementById('checkout-card');
+                        if (el) {
+                          el.scrollIntoView({ behavior: 'smooth' });
+                        }
+                      }}
+                      className="px-4 py-2 rounded-xl font-bold text-xs bg-gradient-to-r from-[#f2c14e] to-[#d4a935] text-[#1a1300] hover:brightness-105 active:scale-95 transition-all flex items-center gap-1.5 shadow-md shadow-[#f2c14e]/20 cursor-pointer shrink-0"
+                    >
+                      <span>Review & Pay</span>
+                      <ChevronRight className="w-4 h-4" />
+                    </button>
+                  </div>
+                )}
               </div>
             </section>
 

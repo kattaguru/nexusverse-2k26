@@ -9,7 +9,7 @@
 <style>
 :root{--gold:#f0c96a;--gold2:#fff0b8;--gold3:#b98a2e;--ink:#fbf6ea;--soft:#e4dac3;color-scheme:dark}
 *{box-sizing:border-box;margin:0;padding:0}
-html,body{height:100%;overflow:hidden}
+html,body{min-height:100%;overflow-x:hidden;overflow-y:auto}
 body{background:radial-gradient(ellipse at 50% 42%,#142450 0%,#0a1230 50%,#04060f 100%);color:var(--ink);font-family:Poppins,system-ui,sans-serif;
  padding:env(safe-area-inset-top,0) env(safe-area-inset-right,0) env(safe-area-inset-bottom,0) env(safe-area-inset-left,0)}
 
@@ -40,7 +40,7 @@ body{background:radial-gradient(ellipse at 50% 42%,#142450 0%,#0a1230 50%,#04060
 
 /* ===== layout ===== */
 .gold{background:linear-gradient(180deg,var(--gold2),var(--gold) 55%,var(--gold3));-webkit-background-clip:text;background-clip:text;color:transparent}
-.page{position:relative;z-index:1;height:100%;display:flex;flex-direction:column;justify-content:space-between;align-items:center;text-align:center;padding:1.2vh 3vw;gap:1vh}
+.page{position:relative;z-index:1;min-height:100vh;height:auto;display:flex;flex-direction:column;justify-content:space-between;align-items:center;text-align:center;padding:1.5vh 3vw 2.5vh 3vw;gap:1.5vh}
 
 .top{width:100%;display:flex;align-items:center;justify-content:space-between;gap:2vw;animation:down .9s ease both}
 .logo{flex:none;height:clamp(46px,min(13vw,14vh),130px);width:auto;filter:drop-shadow(0 0 12px rgba(240,201,106,.45));animation:glow 4s ease-in-out infinite alternate}
@@ -56,7 +56,7 @@ body{background:radial-gradient(ellipse at 50% 42%,#142450 0%,#0a1230 50%,#04060
 .hero>*{animation:up .9s ease both}
 .hero>:nth-child(2){animation-delay:.15s}.hero>:nth-child(3){animation-delay:.3s}.hero>:nth-child(4){animation-delay:.45s}.hero>:nth-child(5){animation-delay:.6s}.hero>:nth-child(6){animation-delay:.75s}
 .presents{font-family:Cinzel,serif;font-weight:700;letter-spacing:.18em;font-size:clamp(9px,min(2vw,2.3vh),18px)}
-.title{font-family:Cinzel,serif;font-weight:900;line-height:1;white-space:nowrap;font-size:clamp(26px,min(10.5vw,15vh),130px);
+.title{font-family:Cinzel,serif;font-weight:900;line-height:1.05;font-size:clamp(26px,min(10.5vw,15vh),130px);
  background:linear-gradient(100deg,var(--gold3) 20%,#fffbe3 40%,var(--gold) 50%,var(--gold3) 80%);background-size:250% 100%;-webkit-background-clip:text;background-clip:text;color:transparent;
  animation:up .9s .15s ease both,glint 6s linear infinite;filter:drop-shadow(0 0 22px rgba(240,201,106,.45)) drop-shadow(0 3px 6px rgba(0,0,0,.6))}
 @keyframes glint{to{background-position:-250% 0}}
@@ -86,9 +86,24 @@ body{background:radial-gradient(ellipse at 50% 42%,#142450 0%,#0a1230 50%,#04060
 @keyframes up{from{opacity:0;transform:translateY(2.5vh)}to{opacity:1;transform:none}}
 @keyframes down{from{opacity:0;transform:translateY(-3vh)}to{opacity:1;transform:none}}
 
-@media (max-width:520px){.ribbon p{display:none}}
-@media (max-height:520px){.sub,.fees,.ribbon p{display:none}}
-@media (max-height:380px){.events{display:none}}
+/* Mobile & Laptop Friendly Responsive Rules */
+@media (max-width: 640px) {
+  .page{min-height:100vh;padding:2.5vh 4vw 4vh 4vw;gap:2vh}
+  .top{flex-direction:column;gap:1.2vh}
+  .logo{height:clamp(48px,14vw,70px)}
+  .title{font-size:clamp(26px,9.5vw,46px);white-space:normal;line-height:1.15;word-break:break-word}
+  .when{flex-wrap:wrap;justify-content:center;padding:.6vh 3.5vw;font-size:clamp(11px,3.2vw,15px)}
+  .events{gap:.5vh 1.2vw}
+  .events li{font-size:clamp(10px,2.8vw,13px);padding:.5vh 2.5vw}
+  .fees{font-size:clamp(10px,2.8vw,13px)}
+  .foot .reg-btn{width:100%;max-width:320px;font-size:14px;padding:12px 20px}
+  .theme-btn{top:8px;right:8px;padding:4px 10px;font-size:11px}
+}
+@media (max-width: 520px) {.ribbon p{display:none}}
+@media (max-height: 600px) and (min-width: 641px) {
+  .page{min-height:100vh;padding:1vh 2vw}
+  .title{font-size:clamp(28px,7vw,54px)}
+}
 @media (prefers-reduced-motion:reduce){*,*::before,*::after{animation:none!important;transition:none!important}}
 
 /* ===== LIGHT THEME ADJUSTMENTS & AUTOMATIC CONTRAST ===== */
@@ -279,9 +294,9 @@ body.light .theme-btn {
     <div class="sub">A National Level Technical Symposium</div>
     <div class="when"><span>29<sup>th</sup> October 2026</span><i></i><span>9:00 AM</span></div>
     <ul class="events">
-      <li>FLAGHUNT – CTF</li><li>INNOVRUSH</li><li>CODENANO</li><li>DESIGNOVA</li><li>TECHQUEST</li>
+      <li>FLAGHUNT – CTF</li><li>INNOVRUSH</li><li>CODENANO</li><li>DESIGNOVA</li><li>TECHQUEST</li><li>SPOT EVENTS</li>
     </ul>
-    <p class="fees">Technical events: <b>₹150</b> IEEE members · <b>₹200</b> non-members · Spot events <b>₹100</b></p>
+    <p class="fees">5 Technical Events: <b>₹150</b> IEEE · <b>₹200</b> Non-Members · Spot Events: <b>₹100</b></p>
   </section>
 
   <footer class="foot">

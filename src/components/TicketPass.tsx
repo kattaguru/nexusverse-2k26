@@ -451,7 +451,7 @@ export const TicketPass: React.FC<TicketPassProps> = ({
         <button
           type="button"
           onClick={handlePrint}
-          className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-[#131318] border border-[#2e2b22] text-[#f3ecd9] font-medium text-sm hover:bg-[#181820] hover:border-[#d4a935] transition-all cursor-pointer"
+          className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl bg-[#131318] border border-[#2e2b22] text-[#f3ecd9] font-medium text-sm hover:bg-[#181820] hover:border-[#d4a935] transition-all cursor-pointer"
         >
           <Printer className="w-4 h-4 text-[#d4a935]" />
           <span>Print Pass / Save PDF</span>
@@ -460,7 +460,7 @@ export const TicketPass: React.FC<TicketPassProps> = ({
         <button
           type="button"
           onClick={handleAddToCalendar}
-          className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-[#131318] border border-[#2e2b22] text-[#f3ecd9] font-medium text-sm hover:bg-[#181820] hover:border-[#d4a935] transition-all cursor-pointer"
+          className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl bg-[#131318] border border-[#2e2b22] text-[#f3ecd9] font-medium text-sm hover:bg-[#181820] hover:border-[#d4a935] transition-all cursor-pointer"
         >
           <CalendarPlus className="w-4 h-4 text-[#d4a935]" />
           <span>Add to Calendar</span>
@@ -469,7 +469,7 @@ export const TicketPass: React.FC<TicketPassProps> = ({
         <button
           type="button"
           onClick={onReset}
-          className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-[#f2c14e] text-[#1a1300] font-semibold text-sm hover:bg-[#d4a935] transition-all cursor-pointer"
+          className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl bg-[#f2c14e] text-[#1a1300] font-semibold text-sm hover:bg-[#d4a935] transition-all cursor-pointer"
         >
           <span>Register Another Delegate</span>
         </button>
