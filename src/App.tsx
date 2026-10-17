@@ -1588,24 +1588,15 @@ export default function App() {
 
                       {/* Option to clear technical event if participant only wants Spot Events */}
                       {selectedEvents.length > 0 ? (
-                        <div className="pt-2 pb-1">
-                          <div className="p-3 sm:p-4 rounded-xl bg-[#fff1f2] dark:bg-[#221013] border-2 border-[#e11d48] dark:border-[#ff8a80] shadow-lg shadow-[#ff8a80]/10 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 transition-all">
-                            <div className="flex items-center gap-2.5">
-                              <div className="p-2 rounded-lg bg-[#e11d48]/15 dark:bg-[#ff8a80]/20 text-[#e11d48] dark:text-[#ff8a80] shrink-0">
-                                <Info className="w-4 h-4" />
-                              </div>
-                              <span className="text-xs sm:text-sm text-[#881337] dark:text-[#ffe4e6] font-medium leading-relaxed">
-                                Attending <strong className="font-bold underline decoration-[#e11d48] dark:decoration-[#ff8a80]">Spot Events only</strong>? Click here to remove technical event:
-                              </span>
-                            </div>
-                            <button
-                              type="button"
-                              onClick={() => setSelectedEvents([])}
-                              className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg bg-[#e11d48] hover:bg-[#be123c] dark:bg-[#ff8a80] dark:hover:bg-[#ff6b60] text-white dark:text-[#1f0508] font-bold text-xs sm:text-sm transition-all shadow-md hover:shadow-lg hover:scale-[1.02] cursor-pointer active:scale-95 shrink-0"
-                            >
-                              <span>✕ Deselect Technical Event (Attend Spot Events Only)</span>
-                            </button>
-                          </div>
+                        <div className="flex justify-end pt-2 pb-0.5">
+                          <button
+                            type="button"
+                            onClick={() => setSelectedEvents([])}
+                            className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-lg bg-[#1f1b0e] hover:bg-[#2a2312] text-[#f2c14e] hover:text-[#fff2b2] border border-[#d4a935]/60 hover:border-[#f2c14e] text-xs font-semibold transition-all shadow-sm hover:shadow-[#f2c14e]/10 cursor-pointer active:scale-95"
+                          >
+                            <span className="text-[#ff8a80] font-bold text-sm leading-none">✕</span>
+                            <span>Deselect Technical Event (Attend Spot Events Only)</span>
+                          </button>
                         </div>
                       ) : (
                         <div className="p-4 rounded-xl bg-[#fff9ea] dark:bg-[#1f1a0e] border-2 border-[#d4a935] shadow-lg text-xs sm:text-sm text-[#2a1e05] dark:text-[#f5ebd6] flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 transition-all">
