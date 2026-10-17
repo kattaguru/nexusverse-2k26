@@ -137,4 +137,37 @@ describe('NexusVerse 2K26 Backend API Endpoints Unit Tests', () => {
       throw err;
     }
   });
+
+  it('POST /api/razorpay/webhook should acknowledge valid events with 200 OK', async () => {
+    try {
+      const res = await fetch(`${BASE_URL}/api/razorpay/webhook`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          event: 'payment.captured',
+          payload: {
+            payment: {
+              entity: {
+                id: 'pay_test_webhook_ack',
+                amount: 20000,
+                status: 'captured',
+                notes: {
+                  attendeeName: 'Webhook Tester',
+                  rollNumber: '23KB1A0001',
+                  email: 'webhook@test.com'
+                }
+              }
+            }
+          }
+        })
+      });
+      assert.equal(res.status, 200);
+      const data = await res.json();
+      assert.equal(data.status, 'ok');
+      assert.equal(data.received, true);
+    } catch (err: any) {
+      if (err.code === 'ECONNREFUSED') return;
+      throw err;
+    }
+  });
 });
