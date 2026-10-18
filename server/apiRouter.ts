@@ -85,6 +85,40 @@ apiRouter.post('/registrations', async (req: Request, res: Response) => {
 
     const db = readDatabase();
 
+    // Check if portal is closed
+    if (db.settings.isRegClosed) {
+      return res.status(403).json({ success: false, error: db.settings.closedMessage || 'Registration is currently closed.' });
+    }
+
+    // Slot capacity validation for new registrations
+    const isExisting = db.registrations.some((r: any) => r.regId === record.regId);
+    if (!isExisting) {
+      const totalCount = db.registrations.length;
+      const ieeeCount = db.registrations.filter((r: any) => r.isIeeeMember).length;
+      const nonIeeeCount = totalCount - ieeeCount;
+
+      if (db.settings.totalSlotsLimit && db.settings.totalSlotsLimit > 0 && totalCount >= db.settings.totalSlotsLimit) {
+        return res.status(400).json({
+          success: false,
+          error: `Total symposium registration quota of ${db.settings.totalSlotsLimit} slots has been reached.`
+        });
+      }
+
+      if (record.isIeeeMember && db.settings.ieeeSlotsLimit && db.settings.ieeeSlotsLimit > 0 && ieeeCount >= db.settings.ieeeSlotsLimit) {
+        return res.status(400).json({
+          success: false,
+          error: `IEEE Member quota of ${db.settings.ieeeSlotsLimit} slots is fully booked.`
+        });
+      }
+
+      if (!record.isIeeeMember && db.settings.nonIeeeSlotsLimit && db.settings.nonIeeeSlotsLimit > 0 && nonIeeeCount >= db.settings.nonIeeeSlotsLimit) {
+        return res.status(400).json({
+          success: false,
+          error: `Non-IEEE Delegate quota of ${db.settings.nonIeeeSlotsLimit} slots is fully booked.`
+        });
+      }
+    }
+
     // Assign regId if not already present
     if (!record.regId) {
       record.regId = 'NV26-' + Math.random().toString(36).slice(2, 8).toUpperCase();
@@ -237,7 +271,18 @@ apiRouter.get('/settings', (_req: Request, res: Response) => {
 // 7. Update portal settings
 apiRouter.post('/settings', (req: Request, res: Response) => {
   try {
-    const { isRegClosed, closedMessage, razorpayMeLink, razorpayMeName, paymentMode, upiVpa, upiPayeeName } = req.body;
+    const { 
+      isRegClosed, 
+      closedMessage, 
+      razorpayMeLink, 
+      razorpayMeName, 
+      paymentMode, 
+      upiVpa, 
+      upiPayeeName,
+      totalSlotsLimit,
+      ieeeSlotsLimit,
+      nonIeeeSlotsLimit
+    } = req.body;
     const db = readDatabase();
 
     if (typeof isRegClosed === 'boolean') {
@@ -261,16 +306,30 @@ apiRouter.post('/settings', (req: Request, res: Response) => {
     if (typeof upiPayeeName === 'string') {
       (db.settings as any).upiPayeeName = upiPayeeName.trim();
     }
+    if (totalSlotsLimit !== undefined) {
+      db.settings.totalSlotsLimit = Math.max(0, parseInt(String(totalSlotsLimit), 10) || 0);
+    }
+    if (ieeeSlotsLimit !== undefined) {
+      db.settings.ieeeSlotsLimit = Math.max(0, parseInt(String(ieeeSlotsLimit), 10) || 0);
+    }
+    if (nonIeeeSlotsLimit !== undefined) {
+      db.settings.nonIeeeSlotsLimit = Math.max(0, parseInt(String(nonIeeeSlotsLimit), 10) || 0);
+    }
 
     writeDatabase(db);
 
     // Sync portal open/closed settings to Supabase Cloud PostgreSQL
-    syncToSupabaseAsync((client) => client.from('portal_settings').upsert({
+    const supabasePayload: Record<string, any> = {
       id: 'current',
       is_reg_closed: Boolean(db.settings.isRegClosed),
       closed_message: db.settings.closedMessage || 'Registration is currently closed.',
       updated_at: new Date().toISOString()
-    }, { onConflict: 'id' }));
+    };
+    if (typeof db.settings.totalSlotsLimit === 'number') supabasePayload.total_slots_limit = db.settings.totalSlotsLimit;
+    if (typeof db.settings.ieeeSlotsLimit === 'number') supabasePayload.ieee_slots_limit = db.settings.ieeeSlotsLimit;
+    if (typeof db.settings.nonIeeeSlotsLimit === 'number') supabasePayload.non_ieee_slots_limit = db.settings.nonIeeeSlotsLimit;
+
+    syncToSupabaseAsync((client) => client.from('portal_settings').upsert(supabasePayload, { onConflict: 'id' }));
 
     res.json({
       success: true,

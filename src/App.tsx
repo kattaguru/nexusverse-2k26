@@ -6,6 +6,7 @@ import { GallerySection } from './components/GallerySection';
 import { EventModal } from './components/EventModal';
 import { PaymentModal } from './components/PaymentModal';
 import { TicketPass, RegistrationRecord, TeamMemberInfo } from './components/TicketPass';
+import { UpiConfirmationView } from './components/UpiConfirmationView';
 import { PassLookupModal } from './components/PassLookupModal';
 import { AdminModal } from './components/AdminModal';
 import { ParticipantSpaceModal } from './components/ParticipantSpaceModal';
@@ -14,7 +15,8 @@ import {
   getStoredParticipant, 
   saveStoredParticipant, 
   fetchCurrentParticipant,
-  googleLoginParticipant 
+  googleLoginParticipant,
+  logoutParticipant 
 } from './services/auth';
 import { supabase, isSupabaseConfigured } from './lib/supabase';
 import { getLeftLogo, getRightLogo, setLeftLogo, setRightLogo } from './utils/logoManager';
@@ -126,11 +128,35 @@ export default function App() {
   const [isPaymentOpen, setIsPaymentOpen] = useState(false);
   const [isLookupOpen, setIsLookupOpen] = useState(false);
   const [confirmedRecord, setConfirmedRecord] = useState<RegistrationRecord | null>(null);
+  const [upiPendingRecord, setUpiPendingRecord] = useState<RegistrationRecord | null>(null);
   const [savedRecords, setSavedRecords] = useState<RegistrationRecord[]>([]);
 
   // Participant User Session & Space Modal State
   const [currentUser, setCurrentUser] = useState<ParticipantUser | null>(() => getStoredParticipant());
   const [isParticipantSpaceOpen, setIsParticipantSpaceOpen] = useState(false);
+  const [participantSpaceInitialMode, setParticipantSpaceInitialMode] = useState<'signin' | 'signup'>('signup');
+
+  // Auto-populate registration form when participant space user is authenticated
+  useEffect(() => {
+    if (currentUser) {
+      if (currentUser.name) setName(currentUser.name);
+      if (currentUser.email) setEmail(currentUser.email);
+      if (currentUser.phone) setPhone(currentUser.phone);
+      if (currentUser.college) setCollege(currentUser.college);
+      if (currentUser.roll) setRoll(currentUser.roll);
+      if (currentUser.branch) setDept(currentUser.branch);
+      if (currentUser.year) setYear(currentUser.year);
+      if (currentUser.isIeeeMember) {
+        setIsIeeeMember(true);
+        if (currentUser.ieeeId) setIeeeId(currentUser.ieeeId);
+      }
+    }
+  }, [currentUser]);
+
+  const handleLogoutParticipant = async () => {
+    await logoutParticipant();
+    setCurrentUser(null);
+  };
 
   // Sync fresh participant data on mount if logged in
   useEffect(() => {
@@ -299,6 +325,27 @@ export default function App() {
       return 'Registration for NexusVerse 2K26 is currently closed. For inquiries, contact IEEE-SB NBKRIST.';
     }
   });
+
+  // Slot Quotas & Limits State (Total, IEEE, Non-IEEE)
+  const [totalSlotsLimit, setTotalSlotsLimit] = useState<number>(() => {
+    try {
+      const v = localStorage.getItem('nexusverse_total_slots_limit');
+      return v ? Number(v) : 0;
+    } catch (e) { return 0; }
+  });
+  const [ieeeSlotsLimit, setIeeeSlotsLimit] = useState<number>(() => {
+    try {
+      const v = localStorage.getItem('nexusverse_ieee_slots_limit');
+      return v ? Number(v) : 0;
+    } catch (e) { return 0; }
+  });
+  const [nonIeeeSlotsLimit, setNonIeeeSlotsLimit] = useState<number>(() => {
+    try {
+      const v = localStorage.getItem('nexusverse_non_ieee_slots_limit');
+      return v ? Number(v) : 0;
+    } catch (e) { return 0; }
+  });
+
   const [leftLogo, setLeftLogoState] = useState(() => getLeftLogo());
   const [rightLogo, setRightLogoState] = useState(() => getRightLogo());
 
@@ -363,6 +410,15 @@ export default function App() {
           if (settings.closedMessage) {
             setClosedMessage(settings.closedMessage);
           }
+          if (typeof settings.totalSlotsLimit === 'number') {
+            setTotalSlotsLimit(settings.totalSlotsLimit);
+          }
+          if (typeof settings.ieeeSlotsLimit === 'number') {
+            setIeeeSlotsLimit(settings.ieeeSlotsLimit);
+          }
+          if (typeof settings.nonIeeeSlotsLimit === 'number') {
+            setNonIeeeSlotsLimit(settings.nonIeeeSlotsLimit);
+          }
         }
       } catch (err) {
         console.warn('Backend sync failed, using local cache:', err);
@@ -404,6 +460,22 @@ export default function App() {
     setClosedMessage(msg);
     await updateSettingsApi({ closedMessage: msg });
   };
+
+  const handleUpdateSlotLimits = async (limits: { totalSlotsLimit: number; ieeeSlotsLimit: number; nonIeeeSlotsLimit: number }) => {
+    setTotalSlotsLimit(limits.totalSlotsLimit);
+    setIeeeSlotsLimit(limits.ieeeSlotsLimit);
+    setNonIeeeSlotsLimit(limits.nonIeeeSlotsLimit);
+    await updateSettingsApi(limits);
+  };
+
+  // Quota Calculations
+  const totalDelegatesCount = savedRecords.length;
+  const ieeeMembersCount = savedRecords.filter(r => r.isIeeeMember).length;
+  const nonIeeeDelegatesCount = totalDelegatesCount - ieeeMembersCount;
+
+  const isTotalSlotsFull = totalSlotsLimit > 0 && totalDelegatesCount >= totalSlotsLimit;
+  const isIeeeSlotsFull = ieeeSlotsLimit > 0 && ieeeMembersCount >= ieeeSlotsLimit;
+  const isNonIeeeSlotsFull = nonIeeeSlotsLimit > 0 && nonIeeeDelegatesCount >= nonIeeeSlotsLimit;
 
   const handleUpdateLeftLogo = (url: string) => {
     setLeftLogoState(url);
@@ -646,8 +718,26 @@ export default function App() {
 
   const handleRegisterSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    if (!currentUser) {
+      alert('Please continue with Google or create your separate space first before registering.');
+      setParticipantSpaceInitialMode('signup');
+      setIsParticipantSpaceOpen(true);
+      return;
+    }
     if (isRegClosed) {
       alert(closedMessage || 'Registration is currently closed.');
+      return;
+    }
+    if (isTotalSlotsFull) {
+      alert(`Registration Closed: Total symposium capacity of ${totalSlotsLimit} slots has been reached.`);
+      return;
+    }
+    if (isIeeeMember && isIeeeSlotsFull) {
+      alert(`IEEE Quota Full: All ${ieeeSlotsLimit} IEEE member slots are filled. You may still register as a Non-IEEE Delegate if slots are open.`);
+      return;
+    }
+    if (!isIeeeMember && isNonIeeeSlotsFull) {
+      alert(`Non-IEEE Quota Full: All ${nonIeeeSlotsLimit} Non-IEEE delegate slots are filled.`);
       return;
     }
     if (!validateForm()) {
@@ -709,6 +799,7 @@ export default function App() {
 
     const newRecord: RegistrationRecord = {
       regId,
+      userId: currentUser?.id,
       paymentId,
       paymentScreenshot: paymentScreenshot || undefined,
       paymentMode: effectiveMode,
@@ -731,7 +822,6 @@ export default function App() {
     };
 
     saveRegistration(newRecord);
-    setConfirmedRecord(newRecord);
 
     // If participant is not yet logged in, auto-initialize their Participant Space session
     if (!currentUser) {
@@ -754,9 +844,18 @@ export default function App() {
       setCurrentUser(autoUser);
     }
 
-    // Automatically dispatch pass confirmation email
-    if (newRecord.email) {
-      sendTicketEmailApi(newRecord).catch(() => {});
+    // UPI mode: Display "your ticket will be sent to your mail at 8 PM and you can access your ticket in your space find my ticket"
+    // Razorpay mode: Automatic instant pass and immediate email
+    if (effectiveMode === 'upi') {
+      setUpiPendingRecord(newRecord);
+      setConfirmedRecord(null);
+      // Note: Ticket email is scheduled and dispatched to mail at 8 PM (not sent immediately)
+    } else {
+      setConfirmedRecord(newRecord);
+      setUpiPendingRecord(null);
+      if (newRecord.email) {
+        sendTicketEmailApi(newRecord).catch(() => {});
+      }
     }
 
     // Trigger celebratory confetti
@@ -795,6 +894,10 @@ export default function App() {
         onToggleRegClosed={handleToggleRegClosed}
         closedMessage={closedMessage}
         onUpdateClosedMessage={handleUpdateClosedMessage}
+        totalSlotsLimit={totalSlotsLimit}
+        ieeeSlotsLimit={ieeeSlotsLimit}
+        nonIeeeSlotsLimit={nonIeeeSlotsLimit}
+        onUpdateSlotLimits={handleUpdateSlotLimits}
         leftLogo={leftLogo}
         rightLogo={rightLogo}
         onUpdateLeftLogo={handleUpdateLeftLogo}
@@ -833,7 +936,7 @@ export default function App() {
       )}
 
       <main className="relative w-full max-w-full overflow-x-hidden">
-        {/* Confirmed Ticket Pass View */}
+        {/* Confirmed Ticket Pass View OR UPI Submission Confirmation */}
         {confirmedRecord ? (
           <TicketPass 
             record={confirmedRecord}
@@ -841,6 +944,31 @@ export default function App() {
             leftLogo={leftLogo}
             rightLogo={rightLogo}
             onReset={() => {
+              setConfirmedRecord(null);
+              setUpiPendingRecord(null);
+              setSelectedEvents(['ctf']);
+              setIncludeSpotEvents(false);
+              setName('');
+              setRoll('');
+              setPhone('');
+              setEmail('');
+            }}
+          />
+        ) : upiPendingRecord ? (
+          <UpiConfirmationView
+            record={upiPendingRecord}
+            events={ALL_EVENTS}
+            leftLogo={leftLogo}
+            rightLogo={rightLogo}
+            onOpenParticipantSpace={() => setIsParticipantSpaceOpen(true)}
+            onOpenLookup={() => setIsLookupOpen(true)}
+            onViewPass={() => {
+              setConfirmedRecord(upiPendingRecord);
+              setUpiPendingRecord(null);
+              window.scrollTo({ top: 0, behavior: 'smooth' });
+            }}
+            onReset={() => {
+              setUpiPendingRecord(null);
               setConfirmedRecord(null);
               setSelectedEvents(['ctf']);
               setIncludeSpotEvents(false);
@@ -887,9 +1015,195 @@ export default function App() {
                   </p>
                 </div>
 
-                <form onSubmit={handleRegisterSubmit} noValidate className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
-                  {/* Left Column: Form Details & Events Selection */}
-                  <div className="lg:col-span-8 space-y-8">
+                {/* Live Slot Availability Bar (Visible when quotas are set) */}
+                {(totalSlotsLimit > 0 || ieeeSlotsLimit > 0 || nonIeeeSlotsLimit > 0) && (
+                  <div className="p-4 rounded-2xl bg-gradient-to-r from-[#121218] via-[#161622] to-[#121218] border border-[#d4a935]/40 shadow-xl">
+                    <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
+                      <div className="flex items-center gap-2">
+                        <span className="w-2.5 h-2.5 rounded-full bg-[#4cc38a] animate-pulse" />
+                        <span className="text-xs font-bold text-white uppercase tracking-wider">Live Symposium Slot Availability</span>
+                      </div>
+                      <div className="flex flex-wrap items-center gap-2">
+                        {totalSlotsLimit > 0 && (
+                          <div className={`px-3 py-1.5 rounded-xl border text-xs font-mono flex items-center gap-2 ${
+                            isTotalSlotsFull ? 'bg-[#2a1315] border-[#ff8a80]/50 text-[#ffb4ab]' : 'bg-[#181824] border-[#2e2b22] text-[#f2c14e]'
+                          }`}>
+                            <span className="text-[#a79f8b]">Total Capacity:</span>
+                            <span className="font-bold text-white">{totalDelegatesCount} / {totalSlotsLimit}</span>
+                            <span className={`px-1.5 py-0.2 rounded text-[10px] font-bold ${
+                              isTotalSlotsFull ? 'bg-[#ff8a80] text-black' : 'bg-[#d4a935]/30 text-[#f2c14e]'
+                            }`}>
+                              {isTotalSlotsFull ? 'SOLD OUT' : `${totalSlotsLimit - totalDelegatesCount} left`}
+                            </span>
+                          </div>
+                        )}
+                        {ieeeSlotsLimit > 0 && (
+                          <div className={`px-3 py-1.5 rounded-xl border text-xs font-mono flex items-center gap-2 ${
+                            isIeeeSlotsFull ? 'bg-[#2a1315] border-[#ff8a80]/50 text-[#ffb4ab]' : 'bg-[#0f2419] border-[#4cc38a]/40 text-[#86efac]'
+                          }`}>
+                            <span className="text-[#a79f8b]">IEEE:</span>
+                            <span className="font-bold text-white">{ieeeMembersCount} / {ieeeSlotsLimit}</span>
+                            <span className={`px-1.5 py-0.2 rounded text-[10px] font-bold ${
+                              isIeeeSlotsFull ? 'bg-[#ff8a80] text-black' : 'bg-[#4cc38a]/30 text-[#86efac]'
+                            }`}>
+                              {isIeeeSlotsFull ? 'FULL' : `${ieeeSlotsLimit - ieeeMembersCount} left`}
+                            </span>
+                          </div>
+                        )}
+                        {nonIeeeSlotsLimit > 0 && (
+                          <div className={`px-3 py-1.5 rounded-xl border text-xs font-mono flex items-center gap-2 ${
+                            isNonIeeeSlotsFull ? 'bg-[#2a1315] border-[#ff8a80]/50 text-[#ffb4ab]' : 'bg-[#0d1e2e] border-[#70baff]/40 text-[#9fc7e8]'
+                          }`}>
+                            <span className="text-[#a79f8b]">Non-IEEE:</span>
+                            <span className="font-bold text-white">{nonIeeeDelegatesCount} / {nonIeeeSlotsLimit}</span>
+                            <span className={`px-1.5 py-0.2 rounded text-[10px] font-bold ${
+                              isNonIeeeSlotsFull ? 'bg-[#ff8a80] text-black' : 'bg-[#70baff]/30 text-[#9fc7e8]'
+                            }`}>
+                              {isNonIeeeSlotsFull ? 'FULL' : `${nonIeeeSlotsLimit - nonIeeeDelegatesCount} left`}
+                            </span>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* AUTHENTICATION GATE: Required before registration */}
+                {!currentUser ? (
+                  <div className="bg-gradient-to-br from-[#121218] via-[#171724] to-[#0e0e14] border-2 border-[#d4a935]/70 rounded-3xl p-6 sm:p-10 shadow-2xl relative overflow-hidden space-y-6">
+                    <div className="max-w-2xl mx-auto text-center space-y-3">
+                      <div className="inline-flex items-center gap-2 px-3.5 py-1 rounded-full bg-[#1f1b0e] border border-[#d4a935]/50 text-[#f2c14e] text-xs font-bold uppercase tracking-wider">
+                        <Sparkles className="w-3.5 h-3.5" />
+                        <span>Step 1 of 2: Create Space or Sign In</span>
+                      </div>
+
+                      <h3 className="font-serif-title text-2xl sm:text-3xl md:text-4xl font-bold text-white tracking-tight">
+                        Continue with Google or Create Your Space First
+                      </h3>
+
+                      <p className="text-sm text-[#b9ae94] leading-relaxed">
+                        To register for NexusVerse 2K26, please continue with Google or create your separate space first. Once signed in, you can register and all your passes, schedules, team details, and payment receipts will be safely stored in your dashboard!
+                      </p>
+                    </div>
+
+                    {/* Primary Action Buttons */}
+                    <div className="max-w-md mx-auto space-y-3">
+                      {/* Button 1: Continue with Google */}
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setParticipantSpaceInitialMode('signin');
+                          setIsParticipantSpaceOpen(true);
+                        }}
+                        className="w-full py-3.5 px-4 rounded-xl font-bold text-xs sm:text-sm bg-white text-gray-800 hover:bg-gray-100 transition-all flex items-center justify-center gap-3 shadow-lg cursor-pointer hover:scale-[1.01] active:scale-95"
+                      >
+                        <svg className="w-5 h-5 shrink-0" viewBox="0 0 24 24">
+                          <path
+                            fill="#4285F4"
+                            d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"
+                          />
+                          <path
+                            fill="#34A853"
+                            d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"
+                          />
+                          <path
+                            fill="#FBBC05"
+                            d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z"
+                          />
+                          <path
+                            fill="#EA4335"
+                            d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"
+                          />
+                        </svg>
+                        <span>Continue with Google</span>
+                      </button>
+
+                      {/* Button 2: Create Your Separate Space */}
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setParticipantSpaceInitialMode('signup');
+                          setIsParticipantSpaceOpen(true);
+                        }}
+                        className="w-full py-3.5 px-4 rounded-xl font-bold text-xs sm:text-sm bg-gradient-to-r from-[#f2c14e] to-[#d4a935] hover:from-[#d4a935] hover:to-[#b88f28] text-black transition-all flex items-center justify-center gap-2 shadow-lg shadow-[#f2c14e]/20 cursor-pointer hover:scale-[1.01] active:scale-95"
+                      >
+                        <User className="w-4 h-4" />
+                        <span>Create Your Separate Space</span>
+                        <ArrowRight className="w-4 h-4" />
+                      </button>
+
+                      {/* Button 3: Already have a space? Sign In */}
+                      <div className="text-center pt-2">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setParticipantSpaceInitialMode('signin');
+                            setIsParticipantSpaceOpen(true);
+                          }}
+                          className="text-xs text-[#a79f8b] hover:text-[#f2c14e] transition-colors cursor-pointer"
+                        >
+                          Already created your space? <span className="text-[#f2c14e] font-semibold underline">Sign In Here</span>
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Value Highlights */}
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-4 border-t border-[#2e2b22]/70 text-xs text-[#a79f8b] max-w-2xl mx-auto">
+                      <div className="flex items-center gap-2 bg-[#0a0a0d] p-3 rounded-xl border border-[#2e2b22]">
+                        <Check className="w-4 h-4 text-[#4cc38a] shrink-0" />
+                        <span>Passes stored in your dashboard</span>
+                      </div>
+                      <div className="flex items-center gap-2 bg-[#0a0a0d] p-3 rounded-xl border border-[#2e2b22]">
+                        <Check className="w-4 h-4 text-[#4cc38a] shrink-0" />
+                        <span>Instant digital QR pass access</span>
+                      </div>
+                      <div className="flex items-center gap-2 bg-[#0a0a0d] p-3 rounded-xl border border-[#2e2b22]">
+                        <Check className="w-4 h-4 text-[#4cc38a] shrink-0" />
+                        <span>Receipt & UTR verified record</span>
+                      </div>
+                    </div>
+                  </div>
+                ) : (
+                  <form onSubmit={handleRegisterSubmit} noValidate className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
+                    {/* Active Space User Banner */}
+                    <div className="lg:col-span-12 p-4 rounded-2xl bg-gradient-to-r from-[#111e14] via-[#15271a] to-[#111e14] border-2 border-[#4cc38a]/50 flex flex-wrap items-center justify-between gap-3 shadow-lg">
+                      <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 rounded-full bg-[#4cc38a] text-black font-bold flex items-center justify-center font-serif-title text-base shrink-0">
+                          {currentUser.name ? currentUser.name.charAt(0).toUpperCase() : 'U'}
+                        </div>
+                        <div>
+                          <div className="flex items-center gap-2">
+                            <span className="font-bold text-sm text-white">{currentUser.name}</span>
+                            <span className="text-[10px] px-2 py-0.5 rounded-full bg-[#1b5e39] text-[#a5d6a7] font-semibold border border-[#4cc38a]/40">
+                              Your Space Active
+                            </span>
+                          </div>
+                          <span className="text-xs text-[#a79f8b] block">
+                            {currentUser.email} {currentUser.roll && `· Roll: ${currentUser.roll}`}
+                          </span>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center gap-2">
+                        <button
+                          type="button"
+                          onClick={() => setIsParticipantSpaceOpen(true)}
+                          className="px-3.5 py-1.5 rounded-lg bg-[#0a0a0d] border border-[#d4a935]/40 text-[#f2c14e] text-xs font-semibold hover:bg-[#d4a935] hover:text-black transition-colors cursor-pointer"
+                        >
+                          View Your Dashboard
+                        </button>
+                        <button
+                          type="button"
+                          onClick={handleLogoutParticipant}
+                          className="px-3 py-1.5 rounded-lg bg-[#2a1315] border border-[#ff8a80]/30 text-[#ff8a80] text-xs font-semibold hover:bg-[#3d191d] transition-colors cursor-pointer"
+                        >
+                          Switch User
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Left Column: Form Details & Events Selection */}
+                    <div className="lg:col-span-8 space-y-8">
                     {/* 1. PARTICIPANT INFORMATION CARD */}
                     <div className="bg-[#131318] p-4 sm:p-6 md:p-8 rounded-2xl border border-[#2e2b22]">
                       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-6">
@@ -1095,32 +1409,62 @@ export default function App() {
                           <label className="block text-xs font-semibold text-[#f3ecd9]">
                             IEEE Membership Status
                           </label>
-                          <div className="grid grid-cols-2 gap-2">
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
                             <button
                               type="button"
                               onClick={() => {
+                                if (isNonIeeeSlotsFull) {
+                                  alert(`Non-IEEE Delegate quota of ${nonIeeeSlotsLimit} slots is fully booked.`);
+                                  return;
+                                }
                                 setIsIeeeMember(false);
                                 setIeeeId('');
                               }}
-                              className={`py-2.5 px-3 rounded-xl border text-xs font-semibold transition-all cursor-pointer ${
+                              className={`py-2.5 px-3 rounded-xl border text-xs font-semibold transition-all cursor-pointer flex items-center justify-between gap-1.5 ${
                                 !isIeeeMember
-                                  ? 'bg-[#181820] border-[#d4a935] text-[#f3ecd9]'
+                                  ? 'bg-[#181820] border-[#d4a935] text-[#f3ecd9] ring-1 ring-[#d4a935]/40'
                                   : 'bg-[#0a0a0d] border-[#2e2b22] text-[#a79f8b] hover:border-[#a79f8b]'
-                              }`}
+                              } ${isNonIeeeSlotsFull ? 'opacity-60 border-red-500/40 cursor-not-allowed' : ''}`}
                             >
-                              Non-IEEE Member (₹200)
+                              <span>Non-IEEE Member (₹200)</span>
+                              {nonIeeeSlotsLimit > 0 && (
+                                <span className={`text-[10px] font-mono px-2 py-0.5 rounded font-bold ${
+                                  isNonIeeeSlotsFull
+                                    ? 'bg-[#ff8a80]/20 text-[#ff8a80]'
+                                    : 'bg-[#70baff]/20 text-[#70baff]'
+                                }`}>
+                                  {isNonIeeeSlotsFull ? 'FULL' : `${nonIeeeSlotsLimit - nonIeeeDelegatesCount} left`}
+                                </span>
+                              )}
                             </button>
                             <button
                               type="button"
-                              onClick={() => setIsIeeeMember(true)}
-                              className={`py-2.5 px-3 rounded-xl border text-xs font-semibold transition-all cursor-pointer flex items-center justify-center gap-1.5 ${
+                              onClick={() => {
+                                if (isIeeeSlotsFull) {
+                                  alert(`IEEE Member quota of ${ieeeSlotsLimit} slots is fully booked.`);
+                                  return;
+                                }
+                                setIsIeeeMember(true);
+                              }}
+                              className={`py-2.5 px-3 rounded-xl border text-xs font-semibold transition-all cursor-pointer flex items-center justify-between gap-1.5 ${
                                 isIeeeMember
-                                  ? 'bg-[#1f1b0e] border-[#f2c14e] text-[#f2c14e]'
+                                  ? 'bg-[#1f1b0e] border-[#f2c14e] text-[#f2c14e] ring-1 ring-[#f2c14e]/40'
                                   : 'bg-[#0a0a0d] border-[#2e2b22] text-[#a79f8b] hover:border-[#a79f8b]'
-                              }`}
+                              } ${isIeeeSlotsFull ? 'opacity-60 border-red-500/40 cursor-not-allowed' : ''}`}
                             >
-                              <Award className="w-3.5 h-3.5" />
-                              <span>IEEE Member (₹150)</span>
+                              <span className="flex items-center gap-1.5">
+                                <Award className="w-3.5 h-3.5 text-[#f2c14e]" />
+                                <span>IEEE Member (₹150)</span>
+                              </span>
+                              {ieeeSlotsLimit > 0 && (
+                                <span className={`text-[10px] font-mono px-2 py-0.5 rounded font-bold ${
+                                  isIeeeSlotsFull
+                                    ? 'bg-[#ff8a80]/20 text-[#ff8a80]'
+                                    : 'bg-[#4cc38a]/20 text-[#4cc38a]'
+                                }`}>
+                                  {isIeeeSlotsFull ? 'FULL' : `${ieeeSlotsLimit - ieeeMembersCount} left`}
+                                </span>
+                              )}
                             </button>
                           </div>
 
@@ -1831,6 +2175,27 @@ export default function App() {
                             {closedMessage}
                           </p>
                         </div>
+                      ) : isTotalSlotsFull ? (
+                        <div className="p-4 rounded-xl bg-[#2a1315] border border-[#ff8a80]/30 text-center space-y-1.5">
+                          <span className="font-bold text-sm text-[#ff8a80] block">Symposium Registration Full</span>
+                          <p className="text-[11px] text-[#ffb4ab] leading-relaxed">
+                            Total symposium quota of {totalSlotsLimit} delegate slots has been fully booked. For spot entries or waitlist, contact the IEEE-SB reception.
+                          </p>
+                        </div>
+                      ) : (isIeeeMember && isIeeeSlotsFull) ? (
+                        <div className="p-4 rounded-xl bg-[#2a1a0f] border border-[#f59e0b]/40 text-center space-y-1.5">
+                          <span className="font-bold text-sm text-[#f59e0b] block">IEEE Member Quota Filled</span>
+                          <p className="text-[11px] text-[#fcd34d] leading-relaxed">
+                            All {ieeeSlotsLimit} IEEE delegate slots are booked. You can switch to Non-IEEE Member above if general slots are available.
+                          </p>
+                        </div>
+                      ) : (!isIeeeMember && isNonIeeeSlotsFull) ? (
+                        <div className="p-4 rounded-xl bg-[#2a1a0f] border border-[#f59e0b]/40 text-center space-y-1.5">
+                          <span className="font-bold text-sm text-[#f59e0b] block">Non-IEEE Quota Filled</span>
+                          <p className="text-[11px] text-[#fcd34d] leading-relaxed">
+                            All {nonIeeeSlotsLimit} Non-IEEE delegate slots are booked.
+                          </p>
+                        </div>
                       ) : (
                         <button
                           type="submit"
@@ -1848,9 +2213,10 @@ export default function App() {
                     </div>
                   </div>
                 </form>
+              )}
 
-                {/* Mobile Sticky Quick-Checkout Bar (Only visible on screens < lg when events are chosen and registration not confirmed) */}
-                {!confirmedRecord && (selectedEvents.length > 0 || includeSpotEvents) && (
+                {/* Mobile Sticky Quick-Checkout Bar (Only visible when space active and events are chosen) */}
+                {Boolean(currentUser) && !confirmedRecord && (selectedEvents.length > 0 || includeSpotEvents) && (
                   <div className="lg:hidden fixed bottom-0 left-0 right-0 z-30 p-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] bg-[#0a0a0d]/95 backdrop-blur-md border-t border-[#2e2b22] flex items-center justify-between gap-3 shadow-2xl max-w-full">
                     <div className="min-w-0">
                       <span className="text-[10px] uppercase font-bold text-[#a79f8b] block">Total Payable</span>
@@ -1920,13 +2286,14 @@ export default function App() {
         onSuccess={handlePaymentSuccess}
       />
 
-      {/* Find My Pass Lookup Modal */}
+      {/* Find My Ticket Lookup Modal */}
       <PassLookupModal
         isOpen={isLookupOpen}
         onClose={() => setIsLookupOpen(false)}
         savedRecords={savedRecords}
         onSelectRecord={(rec) => {
           setConfirmedRecord(rec);
+          setUpiPendingRecord(null);
           window.scrollTo({ top: 0, behavior: 'smooth' });
         }}
       />
@@ -1941,6 +2308,7 @@ export default function App() {
         onAddManualRecord={(rec) => saveRegistration(rec)}
         onViewPass={(rec) => {
           setConfirmedRecord(rec);
+          setUpiPendingRecord(null);
           setIsAdminOpen(false);
           window.scrollTo({ top: 0, behavior: 'smooth' });
         }}
@@ -1948,6 +2316,10 @@ export default function App() {
         onToggleRegClosed={handleToggleRegClosed}
         closedMessage={closedMessage}
         onUpdateClosedMessage={handleUpdateClosedMessage}
+        totalSlotsLimit={totalSlotsLimit}
+        ieeeSlotsLimit={ieeeSlotsLimit}
+        nonIeeeSlotsLimit={nonIeeeSlotsLimit}
+        onUpdateSlotLimits={handleUpdateSlotLimits}
         leftLogo={leftLogo}
         rightLogo={rightLogo}
         onUpdateLeftLogo={handleUpdateLeftLogo}
@@ -1964,9 +2336,11 @@ export default function App() {
         savedRecords={savedRecords}
         onOpenTicketPass={(rec) => {
           setConfirmedRecord(rec);
+          setUpiPendingRecord(null);
           window.scrollTo({ top: 0, behavior: 'smooth' });
         }}
         onNavigateToRegister={handlePrefillFromUser}
+        initialMode={participantSpaceInitialMode}
       />
     </div>
   );

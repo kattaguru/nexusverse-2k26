@@ -44,6 +44,9 @@ CREATE TABLE IF NOT EXISTS public.portal_settings (
 
 -- Ensure column exists if table was already created
 ALTER TABLE public.portal_settings ADD COLUMN IF NOT EXISTS admin_password TEXT DEFAULT 'admin123';
+ALTER TABLE public.portal_settings ADD COLUMN IF NOT EXISTS total_slots_limit INTEGER DEFAULT 0;
+ALTER TABLE public.portal_settings ADD COLUMN IF NOT EXISTS ieee_slots_limit INTEGER DEFAULT 0;
+ALTER TABLE public.portal_settings ADD COLUMN IF NOT EXISTS non_ieee_slots_limit INTEGER DEFAULT 0;
 
 -- Seed default settings row if it doesn't exist
 INSERT INTO public.portal_settings (id, is_reg_closed, closed_message)

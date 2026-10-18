@@ -692,10 +692,10 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
                     </div>
                     <div>
                       <h4 className="text-xs sm:text-sm font-bold text-white">
-                        Step 2: Enter Transaction ID & Upload Screenshot
+                        Step 2: Enter Transaction ID & Upload Payment Receipt
                       </h4>
-                      <p className="text-[10px] text-[#a79f8b]">
-                        Required for verification before issuing your pass
+                      <p className="text-[10px] text-[#f2c14e]">
+                        Ticket will be sent to your mail at 8 PM & accessible in your space (Find My Ticket)
                       </p>
                     </div>
                   </div>
@@ -805,21 +805,21 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
                     {isConfirming ? (
                       <>
                         <Loader2 className="w-4 h-4 animate-spin text-black" />
-                        <span>Verifying Payment & Issuing Pass...</span>
+                        <span>Verifying Receipt & Submitting Payment...</span>
                       </>
                     ) : (
                       <>
                         <Check className="w-4 h-4 stroke-[3]" />
-                        <span>Verify UTR & Issue Ticket Pass (₹{amount})</span>
+                        <span>Submit Payment Receipt & Transaction ID (₹{amount})</span>
                       </>
                     )}
                   </button>
                 </div>
 
-                <div className="flex items-center gap-2 pt-1 text-[11px] text-[#7ea0c4] border-t border-[#1b3224]">
-                  <Lock className="w-3.5 h-3.5 text-[#4cc38a] shrink-0" />
+                <div className="flex items-start gap-2 pt-1 text-[11px] text-[#7ea0c4] border-t border-[#1b3224]">
+                  <Clock className="w-3.5 h-3.5 text-[#f2c14e] shrink-0 mt-0.5" />
                   <span>
-                    Your pass will be automatically generated, stored in your Participant Space, and sent to <strong className="text-white">{email}</strong>.
+                    <strong className="text-[#f2c14e]">For UPI:</strong> After you upload payment receipt and transaction ID, your ticket will be sent to your mail at 8 PM and you can access your ticket in your space under Find My Ticket. (Razorpay is automatic).
                   </span>
                 </div>
               </div>

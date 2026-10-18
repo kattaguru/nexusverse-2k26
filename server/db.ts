@@ -40,6 +40,9 @@ export interface DatabaseSchema {
     razorpayKeySecret?: string;
     razorpayMeLink?: string;
     razorpayMeName?: string;
+    totalSlotsLimit?: number;
+    ieeeSlotsLimit?: number;
+    nonIeeeSlotsLimit?: number;
   };
   photos: any[];
   users: ParticipantUser[];
@@ -54,7 +57,10 @@ export const DEFAULT_DB: DatabaseSchema = {
     upiVpa: '9441759500@ptyes',
     upiPayeeName: 'NexusVerse 2K26',
     razorpayMeLink: 'https://razorpay.me/@veluriprasanth',
-    razorpayMeName: 'VELURI PRASANTH'
+    razorpayMeName: 'VELURI PRASANTH',
+    totalSlotsLimit: 0,
+    ieeeSlotsLimit: 0,
+    nonIeeeSlotsLimit: 0
   },
   photos: [
     {

@@ -42,11 +42,14 @@ import {
   ExternalLink,
   Link,
   Smartphone,
-  QrCode
+  QrCode,
+  CheckCircle2,
+  Ticket,
+  Clock
 } from 'lucide-react';
-import { RegistrationRecord, TeamMemberInfo } from './TicketPass';
+import { TicketPass, RegistrationRecord, TeamMemberInfo } from './TicketPass';
 import { EVENTS, ALL_EVENTS, SYMPOSIUM_CONFIG } from '../data/symposiumData';
-import { fetchPhotosApi, uploadPhotoApi, deletePhotoApi, syncLocalRegistrationsToSupabase, testEmailApi } from '../services/api';
+import { fetchPhotosApi, uploadPhotoApi, deletePhotoApi, syncLocalRegistrationsToSupabase, testEmailApi, sendTicketEmailApi } from '../services/api';
 import { testSupabaseConnection, isSupabaseConfigured, supabase } from '../lib/supabase';
 
 export interface GalleryPhoto {
@@ -69,6 +72,10 @@ interface AdminModalProps {
   onToggleRegClosed: (closed: boolean) => void;
   closedMessage: string;
   onUpdateClosedMessage: (msg: string) => void;
+  totalSlotsLimit?: number;
+  ieeeSlotsLimit?: number;
+  nonIeeeSlotsLimit?: number;
+  onUpdateSlotLimits?: (limits: { totalSlotsLimit: number; ieeeSlotsLimit: number; nonIeeeSlotsLimit: number }) => void;
   leftLogo: string;
   rightLogo: string;
   onUpdateLeftLogo: (url: string) => void;
@@ -86,6 +93,8 @@ type SortOption =
   | 'amount-desc' 
   | 'amount-asc' 
   | 'ieee' 
+  | 'ieee-desc'
+  | 'ieee-asc'
   | 'event';
 
 const DEFAULT_GALLERY_PHOTOS: GalleryPhoto[] = [
@@ -159,6 +168,10 @@ export const AdminModal: React.FC<AdminModalProps> = ({
   onToggleRegClosed,
   closedMessage,
   onUpdateClosedMessage,
+  totalSlotsLimit = 0,
+  ieeeSlotsLimit = 0,
+  nonIeeeSlotsLimit = 0,
+  onUpdateSlotLimits,
   leftLogo,
   rightLogo,
   onUpdateLeftLogo,
@@ -183,8 +196,12 @@ export const AdminModal: React.FC<AdminModalProps> = ({
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedEventFilter, setSelectedEventFilter] = useState('all');
   const [ieeeFilter, setIeeeFilter] = useState<'all' | 'ieee' | 'non-ieee'>('all');
+  const [verificationFilter, setVerificationFilter] = useState<'all' | 'verified' | 'unverified' | 'upi' | 'razorpay'>('all');
   const [sortBy, setSortBy] = useState<SortOption>('date-desc');
   const [expandedRecordId, setExpandedRecordId] = useState<string | null>(null);
+
+  // In-admin Ticket Pass Lightbox Viewer state
+  const [viewingAdminTicket, setViewingAdminTicket] = useState<RegistrationRecord | null>(null);
 
   // Edit record state
   const [editingRecord, setEditingRecord] = useState<RegistrationRecord | null>(null);
@@ -223,6 +240,42 @@ export const AdminModal: React.FC<AdminModalProps> = ({
   // Custom password management
   const [newAdminPassword, setNewAdminPassword] = useState('');
   const [pwdChangeSuccess, setPwdChangeSuccess] = useState(false);
+
+  // Slot Quotas & Capacity Limits State (IEEE, Non-IEEE, Total)
+  const [inputTotalSlots, setInputTotalSlots] = useState<number | string>(totalSlotsLimit || 0);
+  const [inputIeeeSlots, setInputIeeeSlots] = useState<number | string>(ieeeSlotsLimit || 0);
+  const [inputNonIeeeSlots, setInputNonIeeeSlots] = useState<number | string>(nonIeeeSlotsLimit || 0);
+  const [isSavingLimits, setIsSavingLimits] = useState(false);
+  const [limitsSaveMsg, setLimitsSaveMsg] = useState('');
+
+  useEffect(() => {
+    if (typeof totalSlotsLimit === 'number') setInputTotalSlots(totalSlotsLimit);
+    if (typeof ieeeSlotsLimit === 'number') setInputIeeeSlots(ieeeSlotsLimit);
+    if (typeof nonIeeeSlotsLimit === 'number') setInputNonIeeeSlots(nonIeeeSlotsLimit);
+  }, [totalSlotsLimit, ieeeSlotsLimit, nonIeeeSlotsLimit]);
+
+  const handleSaveSlotLimits = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    const tSlots = Math.max(0, parseInt(String(inputTotalSlots), 10) || 0);
+    const iSlots = Math.max(0, parseInt(String(inputIeeeSlots), 10) || 0);
+    const niSlots = Math.max(0, parseInt(String(inputNonIeeeSlots), 10) || 0);
+
+    setIsSavingLimits(true);
+    setLimitsSaveMsg('');
+    try {
+      if (onUpdateSlotLimits) {
+        onUpdateSlotLimits({ totalSlotsLimit: tSlots, ieeeSlotsLimit: iSlots, nonIeeeSlotsLimit: niSlots });
+      } else {
+        await updateSettingsApi({ totalSlotsLimit: tSlots, ieeeSlotsLimit: iSlots, nonIeeeSlotsLimit: niSlots });
+      }
+      setLimitsSaveMsg('Slot capacity limits updated & active on registration portal!');
+      setTimeout(() => setLimitsSaveMsg(''), 4000);
+    } catch (err: any) {
+      alert('Failed to save slot limits: ' + (err.message || 'Unknown error'));
+    } finally {
+      setIsSavingLimits(false);
+    }
+  };
 
   // Payment Gateway & Direct UPI Settings state
   const [paymentMode, setPaymentMode] = useState<'razorpay' | 'upi'>('upi');
@@ -282,6 +335,71 @@ export const AdminModal: React.FC<AdminModalProps> = ({
   // Email Receipt testing state
   const [testEmailRecipient, setTestEmailRecipient] = useState('');
   const [testEmailStatus, setTestEmailStatus] = useState<{ testing: boolean; success?: boolean; message?: string }>({ testing: false });
+
+  // 8 PM UPI Email Dispatch States
+  const [sendingEmailRegId, setSendingEmailRegId] = useState<string | null>(null);
+  const [isSendingUpiBatch, setIsSendingUpiBatch] = useState(false);
+  const [emailSendToast, setEmailSendToast] = useState<string | null>(null);
+
+  // Toggle payment verification status (manual for UPI, auto for Razorpay)
+  const handleToggleVerify = (record: RegistrationRecord) => {
+    const isNowVerified = !record.isVerified;
+    const updated: RegistrationRecord = {
+      ...record,
+      isVerified: isNowVerified,
+      verifiedAt: isNowVerified ? new Date().toISOString() : undefined,
+      verifiedBy: isNowVerified ? 'admin' : undefined
+    };
+    onUpdateRecord(updated);
+    setEmailSendToast(
+      isNowVerified 
+        ? `Payment for ${record.name} marked as VERIFIED ✓` 
+        : `Payment for ${record.name} marked as UNVERIFIED ⏳`
+    );
+    setTimeout(() => setEmailSendToast(null), 3500);
+  };
+
+  const handleSendTicketEmail = async (record: RegistrationRecord) => {
+    setSendingEmailRegId(record.regId);
+    try {
+      const res = await sendTicketEmailApi(record);
+      if (res.success) {
+        setEmailSendToast(`Ticket pass email dispatched to ${record.email}!`);
+        setTimeout(() => setEmailSendToast(null), 3500);
+      } else {
+        alert(res.error || 'Failed to dispatch ticket email.');
+      }
+    } catch (err: any) {
+      alert(err.message || 'Error dispatching email.');
+    } finally {
+      setSendingEmailRegId(null);
+    }
+  };
+
+  const handleSendAllUpiBatchEmails = async () => {
+    const upiRecords = savedRecords.filter(r => r.paymentMode === 'upi' && r.email);
+    if (upiRecords.length === 0) {
+      alert('No UPI registrations found with valid email addresses.');
+      return;
+    }
+    if (!window.confirm(`Are you ready to dispatch 8 PM ticket emails to all ${upiRecords.length} UPI registrants?`)) {
+      return;
+    }
+
+    setIsSendingUpiBatch(true);
+    let sentCount = 0;
+    for (const rec of upiRecords) {
+      try {
+        await sendTicketEmailApi(rec);
+        sentCount++;
+      } catch (err) {
+        console.warn('Batch email send notice for', rec.regId, err);
+      }
+    }
+    setIsSendingUpiBatch(false);
+    setEmailSendToast(`Successfully dispatched 8 PM ticket emails to ${sentCount} UPI delegates!`);
+    setTimeout(() => setEmailSendToast(null), 4000);
+  };
 
   const handleSendTestEmail = async () => {
     if (!testEmailRecipient || !testEmailRecipient.includes('@')) {
@@ -964,9 +1082,19 @@ export const AdminModal: React.FC<AdminModalProps> = ({
         (ieeeFilter === 'ieee' && r.isIeeeMember) || 
         (ieeeFilter === 'non-ieee' && !r.isIeeeMember);
 
+      // Payment verification filter (UPI verified vs pending, Razorpay auto verified)
+      const isAutoVerified = r.paymentMode !== 'upi';
+      const isVerified = isAutoVerified || Boolean(r.isVerified);
+      const matchesVerification = 
+        verificationFilter === 'all' ||
+        (verificationFilter === 'verified' && isVerified) ||
+        (verificationFilter === 'unverified' && !isVerified) ||
+        (verificationFilter === 'upi' && r.paymentMode === 'upi') ||
+        (verificationFilter === 'razorpay' && r.paymentMode !== 'upi');
+
       // Search query filter (matches lead, team members, IDs, event names)
       const q = searchQuery.toLowerCase().trim();
-      if (!q) return matchesEvent && matchesIeee;
+      if (!q) return matchesEvent && matchesIeee && matchesVerification;
 
       const primaryEventId = r.eventIds[0] || '';
       const team = r.teamDetails?.[primaryEventId];
@@ -991,7 +1119,7 @@ export const AdminModal: React.FC<AdminModalProps> = ({
         (team?.projectTitle && team.projectTitle.toLowerCase().includes(q)) ||
         teammateMatch;
 
-      return matchesEvent && matchesIeee && matchesQuery;
+      return matchesEvent && matchesIeee && matchesVerification && matchesQuery;
     })
     .sort((a, b) => {
       switch (sortBy) {
@@ -1010,7 +1138,10 @@ export const AdminModal: React.FC<AdminModalProps> = ({
         case 'amount-asc':
           return (a.totalPaid || 0) - (b.totalPaid || 0);
         case 'ieee':
+        case 'ieee-desc':
           return (b.isIeeeMember ? 1 : 0) - (a.isIeeeMember ? 1 : 0);
+        case 'ieee-asc':
+          return (a.isIeeeMember ? 1 : 0) - (b.isIeeeMember ? 1 : 0);
         case 'event':
           return (a.eventIds[0] || '').localeCompare(b.eventIds[0] || '');
         default:
@@ -1022,6 +1153,11 @@ export const AdminModal: React.FC<AdminModalProps> = ({
   const totalRegistrations = savedRecords.length;
   const totalRevenue = savedRecords.reduce((sum, r) => sum + (r.totalPaid || 0), 0);
   const totalIeeeMembers = savedRecords.filter(r => r.isIeeeMember).length;
+  const totalNonIeeeMembers = totalRegistrations - totalIeeeMembers;
+  const upiPendingCount = savedRecords.filter(r => r.paymentMode === 'upi' && !r.isVerified).length;
+  const verifiedCount = savedRecords.filter(r => r.paymentMode !== 'upi' || r.isVerified).length;
+  const upiTotalCount = savedRecords.filter(r => r.paymentMode === 'upi').length;
+  const razorpayTotalCount = savedRecords.filter(r => r.paymentMode !== 'upi').length;
 
   return (
     <div 
@@ -1239,24 +1375,114 @@ export const AdminModal: React.FC<AdminModalProps> = ({
               {/* TAB 1: ALL REGISTRATIONS (SEARCH, SORT, FILTER, DOWNLOAD CSV/JSON, EDIT MEMBERS) */}
               {activeTab === 'registrations' && (
                 <div className="space-y-4">
-                  {/* KPI Quick Stats Cards */}
+                  {/* KPI Quick Stats Cards (Clickable Filter Shortcuts with Slot Quota Caps) */}
                   <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
-                    <div className="p-3 rounded-xl bg-[#0a0a0d] border border-[#2e2b22]">
-                      <span className="text-[10px] text-[#a79f8b] uppercase block font-semibold">Total Delegates</span>
-                      <span className="text-lg sm:text-xl font-bold font-mono text-white">{totalRegistrations}</span>
-                    </div>
+                    <button
+                      type="button"
+                      onClick={() => { setIeeeFilter('all'); setVerificationFilter('all'); }}
+                      className={`p-3 rounded-xl bg-[#0a0a0d] border text-left transition-all cursor-pointer ${
+                        ieeeFilter === 'all' && verificationFilter === 'all'
+                          ? 'border-[#d4a935] ring-1 ring-[#d4a935]/50 shadow-md shadow-[#d4a935]/10'
+                          : 'border-[#2e2b22] hover:border-[#a79f8b]'
+                      }`}
+                      title="Show all registered delegates"
+                    >
+                      <div className="flex items-center justify-between">
+                        <span className="text-[10px] text-[#a79f8b] uppercase block font-semibold">Total Delegates</span>
+                        {Number(inputTotalSlots) > 0 ? (
+                          <span className={`text-[9px] px-1.5 py-0.2 rounded font-semibold ${
+                            totalRegistrations >= Number(inputTotalSlots)
+                              ? 'bg-[#ff8a80]/20 text-[#ff8a80]'
+                              : 'bg-[#d4a935]/20 text-[#f2c14e]'
+                          }`}>
+                            {totalRegistrations >= Number(inputTotalSlots) ? 'FULL' : `${Number(inputTotalSlots) - totalRegistrations} left`}
+                          </span>
+                        ) : (
+                          ieeeFilter === 'all' && verificationFilter === 'all' && (
+                            <span className="text-[9px] px-1.5 py-0.2 rounded bg-[#d4a935]/20 text-[#f2c14e] font-semibold">All</span>
+                          )
+                        )}
+                      </div>
+                      <div className="flex items-baseline gap-1.5">
+                        <span className="text-lg sm:text-xl font-bold font-mono text-white">{totalRegistrations}</span>
+                        {Number(inputTotalSlots) > 0 && (
+                          <span className="text-xs font-mono text-[#a79f8b]">/ {inputTotalSlots}</span>
+                        )}
+                      </div>
+                    </button>
+
                     <div className="p-3 rounded-xl bg-[#0a0a0d] border border-[#2e2b22]">
                       <span className="text-[10px] text-[#a79f8b] uppercase block font-semibold">Total Collected</span>
                       <span className="text-lg sm:text-xl font-bold font-mono text-[#f2c14e]">₹{totalRevenue}</span>
                     </div>
-                    <div className="p-3 rounded-xl bg-[#0a0a0d] border border-[#2e2b22]">
-                      <span className="text-[10px] text-[#a79f8b] uppercase block font-semibold">IEEE Members</span>
-                      <span className="text-lg sm:text-xl font-bold font-mono text-[#4cc38a]">{totalIeeeMembers}</span>
-                    </div>
-                    <div className="p-3 rounded-xl bg-[#0a0a0d] border border-[#2e2b22]">
-                      <span className="text-[10px] text-[#a79f8b] uppercase block font-semibold">Non-IEEE Delegates</span>
-                      <span className="text-lg sm:text-xl font-bold font-mono text-[#9fc7e8]">{totalRegistrations - totalIeeeMembers}</span>
-                    </div>
+
+                    <button
+                      type="button"
+                      onClick={() => setIeeeFilter(ieeeFilter === 'ieee' ? 'all' : 'ieee')}
+                      className={`p-3 rounded-xl bg-[#0a0a0d] border text-left transition-all cursor-pointer ${
+                        ieeeFilter === 'ieee'
+                          ? 'border-[#4cc38a] ring-1 ring-[#4cc38a]/50 shadow-md shadow-[#4cc38a]/10 bg-[#0d2316]'
+                          : 'border-[#2e2b22] hover:border-[#4cc38a]/60'
+                      }`}
+                      title="Click to filter by IEEE Members"
+                    >
+                      <div className="flex items-center justify-between">
+                        <span className="text-[10px] text-[#a79f8b] uppercase block font-semibold">IEEE Members</span>
+                        {Number(inputIeeeSlots) > 0 ? (
+                          <span className={`text-[9px] px-1.5 py-0.2 rounded font-semibold ${
+                            totalIeeeMembers >= Number(inputIeeeSlots)
+                              ? 'bg-[#ff8a80]/20 text-[#ff8a80]'
+                              : 'bg-[#4cc38a]/20 text-[#4cc38a]'
+                          }`}>
+                            {totalIeeeMembers >= Number(inputIeeeSlots) ? 'QUOTA FULL' : `${Number(inputIeeeSlots) - totalIeeeMembers} left`}
+                          </span>
+                        ) : (
+                          ieeeFilter === 'ieee' && (
+                            <span className="text-[9px] px-1.5 py-0.2 rounded bg-[#4cc38a]/20 text-[#4cc38a] font-semibold">Filtered</span>
+                          )
+                        )}
+                      </div>
+                      <div className="flex items-baseline gap-1.5">
+                        <span className="text-lg sm:text-xl font-bold font-mono text-[#4cc38a]">{totalIeeeMembers}</span>
+                        {Number(inputIeeeSlots) > 0 && (
+                          <span className="text-xs font-mono text-[#a79f8b]">/ {inputIeeeSlots}</span>
+                        )}
+                      </div>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => setIeeeFilter(ieeeFilter === 'non-ieee' ? 'all' : 'non-ieee')}
+                      className={`p-3 rounded-xl bg-[#0a0a0d] border text-left transition-all cursor-pointer ${
+                        ieeeFilter === 'non-ieee'
+                          ? 'border-[#70baff] ring-1 ring-[#70baff]/50 shadow-md shadow-[#70baff]/10 bg-[#0c1c2a]'
+                          : 'border-[#2e2b22] hover:border-[#70baff]/60'
+                      }`}
+                      title="Click to filter by Non-IEEE Delegates"
+                    >
+                      <div className="flex items-center justify-between">
+                        <span className="text-[10px] text-[#a79f8b] uppercase block font-semibold">Non-IEEE Delegates</span>
+                        {Number(inputNonIeeeSlots) > 0 ? (
+                          <span className={`text-[9px] px-1.5 py-0.2 rounded font-semibold ${
+                            totalNonIeeeMembers >= Number(inputNonIeeeSlots)
+                              ? 'bg-[#ff8a80]/20 text-[#ff8a80]'
+                              : 'bg-[#70baff]/20 text-[#70baff]'
+                          }`}>
+                            {totalNonIeeeMembers >= Number(inputNonIeeeSlots) ? 'QUOTA FULL' : `${Number(inputNonIeeeSlots) - totalNonIeeeMembers} left`}
+                          </span>
+                        ) : (
+                          ieeeFilter === 'non-ieee' && (
+                            <span className="text-[9px] px-1.5 py-0.2 rounded bg-[#70baff]/20 text-[#70baff] font-semibold">Filtered</span>
+                          )
+                        )}
+                      </div>
+                      <div className="flex items-baseline gap-1.5">
+                        <span className="text-lg sm:text-xl font-bold font-mono text-[#9fc7e8]">{totalNonIeeeMembers}</span>
+                        {Number(inputNonIeeeSlots) > 0 && (
+                          <span className="text-xs font-mono text-[#a79f8b]">/ {inputNonIeeeSlots}</span>
+                        )}
+                      </div>
+                    </button>
                   </div>
 
                   {/* SEARCH, SORT, FILTER & DOWNLOAD TOOLBAR */}
@@ -1283,8 +1509,9 @@ export const AdminModal: React.FC<AdminModalProps> = ({
                         )}
                       </div>
 
-                      {/* Event & IEEE Filters */}
+                      {/* Dropdown Filters: Event, Membership, Payment Verification */}
                       <div className="flex flex-wrap items-center gap-2">
+                        {/* Event Filter */}
                         <select
                           value={selectedEventFilter}
                           onChange={(e) => setSelectedEventFilter(e.target.value)}
@@ -1297,40 +1524,133 @@ export const AdminModal: React.FC<AdminModalProps> = ({
                           ))}
                         </select>
 
+                        {/* Membership Filter */}
                         <select
                           value={ieeeFilter}
                           onChange={(e) => setIeeeFilter(e.target.value as any)}
-                          className="px-2.5 py-2 text-xs rounded-lg bg-[#131318] border border-[#2e2b22] text-[#f3ecd9] focus:outline-none focus:border-[#d4a935] cursor-pointer"
+                          className="px-2.5 py-2 text-xs rounded-lg bg-[#131318] border border-[#2e2b22] text-[#f3ecd9] focus:outline-none focus:border-[#d4a935] cursor-pointer font-medium"
                           aria-label="Filter by IEEE Membership"
                         >
-                          <option value="all">All Memberships</option>
-                          <option value="ieee">IEEE Members Only</option>
-                          <option value="non-ieee">Non-IEEE Only</option>
+                          <option value="all">All Memberships ({totalRegistrations})</option>
+                          <option value="ieee">IEEE Members Only ({totalIeeeMembers})</option>
+                          <option value="non-ieee">Non-IEEE Delegates Only ({totalNonIeeeMembers})</option>
+                        </select>
+
+                        {/* Verification & Payment Filter */}
+                        <select
+                          value={verificationFilter}
+                          onChange={(e) => setVerificationFilter(e.target.value as any)}
+                          className={`px-2.5 py-2 text-xs rounded-lg border focus:outline-none cursor-pointer font-medium transition-colors ${
+                            verificationFilter === 'unverified'
+                              ? 'bg-[#2a1d06] border-[#f2c14e] text-[#f2c14e]'
+                              : 'bg-[#131318] border-[#2e2b22] text-[#f3ecd9] focus:border-[#d4a935]'
+                          }`}
+                          aria-label="Filter by Payment Verification"
+                        >
+                          <option value="all">All Payment Statuses</option>
+                          <option value="unverified">UPI · Pending Verification ({upiPendingCount})</option>
+                          <option value="verified">Verified Payments ({verifiedCount})</option>
+                          <option value="upi">All UPI Registrations ({upiTotalCount})</option>
+                          <option value="razorpay">Razorpay Auto Verified ({razorpayTotalCount})</option>
                         </select>
                       </div>
+                    </div>
+
+                    {/* Quick Filter Pill Buttons */}
+                    <div className="flex flex-wrap items-center gap-1.5 pt-1 text-xs">
+                      <span className="text-[11px] text-[#a79f8b] font-semibold mr-1 flex items-center gap-1">
+                        <Filter className="w-3 h-3 text-[#d4a935]" />
+                        <span>Filter:</span>
+                      </span>
+
+                      <button
+                        type="button"
+                        onClick={() => { setIeeeFilter('all'); setVerificationFilter('all'); }}
+                        className={`px-2.5 py-0.5 rounded-full text-[11px] font-semibold transition-all cursor-pointer ${
+                          ieeeFilter === 'all' && verificationFilter === 'all'
+                            ? 'bg-[#d4a935] text-[#1a1300]'
+                            : 'bg-[#181820] text-[#a79f8b] hover:text-[#f3ecd9] border border-[#2e2b22]'
+                        }`}
+                      >
+                        All ({totalRegistrations})
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => setIeeeFilter(ieeeFilter === 'ieee' ? 'all' : 'ieee')}
+                        className={`px-2.5 py-0.5 rounded-full text-[11px] font-semibold transition-all cursor-pointer flex items-center gap-1 ${
+                          ieeeFilter === 'ieee'
+                            ? 'bg-[#1b5e39] text-[#a5d6a7] border border-[#4cc38a]'
+                            : 'bg-[#181820] text-[#4cc38a] hover:bg-[#1b5e39]/30 border border-[#2e2b22]'
+                        }`}
+                      >
+                        <Award className="w-3 h-3" />
+                        <span>IEEE ({totalIeeeMembers})</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => setIeeeFilter(ieeeFilter === 'non-ieee' ? 'all' : 'non-ieee')}
+                        className={`px-2.5 py-0.5 rounded-full text-[11px] font-semibold transition-all cursor-pointer ${
+                          ieeeFilter === 'non-ieee'
+                            ? 'bg-[#0f2c4a] text-[#a1d2ff] border border-[#70baff]'
+                            : 'bg-[#181820] text-[#9fc7e8] hover:bg-[#0f2c4a]/30 border border-[#2e2b22]'
+                        }`}
+                      >
+                        Non-IEEE ({totalNonIeeeMembers})
+                      </button>
+
+                      <span className="text-[#2e2b22] px-1">|</span>
+
+                      <button
+                        type="button"
+                        onClick={() => setVerificationFilter(verificationFilter === 'unverified' ? 'all' : 'unverified')}
+                        className={`px-2.5 py-0.5 rounded-full text-[11px] font-semibold transition-all cursor-pointer flex items-center gap-1 ${
+                          verificationFilter === 'unverified'
+                            ? 'bg-[#3b2707] text-[#ffd666] border border-[#f2c14e]'
+                            : 'bg-[#181820] text-[#f2c14e] hover:bg-[#3b2707]/40 border border-[#2e2b22]'
+                        }`}
+                      >
+                        <Clock className="w-3 h-3 text-[#f2c14e]" />
+                        <span>UPI Pending ({upiPendingCount})</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => setVerificationFilter(verificationFilter === 'verified' ? 'all' : 'verified')}
+                        className={`px-2.5 py-0.5 rounded-full text-[11px] font-semibold transition-all cursor-pointer flex items-center gap-1 ${
+                          verificationFilter === 'verified'
+                            ? 'bg-[#142617] text-[#81c784] border border-[#4cc38a]'
+                            : 'bg-[#181820] text-[#a79f8b] hover:text-[#f3ecd9] border border-[#2e2b22]'
+                        }`}
+                      >
+                        <CheckCircle2 className="w-3 h-3 text-[#4cc38a]" />
+                        <span>Verified ({verifiedCount})</span>
+                      </button>
                     </div>
 
                     {/* SORT CONTROLS & DOWNLOAD BUTTONS */}
                     <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2.5 pt-2 border-t border-[#2e2b22]/70 text-xs">
                       {/* Sort Selector */}
                       <div className="flex items-center gap-2 flex-wrap">
-                        <span className="text-[11px] text-[#a79f8b] flex items-center gap-1">
+                        <span className="text-[11px] text-[#a79f8b] flex items-center gap-1 font-semibold">
                           <ArrowUpDown className="w-3.5 h-3.5 text-[#d4a935]" />
                           <span>Sort by:</span>
                         </span>
                         <select
                           value={sortBy}
                           onChange={(e) => setSortBy(e.target.value as SortOption)}
-                          className="px-2 py-1 text-xs rounded-md bg-[#131318] border border-[#2e2b22] text-[#f2c14e] font-medium focus:outline-none focus:border-[#d4a935] cursor-pointer"
+                          className="px-2.5 py-1.5 text-xs rounded-md bg-[#131318] border border-[#2e2b22] text-[#f2c14e] font-semibold focus:outline-none focus:border-[#d4a935] cursor-pointer"
                         >
                           <option value="date-desc">Registration Date: Newest First</option>
                           <option value="date-asc">Registration Date: Oldest First</option>
+                          <option value="ieee-desc">IEEE Members First (IEEE → Non-IEEE)</option>
+                          <option value="ieee-asc">Non-IEEE Delegates First (Non-IEEE → IEEE)</option>
                           <option value="name-asc">Participant Name: A → Z</option>
                           <option value="name-desc">Participant Name: Z → A</option>
                           <option value="roll-asc">Roll Number: A → Z</option>
                           <option value="amount-desc">Fee Paid: Highest First</option>
                           <option value="amount-asc">Fee Paid: Lowest First</option>
-                          <option value="ieee">IEEE Members First</option>
                           <option value="event">Technical Event Name</option>
                         </select>
                         <span className="text-[11px] text-[#a79f8b] font-mono">
@@ -1338,8 +1658,28 @@ export const AdminModal: React.FC<AdminModalProps> = ({
                         </span>
                       </div>
 
-                      {/* Download Action Buttons */}
-                      <div className="flex items-center gap-2 self-stretch sm:self-auto justify-end">
+                      {/* Download & Batch 8 PM Action Buttons */}
+                      <div className="flex flex-wrap items-center gap-2 self-stretch sm:self-auto justify-end">
+                        <button
+                          type="button"
+                          disabled={isSendingUpiBatch}
+                          onClick={handleSendAllUpiBatchEmails}
+                          className="px-3 py-1.5 rounded-lg bg-[#0f2e1e] border border-[#4cc38a]/50 text-[#4cc38a] hover:bg-[#1a4a32] text-xs font-semibold transition-colors flex items-center justify-center gap-1.5 cursor-pointer shadow-sm disabled:opacity-50"
+                          title="Dispatch 8 PM ticket emails to all UPI registrants"
+                        >
+                          {isSendingUpiBatch ? (
+                            <>
+                              <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                              <span>Sending 8 PM Batch...</span>
+                            </>
+                          ) : (
+                            <>
+                              <Mail className="w-3.5 h-3.5" />
+                              <span>Dispatch 8 PM UPI Batch</span>
+                            </>
+                          )}
+                        </button>
+
                         <button
                           type="button"
                           onClick={handleExportCsv}
@@ -1409,12 +1749,21 @@ export const AdminModal: React.FC<AdminModalProps> = ({
                                     </span>
                                   )}
                                   {record.paymentMode === 'upi' ? (
-                                    <span className="text-[10px] font-semibold text-[#4cc38a] bg-[#1b5e39]/30 px-2 py-0.5 rounded border border-[#4cc38a]/40 font-mono">
-                                      UPI
-                                    </span>
+                                    record.isVerified ? (
+                                      <span className="text-[10px] font-semibold text-[#4cc38a] bg-[#1b5e39]/30 px-2 py-0.5 rounded border border-[#4cc38a]/40 font-mono flex items-center gap-1">
+                                        <CheckCircle2 className="w-3 h-3 text-[#4cc38a]" />
+                                        <span>UPI · Verified</span>
+                                      </span>
+                                    ) : (
+                                      <span className="text-[10px] font-semibold text-[#f2c14e] bg-[#2a1e06] px-2 py-0.5 rounded border border-[#d4a935]/50 font-mono flex items-center gap-1">
+                                        <Clock className="w-3 h-3 text-[#f2c14e]" />
+                                        <span>UPI · Pending Verification</span>
+                                      </span>
+                                    )
                                   ) : (
-                                    <span className="text-[10px] font-semibold text-[#70baff] bg-[#00629b]/30 px-2 py-0.5 rounded border border-[#0088d4]/40 font-mono">
-                                      Razorpay
+                                    <span className="text-[10px] font-semibold text-[#70baff] bg-[#00629b]/30 px-2 py-0.5 rounded border border-[#0088d4]/40 font-mono flex items-center gap-1">
+                                      <ShieldCheck className="w-3 h-3 text-[#4cc38a]" />
+                                      <span>Razorpay (Auto Verified)</span>
                                     </span>
                                   )}
                                   <span className="text-[11px] text-[#9fc7e8] font-medium px-2 py-0.5 rounded bg-[#131f2b] border border-[#234259]">
@@ -1435,10 +1784,54 @@ export const AdminModal: React.FC<AdminModalProps> = ({
                                 </div>
                               </div>
 
-                              <div className="flex items-center gap-2 self-end sm:self-center shrink-0">
-                                <span className="font-mono font-bold text-sm text-[#f2c14e]">
+                              <div className="flex flex-wrap items-center gap-2 self-end sm:self-center shrink-0">
+                                <span className="font-mono font-bold text-sm text-[#f2c14e] mr-1">
                                   ₹{record.totalPaid}
                                 </span>
+
+                                {/* Payment Verification Button: Manual for UPI, Automatic for Razorpay */}
+                                {record.paymentMode === 'upi' ? (
+                                  record.isVerified ? (
+                                    <button
+                                      type="button"
+                                      onClick={() => handleToggleVerify(record)}
+                                      className="px-2.5 py-1 rounded-lg bg-[#0d2a1c] border border-[#4cc38a]/60 text-[#4cc38a] hover:bg-[#153e2a] transition-all cursor-pointer flex items-center gap-1 text-xs font-semibold shadow-sm"
+                                      title="UPI Payment Verified! Click to toggle / unverify if needed"
+                                    >
+                                      <CheckCircle2 className="w-3.5 h-3.5 text-[#4cc38a]" />
+                                      <span>Verified ✓</span>
+                                    </button>
+                                  ) : (
+                                    <button
+                                      type="button"
+                                      onClick={() => handleToggleVerify(record)}
+                                      className="px-2.5 py-1 rounded-lg bg-gradient-to-r from-[#241a06] via-[#382608] to-[#241a06] border border-[#f2c14e] text-[#f2c14e] hover:bg-[#f2c14e] hover:text-[#1a1300] transition-all cursor-pointer flex items-center gap-1 text-xs font-bold shadow-md shadow-[#f2c14e]/20"
+                                      title="Click to verify this UPI payment receipt & transaction reference"
+                                    >
+                                      <Clock className="w-3.5 h-3.5 text-[#f2c14e] animate-pulse" />
+                                      <span>Verify UPI</span>
+                                    </button>
+                                  )
+                                ) : (
+                                  <span 
+                                    className="px-2 py-1 rounded-lg bg-[#0c1f33] border border-[#0088d4]/40 text-[#70baff] text-[11px] font-semibold flex items-center gap-1"
+                                    title="Razorpay payments are automatically authorized and verified by gateway"
+                                  >
+                                    <ShieldCheck className="w-3.5 h-3.5 text-[#4cc38a]" />
+                                    <span>Auto Verified</span>
+                                  </span>
+                                )}
+
+                                {/* View Official Ticket Pass Button */}
+                                <button
+                                  type="button"
+                                  onClick={() => setViewingAdminTicket(record)}
+                                  className="px-2.5 py-1 rounded-lg bg-[#181820] border border-[#d4a935]/40 text-[#f2c14e] hover:bg-[#d4a935] hover:text-[#1a1300] transition-colors cursor-pointer flex items-center gap-1 text-xs font-semibold shadow-sm"
+                                  title="View digital ticket pass with dynamic entry QR code"
+                                >
+                                  <Ticket className="w-3.5 h-3.5" />
+                                  <span>View Ticket</span>
+                                </button>
 
                                 {/* View UPI Receipt Screenshot */}
                                 {(record.paymentScreenshot || (record.teamDetails as any)?._paymentScreenshot) && (
@@ -1455,7 +1848,7 @@ export const AdminModal: React.FC<AdminModalProps> = ({
                                         });
                                       }
                                     }}
-                                    className="p-1.5 rounded-lg bg-[#0f2e1e] border border-[#4cc38a]/40 text-[#4cc38a] hover:bg-[#1b5e39] transition-colors cursor-pointer flex items-center gap-1 text-[11px] font-semibold"
+                                    className="p-1 px-2 rounded-lg bg-[#0f2e1e] border border-[#4cc38a]/40 text-[#4cc38a] hover:bg-[#1b5e39] transition-colors cursor-pointer flex items-center gap-1 text-[11px] font-semibold"
                                     title="View UPI Receipt Screenshot"
                                   >
                                     <ImageIcon className="w-3.5 h-3.5" />
@@ -1474,6 +1867,21 @@ export const AdminModal: React.FC<AdminModalProps> = ({
                                     <Printer className="w-3.5 h-3.5" />
                                   </button>
                                 )}
+
+                                {/* Send Ticket Email */}
+                                <button
+                                  type="button"
+                                  disabled={sendingEmailRegId === record.regId}
+                                  onClick={() => handleSendTicketEmail(record)}
+                                  className="p-1.5 rounded-lg bg-[#181820] border border-[#2e2b22] text-[#4cc38a] hover:bg-[#153424] hover:text-white transition-colors cursor-pointer"
+                                  title={`Send ticket pass email to ${record.email} (8 PM batch)`}
+                                >
+                                  {sendingEmailRegId === record.regId ? (
+                                    <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                                  ) : (
+                                    <Mail className="w-3.5 h-3.5" />
+                                  )}
+                                </button>
 
                                 {/* Edit Member & Team */}
                                 <button
@@ -1535,7 +1943,7 @@ export const AdminModal: React.FC<AdminModalProps> = ({
 
                                 {/* UPI Payment Screenshot Card (if uploaded) */}
                                 {(record.paymentScreenshot || (record.teamDetails as any)?._paymentScreenshot) && (
-                                  <div className="p-3 rounded-xl bg-[#081810] border border-[#1d442b] flex items-center justify-between gap-3">
+                                  <div className="p-3 rounded-xl bg-[#081810] border border-[#1d442b] flex flex-wrap items-center justify-between gap-3">
                                     <div className="flex items-center gap-3 min-w-0">
                                       <div 
                                         onClick={() => {
@@ -1571,26 +1979,62 @@ export const AdminModal: React.FC<AdminModalProps> = ({
                                         </span>
                                       </div>
                                     </div>
-                                    <button
-                                      type="button"
-                                      onClick={() => {
-                                        const scr = record.paymentScreenshot || (record.teamDetails as any)?._paymentScreenshot;
-                                        if (scr) {
-                                          setViewingReceipt({
-                                            name: record.name,
-                                            roll: record.roll,
-                                            paymentId: record.paymentId,
-                                            screenshot: scr
-                                          });
-                                        }
-                                      }}
-                                      className="px-3 py-1.5 rounded-lg bg-[#1b5e39] hover:bg-[#27ae60] text-white font-bold text-xs flex items-center gap-1.5 cursor-pointer shadow transition-all shrink-0"
-                                    >
-                                      <Eye className="w-3.5 h-3.5" />
-                                      <span>View Full Receipt</span>
-                                    </button>
+                                    <div className="flex items-center gap-2">
+                                      {/* Verify Payment in expanded card */}
+                                      <button
+                                        type="button"
+                                        onClick={() => handleToggleVerify(record)}
+                                        className={`px-3 py-1.5 rounded-lg font-bold text-xs flex items-center gap-1.5 cursor-pointer shadow transition-all shrink-0 ${
+                                          record.isVerified
+                                            ? 'bg-[#0d2a1c] border border-[#4cc38a]/60 text-[#4cc38a] hover:bg-[#153e2a]'
+                                            : 'bg-gradient-to-r from-[#241a06] via-[#382608] to-[#241a06] border border-[#f2c14e] text-[#f2c14e] hover:bg-[#f2c14e] hover:text-[#1a1300]'
+                                        }`}
+                                      >
+                                        {record.isVerified ? (
+                                          <>
+                                            <CheckCircle2 className="w-3.5 h-3.5 text-[#4cc38a]" />
+                                            <span>Verified ✓ (Unverify)</span>
+                                          </>
+                                        ) : (
+                                          <>
+                                            <Clock className="w-3.5 h-3.5 text-[#f2c14e]" />
+                                            <span>Mark as Verified</span>
+                                          </>
+                                        )}
+                                      </button>
+                                      <button
+                                        type="button"
+                                        onClick={() => {
+                                          const scr = record.paymentScreenshot || (record.teamDetails as any)?._paymentScreenshot;
+                                          if (scr) {
+                                            setViewingReceipt({
+                                              name: record.name,
+                                              roll: record.roll,
+                                              paymentId: record.paymentId,
+                                              screenshot: scr
+                                            });
+                                          }
+                                        }}
+                                        className="px-3 py-1.5 rounded-lg bg-[#1b5e39] hover:bg-[#27ae60] text-white font-bold text-xs flex items-center gap-1.5 cursor-pointer shadow transition-all shrink-0"
+                                      >
+                                        <Eye className="w-3.5 h-3.5" />
+                                        <span>View Full Receipt</span>
+                                      </button>
+                                    </div>
                                   </div>
                                 )}
+
+                                {/* Action bar inside expanded tray: Ticket Pass button */}
+                                <div className="flex items-center gap-2 pt-1 border-t border-[#2e2b22]/50">
+                                  <button
+                                    type="button"
+                                    onClick={() => setViewingAdminTicket(record)}
+                                    className="px-3 py-1.5 rounded-lg bg-[#1f1b0e] border border-[#d4a935]/50 text-[#f2c14e] hover:bg-[#d4a935] hover:text-[#1a1300] font-semibold text-xs flex items-center gap-1.5 cursor-pointer shadow transition-all"
+                                  >
+                                    <Ticket className="w-3.5 h-3.5" />
+                                    <span>View Official Ticket Pass & QR Code</span>
+                                  </button>
+                                </div>
 
                                 {/* Full Teammates Cards */}
                                 <div className="space-y-1.5 pt-1">
@@ -2042,6 +2486,254 @@ export const AdminModal: React.FC<AdminModalProps> = ({
                     />
                     <div className="p-3 rounded-xl bg-[#2a1315] border border-[#ff8a80]/30 text-xs text-[#ff8a80]">
                       <strong>Live Banner Preview:</strong> {closedMessage || 'Registration is currently closed.'}
+                    </div>
+                  </div>
+
+                  {/* Slot Quota & Capacity Limits Control Card */}
+                  <div className="p-5 rounded-2xl bg-[#0a0a0d] border border-[#2e2b22] space-y-5">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-[#2e2b22] pb-3">
+                      <div>
+                        <h4 className="text-base font-bold text-white flex items-center gap-2">
+                          <SlidersHorizontal className="w-5 h-5 text-[#f2c14e]" />
+                          <span>Symposium Capacity & Slot Quota Management</span>
+                        </h4>
+                        <p className="text-xs text-[#a79f8b] mt-0.5">
+                          Set maximum delegate limits for Total Symposium, IEEE Members, and Non-IEEE. Set to 0 for unlimited.
+                        </p>
+                      </div>
+                      <span className="text-[11px] font-mono px-2.5 py-1 rounded-full bg-[#131318] border border-[#2e2b22] text-[#f2c14e] self-start sm:self-auto">
+                        Live Quota Controls
+                      </span>
+                    </div>
+
+                    {/* 3 Slot Limit Configuration Inputs & Live Gauges */}
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-3.5">
+                      {/* Slot 1: Total Slots Limit */}
+                      <div className="p-3.5 rounded-xl bg-[#131318] border border-[#2e2b22] space-y-2.5">
+                        <div className="flex items-center justify-between">
+                          <span className="text-xs font-bold text-white flex items-center gap-1.5">
+                            <Users className="w-3.5 h-3.5 text-[#f2c14e]" />
+                            <span>Total Slots Limit</span>
+                          </span>
+                          <span className={`text-[10px] font-mono px-1.5 py-0.5 rounded font-semibold ${
+                            Number(inputTotalSlots) > 0 && totalRegistrations >= Number(inputTotalSlots)
+                              ? 'bg-[#ff8a80]/20 text-[#ff8a80]'
+                              : Number(inputTotalSlots) > 0
+                              ? 'bg-[#d4a935]/20 text-[#f2c14e]'
+                              : 'bg-white/10 text-[#a79f8b]'
+                          }`}>
+                            {Number(inputTotalSlots) > 0 
+                              ? (totalRegistrations >= Number(inputTotalSlots) ? 'FULL' : `${Number(inputTotalSlots) - totalRegistrations} left`)
+                              : 'UNLIMITED'}
+                          </span>
+                        </div>
+
+                        {/* Progress Bar */}
+                        {Number(inputTotalSlots) > 0 && (
+                          <div className="space-y-1">
+                            <div className="w-full bg-[#0a0a0d] h-2 rounded-full overflow-hidden border border-[#2e2b22]">
+                              <div 
+                                className={`h-full transition-all duration-500 rounded-full ${
+                                  totalRegistrations >= Number(inputTotalSlots)
+                                    ? 'bg-[#ff8a80]'
+                                    : (totalRegistrations / Number(inputTotalSlots)) > 0.8
+                                    ? 'bg-[#f59e0b]'
+                                    : 'bg-gradient-to-r from-[#f2c14e] to-[#d4a935]'
+                                }`}
+                                style={{ width: `${Math.min(100, Math.round((totalRegistrations / Number(inputTotalSlots)) * 100))}%` }}
+                              />
+                            </div>
+                            <div className="flex justify-between text-[10px] text-[#a79f8b] font-mono">
+                              <span>Occupied: {totalRegistrations}</span>
+                              <span>{Math.min(100, Math.round((totalRegistrations / Number(inputTotalSlots)) * 100))}%</span>
+                            </div>
+                          </div>
+                        )}
+
+                        <div>
+                          <label className="text-[10px] text-[#a79f8b] block mb-1">Max Total Capacity (0 = Unlimited):</label>
+                          <input
+                            type="number"
+                            min="0"
+                            value={inputTotalSlots}
+                            onChange={(e) => setInputTotalSlots(e.target.value)}
+                            placeholder="0 (Unlimited)"
+                            className="w-full px-3 py-2 text-xs rounded-lg bg-[#0a0a0d] border border-[#2e2b22] text-[#f3ecd9] font-mono focus:outline-none focus:border-[#d4a935]"
+                          />
+                        </div>
+                      </div>
+
+                      {/* Slot 2: IEEE Member Slots Limit */}
+                      <div className="p-3.5 rounded-xl bg-[#131318] border border-[#2e2b22] space-y-2.5">
+                        <div className="flex items-center justify-between">
+                          <span className="text-xs font-bold text-white flex items-center gap-1.5">
+                            <Award className="w-3.5 h-3.5 text-[#4cc38a]" />
+                            <span>IEEE Member Slots</span>
+                          </span>
+                          <span className={`text-[10px] font-mono px-1.5 py-0.5 rounded font-semibold ${
+                            Number(inputIeeeSlots) > 0 && totalIeeeMembers >= Number(inputIeeeSlots)
+                              ? 'bg-[#ff8a80]/20 text-[#ff8a80]'
+                              : Number(inputIeeeSlots) > 0
+                              ? 'bg-[#4cc38a]/20 text-[#4cc38a]'
+                              : 'bg-white/10 text-[#a79f8b]'
+                          }`}>
+                            {Number(inputIeeeSlots) > 0 
+                              ? (totalIeeeMembers >= Number(inputIeeeSlots) ? 'QUOTA FULL' : `${Number(inputIeeeSlots) - totalIeeeMembers} left`)
+                              : 'UNLIMITED'}
+                          </span>
+                        </div>
+
+                        {/* Progress Bar */}
+                        {Number(inputIeeeSlots) > 0 && (
+                          <div className="space-y-1">
+                            <div className="w-full bg-[#0a0a0d] h-2 rounded-full overflow-hidden border border-[#2e2b22]">
+                              <div 
+                                className={`h-full transition-all duration-500 rounded-full ${
+                                  totalIeeeMembers >= Number(inputIeeeSlots)
+                                    ? 'bg-[#ff8a80]'
+                                    : (totalIeeeMembers / Number(inputIeeeSlots)) > 0.8
+                                    ? 'bg-[#f59e0b]'
+                                    : 'bg-gradient-to-r from-[#4cc38a] to-[#22c55e]'
+                                }`}
+                                style={{ width: `${Math.min(100, Math.round((totalIeeeMembers / Number(inputIeeeSlots)) * 100))}%` }}
+                              />
+                            </div>
+                            <div className="flex justify-between text-[10px] text-[#a79f8b] font-mono">
+                              <span>Occupied: {totalIeeeMembers}</span>
+                              <span>{Math.min(100, Math.round((totalIeeeMembers / Number(inputIeeeSlots)) * 100))}%</span>
+                            </div>
+                          </div>
+                        )}
+
+                        <div>
+                          <label className="text-[10px] text-[#a79f8b] block mb-1">Max IEEE Slots (0 = Unlimited):</label>
+                          <input
+                            type="number"
+                            min="0"
+                            value={inputIeeeSlots}
+                            onChange={(e) => setInputIeeeSlots(e.target.value)}
+                            placeholder="0 (Unlimited)"
+                            className="w-full px-3 py-2 text-xs rounded-lg bg-[#0a0a0d] border border-[#2e2b22] text-[#f3ecd9] font-mono focus:outline-none focus:border-[#4cc38a]"
+                          />
+                        </div>
+                      </div>
+
+                      {/* Slot 3: Non-IEEE Delegate Slots Limit */}
+                      <div className="p-3.5 rounded-xl bg-[#131318] border border-[#2e2b22] space-y-2.5">
+                        <div className="flex items-center justify-between">
+                          <span className="text-xs font-bold text-white flex items-center gap-1.5">
+                            <Users className="w-3.5 h-3.5 text-[#70baff]" />
+                            <span>Non-IEEE Slots</span>
+                          </span>
+                          <span className={`text-[10px] font-mono px-1.5 py-0.5 rounded font-semibold ${
+                            Number(inputNonIeeeSlots) > 0 && totalNonIeeeMembers >= Number(inputNonIeeeSlots)
+                              ? 'bg-[#ff8a80]/20 text-[#ff8a80]'
+                              : Number(inputNonIeeeSlots) > 0
+                              ? 'bg-[#70baff]/20 text-[#70baff]'
+                              : 'bg-white/10 text-[#a79f8b]'
+                          }`}>
+                            {Number(inputNonIeeeSlots) > 0 
+                              ? (totalNonIeeeMembers >= Number(inputNonIeeeSlots) ? 'QUOTA FULL' : `${Number(inputNonIeeeSlots) - totalNonIeeeMembers} left`)
+                              : 'UNLIMITED'}
+                          </span>
+                        </div>
+
+                        {/* Progress Bar */}
+                        {Number(inputNonIeeeSlots) > 0 && (
+                          <div className="space-y-1">
+                            <div className="w-full bg-[#0a0a0d] h-2 rounded-full overflow-hidden border border-[#2e2b22]">
+                              <div 
+                                className={`h-full transition-all duration-500 rounded-full ${
+                                  totalNonIeeeMembers >= Number(inputNonIeeeSlots)
+                                    ? 'bg-[#ff8a80]'
+                                    : (totalNonIeeeMembers / Number(inputNonIeeeSlots)) > 0.8
+                                    ? 'bg-[#f59e0b]'
+                                    : 'bg-gradient-to-r from-[#70baff] to-[#3b82f6]'
+                                }`}
+                                style={{ width: `${Math.min(100, Math.round((totalNonIeeeMembers / Number(inputNonIeeeSlots)) * 100))}%` }}
+                              />
+                            </div>
+                            <div className="flex justify-between text-[10px] text-[#a79f8b] font-mono">
+                              <span>Occupied: {totalNonIeeeMembers}</span>
+                              <span>{Math.min(100, Math.round((totalNonIeeeMembers / Number(inputNonIeeeSlots)) * 100))}%</span>
+                            </div>
+                          </div>
+                        )}
+
+                        <div>
+                          <label className="text-[10px] text-[#a79f8b] block mb-1">Max Non-IEEE Slots (0 = Unlimited):</label>
+                          <input
+                            type="number"
+                            min="0"
+                            value={inputNonIeeeSlots}
+                            onChange={(e) => setInputNonIeeeSlots(e.target.value)}
+                            placeholder="0 (Unlimited)"
+                            className="w-full px-3 py-2 text-xs rounded-lg bg-[#0a0a0d] border border-[#2e2b22] text-[#f3ecd9] font-mono focus:outline-none focus:border-[#70baff]"
+                          />
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Quick Presets */}
+                    <div className="flex flex-wrap items-center gap-2 pt-1">
+                      <span className="text-[11px] text-[#a79f8b] font-semibold">Quick Quota Presets:</span>
+                      <button
+                        type="button"
+                        onClick={() => { setInputTotalSlots(0); setInputIeeeSlots(0); setInputNonIeeeSlots(0); }}
+                        className="px-2.5 py-1 text-[11px] rounded-lg bg-[#131318] hover:bg-[#1f1f28] border border-[#2e2b22] text-[#f3ecd9] transition-colors cursor-pointer"
+                      >
+                        All Unlimited (0)
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => { setInputTotalSlots(500); setInputIeeeSlots(200); setInputNonIeeeSlots(300); }}
+                        className="px-2.5 py-1 text-[11px] rounded-lg bg-[#131318] hover:bg-[#1f1f28] border border-[#2e2b22] text-[#f3ecd9] transition-colors cursor-pointer"
+                      >
+                        500 Symposium (200 IEEE / 300 Non-IEEE)
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => { setInputTotalSlots(300); setInputIeeeSlots(100); setInputNonIeeeSlots(200); }}
+                        className="px-2.5 py-1 text-[11px] rounded-lg bg-[#131318] hover:bg-[#1f1f28] border border-[#2e2b22] text-[#f3ecd9] transition-colors cursor-pointer"
+                      >
+                        300 Slots (100 IEEE / 200 Non-IEEE)
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => { setInputTotalSlots(150); setInputIeeeSlots(50); setInputNonIeeeSlots(100); }}
+                        className="px-2.5 py-1 text-[11px] rounded-lg bg-[#131318] hover:bg-[#1f1f28] border border-[#2e2b22] text-[#f3ecd9] transition-colors cursor-pointer"
+                      >
+                        150 Slots (50 IEEE / 100 Non-IEEE)
+                      </button>
+                    </div>
+
+                    {/* Action Save Button */}
+                    <div className="pt-2 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
+                      <button
+                        type="button"
+                        onClick={() => handleSaveSlotLimits()}
+                        disabled={isSavingLimits}
+                        className="py-3 px-6 rounded-xl font-bold text-sm bg-gradient-to-r from-[#f2c14e] to-[#d4a935] text-[#1a1300] hover:brightness-105 active:scale-[0.99] transition-all flex items-center justify-center gap-2 shadow-lg shadow-[#f2c14e]/15 cursor-pointer disabled:opacity-50"
+                      >
+                        {isSavingLimits ? (
+                          <>
+                            <RefreshCw className="w-4 h-4 animate-spin" />
+                            <span>Updating Quotas...</span>
+                          </>
+                        ) : (
+                          <>
+                            <Save className="w-4 h-4" />
+                            <span>Save & Apply Quota Limits</span>
+                          </>
+                        )}
+                      </button>
+
+                      {limitsSaveMsg && (
+                        <div className="text-xs text-[#4cc38a] font-semibold flex items-center gap-1.5 animate-in fade-in">
+                          <CheckCircle2 className="w-4 h-4 shrink-0" />
+                          <span>{limitsSaveMsg}</span>
+                        </div>
+                      )}
                     </div>
                   </div>
                 </div>
@@ -3462,6 +4154,106 @@ export const AdminModal: React.FC<AdminModalProps> = ({
                 </div>
               </div>
             </div>
+          </div>
+        )}
+
+        {/* In-Admin Ticket Pass Lightbox Viewer */}
+        {viewingAdminTicket && (
+          <div 
+            className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 bg-black/90 backdrop-blur-md overflow-y-auto animate-in fade-in"
+            onClick={() => setViewingAdminTicket(null)}
+          >
+            <div 
+              className="bg-[#111116] border-2 border-[#d4a935]/60 rounded-3xl max-w-4xl w-full max-h-[94vh] overflow-y-auto p-4 sm:p-6 relative shadow-2xl space-y-4"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="flex flex-wrap items-center justify-between gap-3 pb-3 border-b border-[#2e2b22]">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-xl bg-[#1f1b0e] border border-[#d4a935]/50 flex items-center justify-center text-[#f2c14e] shadow shrink-0">
+                    <Ticket className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <h3 className="font-serif-title text-base sm:text-lg font-bold text-white">
+                        Digital Ticket Pass · Admin Preview
+                      </h3>
+                      {viewingAdminTicket.paymentMode === 'upi' ? (
+                        viewingAdminTicket.isVerified ? (
+                          <span className="text-[10px] px-2 py-0.5 rounded-full bg-[#1b5e39] text-[#a5d6a7] font-semibold border border-[#4cc38a]/40">
+                            UPI Verified ✓
+                          </span>
+                        ) : (
+                          <span className="text-[10px] px-2 py-0.5 rounded-full bg-[#2a1d06] text-[#f2c14e] font-semibold border border-[#f2c14e]/40">
+                            UPI Pending Verification
+                          </span>
+                        )
+                      ) : (
+                        <span className="text-[10px] px-2 py-0.5 rounded-full bg-[#0c1f33] text-[#70baff] font-semibold border border-[#0088d4]/40">
+                          Auto Verified (Razorpay)
+                        </span>
+                      )}
+                    </div>
+                    <span className="text-xs text-[#a79f8b] block mt-0.5">
+                      Pass ID: <code className="text-[#f2c14e] font-mono">{viewingAdminTicket.regId}</code> · {viewingAdminTicket.name} ({viewingAdminTicket.roll})
+                    </span>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  {viewingAdminTicket.paymentMode === 'upi' && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        handleToggleVerify(viewingAdminTicket);
+                        setViewingAdminTicket(prev => prev ? { ...prev, isVerified: !prev.isVerified } : null);
+                      }}
+                      className={`px-3 py-1.5 rounded-xl font-bold text-xs flex items-center gap-1.5 cursor-pointer shadow transition-all ${
+                        viewingAdminTicket.isVerified
+                          ? 'bg-[#0d2a1c] border border-[#4cc38a]/60 text-[#4cc38a] hover:bg-[#153e2a]'
+                          : 'bg-gradient-to-r from-[#241a06] via-[#382608] to-[#241a06] border border-[#f2c14e] text-[#f2c14e] hover:bg-[#f2c14e] hover:text-[#1a1300]'
+                      }`}
+                    >
+                      {viewingAdminTicket.isVerified ? (
+                        <>
+                          <CheckCircle2 className="w-3.5 h-3.5 text-[#4cc38a]" />
+                          <span>Verified ✓ (Click to Unverify)</span>
+                        </>
+                      ) : (
+                        <>
+                          <Clock className="w-3.5 h-3.5 text-[#f2c14e]" />
+                          <span>Verify Payment Now</span>
+                        </>
+                      )}
+                    </button>
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => setViewingAdminTicket(null)}
+                    className="p-2 rounded-xl text-[#a79f8b] hover:text-white hover:bg-white/10 transition-colors cursor-pointer"
+                    aria-label="Close ticket preview"
+                  >
+                    <X className="w-5 h-5" />
+                  </button>
+                </div>
+              </div>
+
+              {/* Render Full Ticket Pass */}
+              <TicketPass
+                record={viewingAdminTicket}
+                events={ALL_EVENTS}
+                onReset={() => setViewingAdminTicket(null)}
+                leftLogo={leftLogo}
+                rightLogo={rightLogo}
+              />
+            </div>
+          </div>
+        )}
+
+        {/* Email Sent Floating Toast */}
+        {emailSendToast && (
+          <div className="fixed bottom-6 right-6 z-50 p-4 rounded-xl bg-[#0f2e1e] border-2 border-[#4cc38a] text-[#4cc38a] text-xs font-bold shadow-2xl flex items-center gap-2.5 animate-in slide-in-from-bottom duration-200">
+            <CheckCircle2 className="w-4 h-4 text-[#4cc38a] shrink-0" />
+            <span>{emailSendToast}</span>
           </div>
         )}
       </div>

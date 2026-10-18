@@ -1,7 +1,7 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 
-const BASE_URL = 'http://localhost:3000';
+const BASE_URL = process.env.API_BASE_URL || 'http://localhost:5000';
 
 describe('NexusVerse 2K26 Backend API Endpoints Unit Tests', () => {
   it('GET /api/health should respond with ok status', async () => {
@@ -170,4 +170,36 @@ describe('NexusVerse 2K26 Backend API Endpoints Unit Tests', () => {
       throw err;
     }
   });
+
+  it('POST /api/settings should configure and retrieve slot limits for IEEE, Non-IEEE, and Total', async () => {
+    try {
+      const postRes = await fetch(`${BASE_URL}/api/settings`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          totalSlotsLimit: 500,
+          ieeeSlotsLimit: 200,
+          nonIeeeSlotsLimit: 300
+        })
+      });
+      assert.equal(postRes.status, 200);
+      const postData = await postRes.json();
+      assert.equal(postData.success, true);
+      assert.equal(postData.data.totalSlotsLimit, 500);
+      assert.equal(postData.data.ieeeSlotsLimit, 200);
+      assert.equal(postData.data.nonIeeeSlotsLimit, 300);
+
+      const getRes = await fetch(`${BASE_URL}/api/settings`);
+      assert.equal(getRes.status, 200);
+      const getData = await getRes.json();
+      assert.equal(getData.success, true);
+      assert.equal(getData.data.totalSlotsLimit, 500);
+      assert.equal(getData.data.ieeeSlotsLimit, 200);
+      assert.equal(getData.data.nonIeeeSlotsLimit, 300);
+    } catch (err: any) {
+      if (err.code === 'ECONNREFUSED') return;
+      throw err;
+    }
+  });
 });
+

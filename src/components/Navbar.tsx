@@ -85,7 +85,7 @@ export const Navbar: React.FC<NavbarProps> = ({
             className="text-xs text-[#d4a935] hover:text-[#f2c14e] transition-colors flex items-center gap-1.5 whitespace-nowrap cursor-pointer px-2.5 py-1 rounded-md bg-[#1f1b0e] border border-[#d4a935]/30"
           >
             <Ticket className="w-3.5 h-3.5" />
-            <span>Find My Pass</span>
+            <span>Find My Ticket</span>
           </button>
         </nav>
 
@@ -127,7 +127,7 @@ export const Navbar: React.FC<NavbarProps> = ({
           >
             <User className="w-3.5 h-3.5 text-[#f2c14e]" />
             <span className="hidden sm:inline">
-              {currentUser ? `${currentUser.name.split(' ')[0]}'s Space` : 'Participant Space'}
+              {currentUser ? `${currentUser.name.split(' ')[0]}'s Space` : 'Your Space'}
             </span>
           </button>
 
@@ -224,7 +224,7 @@ export const Navbar: React.FC<NavbarProps> = ({
             className="w-full text-left py-2 text-sm text-[#f2c14e] flex items-center gap-2 font-semibold"
           >
             <User className="w-4 h-4 text-[#f2c14e]" />
-            <span>{currentUser ? `${currentUser.name}'s Participant Space` : 'Participant Space (Login / Sign Up)'}</span>
+            <span>{currentUser ? `${currentUser.name}'s Space` : 'Your Space (Login / Sign Up)'}</span>
           </button>
           <button
             type="button"
@@ -235,7 +235,7 @@ export const Navbar: React.FC<NavbarProps> = ({
             className="w-full text-left py-2 text-sm text-[#d4a935] flex items-center gap-2"
           >
             <Ticket className="w-4 h-4" />
-            <span>Find My Pass</span>
+            <span>Find My Ticket</span>
           </button>
           {onToggleTheme && (
             <button

@@ -101,7 +101,10 @@
     "upiVpa": "9441759500@ptyes",
     "upiPayeeName": "NexusVerse 2K26",
     "razorpayMeLink": "https://razorpay.me/@veluriprasanth",
-    "razorpayMeName": "VELURI PRASANTH"
+    "razorpayMeName": "VELURI PRASANTH",
+    "totalSlotsLimit": 500,
+    "ieeeSlotsLimit": 200,
+    "nonIeeeSlotsLimit": 300
   },
   "photos": [
     {

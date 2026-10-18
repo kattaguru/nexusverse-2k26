@@ -16,7 +16,9 @@ import {
   Users, 
   Layers,
   MessageCircle,
-  ExternalLink 
+  ExternalLink,
+  Clock,
+  ShieldCheck 
 } from 'lucide-react';
 import { SymposiumEvent, SYMPOSIUM_CONFIG, SPOT_EVENT } from '../data/symposiumData';
 
@@ -34,6 +36,7 @@ export interface TeamMemberInfo {
 
 export interface RegistrationRecord {
   regId: string;
+  userId?: string;
   paymentId: string;
   paymentScreenshot?: string;
   paymentMode?: 'upi' | 'razorpay';
@@ -58,6 +61,9 @@ export interface RegistrationRecord {
   totalPaid: number;
   promoCode?: string;
   timestamp: string;
+  isVerified?: boolean;
+  verifiedAt?: string;
+  verifiedBy?: string;
 }
 
 interface TicketPassProps {
@@ -181,6 +187,31 @@ export const TicketPass: React.FC<TicketPassProps> = ({
           </button>
         </div>
       </div>
+
+      {/* UPI Payment Status Banner */}
+      {record.paymentMode === 'upi' && (
+        <div className={`no-print p-4 sm:p-5 rounded-2xl border text-xs sm:text-sm text-[#f3ecd9] flex items-center gap-3.5 shadow-xl ${
+          record.isVerified
+            ? 'bg-gradient-to-r from-[#0d2a1c] via-[#143a28] to-[#0d2a1c] border-[#4cc38a]/70'
+            : 'bg-gradient-to-r from-[#1f1b0e] via-[#2a2211] to-[#1f1b0e] border-[#d4a935]/70'
+        }`}>
+          <div className={`w-10 h-10 rounded-xl border flex items-center justify-center shrink-0 ${
+            record.isVerified
+              ? 'bg-[#4cc38a]/20 border-[#4cc38a]/50 text-[#4cc38a]'
+              : 'bg-[#d4a935]/20 border-[#d4a935]/50 text-[#f2c14e]'
+          }`}>
+            {record.isVerified ? <ShieldCheck className="w-5 h-5" /> : <Clock className="w-5 h-5" />}
+          </div>
+          <div>
+            <span className={`font-bold block text-sm ${record.isVerified ? 'text-[#4cc38a]' : 'text-[#f2c14e]'}`}>
+              {record.isVerified ? 'UPI Payment Verified ✓ · Official Entry Authorized' : 'UPI Payment Recorded · Mail at 8 PM'}
+            </span>
+            <span className="text-[#d8cea7] text-xs">
+              Your ticket will be sent to your mail at <strong>8 PM</strong> and you can access your ticket in <strong>your space</strong> (<strong>find my ticket</strong>).
+            </span>
+          </div>
+        </div>
+      )}
 
       {/* Mandatory Official WhatsApp Group Notification Card */}
       <div className="no-print p-4 sm:p-5 rounded-2xl bg-gradient-to-r from-[#0d2a1a] via-[#123824] to-[#0d2a1a] border-2 border-[#25d366]/70 shadow-2xl shadow-[#25d366]/20 space-y-3 animate-in zoom-in-95 duration-300 relative overflow-hidden">

@@ -61,6 +61,9 @@ export function mapDbToRegistrationRecord(row: any): RegistrationRecord {
     totalPaid: Number(row.total_paid ?? row.totalPaid ?? 0),
     promoCode: row.promo_code || row.promoCode || '',
     timestamp: row.timestamp || row.created_at || new Date().toISOString(),
+    isVerified: Boolean(row.is_verified ?? row.isVerified ?? (row.team_details?._isVerified)),
+    verifiedAt: row.verified_at || row.verifiedAt || row.team_details?._verifiedAt,
+    verifiedBy: row.verified_by || row.verifiedBy || row.team_details?._verifiedBy,
   };
 }
 
@@ -71,7 +74,10 @@ export function mapRegistrationRecordToDb(record: RegistrationRecord): Record<st
   const teamDetailsWithPayment = {
     ...(record.teamDetails || {}),
     ...(record.paymentScreenshot ? { _paymentScreenshot: record.paymentScreenshot } : {}),
-    ...(record.paymentMode ? { _paymentMode: record.paymentMode } : {})
+    ...(record.paymentMode ? { _paymentMode: record.paymentMode } : {}),
+    ...(record.isVerified !== undefined ? { _isVerified: record.isVerified } : {}),
+    ...(record.verifiedAt ? { _verifiedAt: record.verifiedAt } : {}),
+    ...(record.verifiedBy ? { _verifiedBy: record.verifiedBy } : {})
   };
   return {
     reg_id: record.regId,

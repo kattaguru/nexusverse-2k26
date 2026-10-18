@@ -88,7 +88,7 @@ export const PassLookupModal: React.FC<PassLookupModalProps> = ({
           <div className="flex items-center gap-2">
             <Ticket className="w-5 h-5 text-[#d4a935]" />
             <h3 id="lookup-modal-title" className="font-serif-title text-xl font-bold text-[#ffffff]">
-              Find Your Ticket Pass
+              Find My Ticket
             </h3>
           </div>
           <button 

@@ -21,7 +21,11 @@ import {
   Clock,
   MapPin,
   ExternalLink,
-  MessageCircle
+  MessageCircle,
+  Copy,
+  Check,
+  Image as ImageIcon,
+  Users
 } from 'lucide-react';
 import { 
   ParticipantUser, 
@@ -44,6 +48,7 @@ interface ParticipantSpaceModalProps {
   savedRecords: RegistrationRecord[];
   onOpenTicketPass: (record: RegistrationRecord) => void;
   onNavigateToRegister: (prefillData: Partial<ParticipantUser>) => void;
+  initialMode?: 'signin' | 'signup';
 }
 
 export const ParticipantSpaceModal: React.FC<ParticipantSpaceModalProps> = ({
@@ -54,9 +59,10 @@ export const ParticipantSpaceModal: React.FC<ParticipantSpaceModalProps> = ({
   savedRecords,
   onOpenTicketPass,
   onNavigateToRegister,
+  initialMode
 }) => {
   // Auth Form State
-  const [authMode, setAuthMode] = useState<'signin' | 'signup'>('signin');
+  const [authMode, setAuthMode] = useState<'signin' | 'signup'>(initialMode || 'signin');
   const [identifier, setIdentifier] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -89,9 +95,20 @@ export const ParticipantSpaceModal: React.FC<ParticipantSpaceModalProps> = ({
   const [loading, setLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
   const [successMsg, setSuccessMsg] = useState('');
-  const [googlePromptOpen, setGooglePromptOpen] = useState(false);
   const [googleSimEmail, setGoogleSimEmail] = useState('');
   const [googleSimName, setGoogleSimName] = useState('');
+
+  // Dashboard detail states
+  const [copiedRegId, setCopiedRegId] = useState<string | null>(null);
+  const [copiedUtr, setCopiedUtr] = useState<string | null>(null);
+  const [viewingReceiptModal, setViewingReceiptModal] = useState<string | null>(null);
+
+  // Sync initialMode when modal opens
+  useEffect(() => {
+    if (isOpen && initialMode) {
+      setAuthMode(initialMode);
+    }
+  }, [isOpen, initialMode]);
 
   // Populate profile edit form when user changes
   useEffect(() => {
@@ -112,6 +129,7 @@ export const ParticipantSpaceModal: React.FC<ParticipantSpaceModalProps> = ({
   // Filter registrations belonging to this user
   const userRegistrations = currentUser
     ? savedRecords.filter(r => {
+        const uId = currentUser.id;
         const uEmail = (currentUser.email || '').toLowerCase().trim();
         const uRoll = (currentUser.roll || '').toUpperCase().trim();
         const uPhone = (currentUser.phone || '').replace(/\s+/g, '');
@@ -121,6 +139,7 @@ export const ParticipantSpaceModal: React.FC<ParticipantSpaceModalProps> = ({
         const rPhone = (r.phone || '').replace(/\s+/g, '');
 
         return (
+          (uId && r.userId && r.userId === uId) ||
           (uEmail && rEmail === uEmail) ||
           (uRoll && rRoll === uRoll) ||
           (uPhone && uPhone.length > 5 && rPhone === uPhone)
@@ -856,62 +875,246 @@ export const ParticipantSpaceModal: React.FC<ParticipantSpaceModalProps> = ({
                     return (
                       <div 
                         key={rec.regId}
-                        className="p-4 rounded-xl bg-[#0a0a0d] border border-[#2e2b22] space-y-3 hover:border-[#d4a935]/40 transition-colors"
+                        className="p-4 sm:p-5 rounded-2xl bg-[#0a0a0d] border border-[#2e2b22] space-y-4 hover:border-[#d4a935]/40 transition-colors"
                       >
+                        {/* Header: Reg ID, Event Titles, Status */}
                         <div className="flex flex-wrap items-center justify-between gap-2 border-b border-[#2e2b22] pb-3">
                           <div>
-                            <span className="text-[10px] uppercase font-mono font-bold text-[#d4a935] tracking-wider block">
-                              Reg ID: {rec.regId}
-                            </span>
-                            <span className="text-sm font-bold text-[#ffffff]">
+                            <div className="flex items-center gap-2">
+                              <span className="text-xs uppercase font-mono font-bold text-[#d4a935] tracking-wider">
+                                Reg ID: {rec.regId}
+                              </span>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  navigator.clipboard.writeText(rec.regId);
+                                  setCopiedRegId(rec.regId);
+                                  setTimeout(() => setCopiedRegId(null), 2000);
+                                }}
+                                className="text-[#a79f8b] hover:text-[#f2c14e] transition-colors cursor-pointer"
+                                title="Copy Registration ID"
+                              >
+                                {copiedRegId === rec.regId ? <Check className="w-3.5 h-3.5 text-[#4cc38a]" /> : <Copy className="w-3.5 h-3.5" />}
+                              </button>
+                            </div>
+                            <span className="text-sm sm:text-base font-bold text-[#ffffff] block mt-0.5">
                               {eventObjects.map(e => e?.name).join(' & ') || 'NexusVerse Flagship'}
                             </span>
+                            {rec.timestamp && (
+                              <span className="text-[10px] text-[#716c5e]">
+                                Registered on {new Date(rec.timestamp).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                              </span>
+                            )}
                           </div>
-                          <span className="px-2.5 py-1 rounded-full bg-[#142617] border border-[#81c784]/40 text-[#a5d6a7] font-semibold text-xs flex items-center gap-1">
-                            <CheckCircle2 className="w-3.5 h-3.5" />
-                            <span>Confirmed & Paid</span>
-                          </span>
+
+                          <div className="flex flex-col items-end gap-1">
+                            {rec.paymentMode === 'upi' ? (
+                              <span className="px-2.5 py-1 rounded-full bg-[#1e2714] border border-[#d4a935]/50 text-[#f2c14e] font-semibold text-xs flex items-center gap-1.5">
+                                <Clock className="w-3.5 h-3.5" />
+                                <span>UPI Submitted · Ticket at 8 PM</span>
+                              </span>
+                            ) : (
+                              <span className="px-2.5 py-1 rounded-full bg-[#142617] border border-[#81c784]/40 text-[#a5d6a7] font-semibold text-xs flex items-center gap-1.5">
+                                <CheckCircle2 className="w-3.5 h-3.5" />
+                                <span>Confirmed & Paid</span>
+                              </span>
+                            )}
+                          </div>
                         </div>
 
-                        {/* Event Details */}
-                        {eventObjects.map(ev => {
-                          if (!ev) return null;
-                          const teamInfo = rec.teamDetails?.[ev.id];
-                          return (
-                            <div key={ev.id} className="text-xs space-y-1 bg-[#131318] p-3 rounded-lg border border-[#2e2b22]/70">
-                              <div className="flex items-center justify-between">
-                                <span className="font-semibold text-[#f2c14e]">{ev.name} ({ev.category})</span>
-                                <span className="text-[#a79f8b] text-[11px]">{ev.time}</span>
-                              </div>
-                              <div className="text-[#a79f8b] flex items-center gap-1 text-[11px]">
-                                <MapPin className="w-3 h-3 text-[#d4a935]" />
-                                <span>{ev.venue}</span>
-                              </div>
-                              {teamInfo?.teamName && (
-                                <div className="text-[#d4a935] text-[11px] font-medium pt-1">
-                                  Team: <span className="text-[#f3ecd9]">{teamInfo.teamName}</span>
-                                </div>
-                              )}
+                        {/* PARTICIPANT'S COMPLETE PERSONAL & ACADEMIC DETAILS */}
+                        <div className="space-y-1.5">
+                          <span className="text-[10px] uppercase font-bold text-[#a79f8b] tracking-wider block">
+                            Delegate Information
+                          </span>
+                          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2.5 text-xs bg-[#111116] p-3 sm:p-4 rounded-xl border border-[#23232e]">
+                            <div>
+                              <span className="text-[10px] text-[#a79f8b] block font-medium">Full Name</span>
+                              <span className="font-bold text-white block">{rec.name}</span>
+                              <span className="text-[11px] font-mono text-[#f2c14e]">{rec.roll}</span>
                             </div>
-                          );
-                        })}
+
+                            <div>
+                              <span className="text-[10px] text-[#a79f8b] block font-medium">Class, Section & Branch</span>
+                              <span className="font-semibold text-white block">
+                                {rec.className} {rec.section && `- Section ${rec.section}`} · {rec.dept}
+                              </span>
+                              <span className="text-[11px] text-[#a79f8b]">{rec.year}</span>
+                            </div>
+
+                            <div>
+                              <span className="text-[10px] text-[#a79f8b] block font-medium">Institution / College</span>
+                              <span className="font-medium text-white block truncate" title={rec.college}>{rec.college}</span>
+                              <span className="text-[11px] text-[#a79f8b]">
+                                {rec.isIeeeMember ? (
+                                  <span className="text-[#4cc38a] font-semibold">IEEE Member (#{rec.ieeeId || 'Active'})</span>
+                                ) : (
+                                  <span>Non-IEEE</span>
+                                )}
+                              </span>
+                            </div>
+
+                            <div>
+                              <span className="text-[10px] text-[#a79f8b] block font-medium">Registered Mobile</span>
+                              <span className="font-mono text-white block">{rec.phone}</span>
+                            </div>
+
+                            <div>
+                              <span className="text-[10px] text-[#a79f8b] block font-medium">Dispatch Email Address</span>
+                              <span className="text-white block truncate" title={rec.email}>{rec.email}</span>
+                            </div>
+
+                            <div>
+                              <span className="text-[10px] text-[#a79f8b] block font-medium">Payment Reference</span>
+                              <div className="flex items-center gap-1 font-mono text-white">
+                                <span className="truncate">{rec.paymentId}</span>
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    navigator.clipboard.writeText(rec.paymentId);
+                                    setCopiedUtr(rec.paymentId);
+                                    setTimeout(() => setCopiedUtr(null), 2000);
+                                  }}
+                                  className="text-[#a79f8b] hover:text-[#f2c14e] cursor-pointer"
+                                  title="Copy Reference"
+                                >
+                                  {copiedUtr === rec.paymentId ? <Check className="w-3 h-3 text-[#4cc38a]" /> : <Copy className="w-3 h-3" />}
+                                </button>
+                              </div>
+                              <span className="text-[10px] text-[#a79f8b]">
+                                Fee Paid: <strong className="text-[#f2c14e]">₹{rec.totalPaid}</strong> ({rec.paymentMode === 'upi' ? 'UPI Transfer' : 'Razorpay'})
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* IF UPI: 8 PM NOTIFICATION & PAYMENT RECEIPT SCREENSHOT */}
+                        {rec.paymentMode === 'upi' && (
+                          <div className="p-3 rounded-xl bg-gradient-to-r from-[#171306] via-[#1f1a08] to-[#171306] border border-[#d4a935]/50 flex flex-wrap items-center justify-between gap-3 text-xs">
+                            <div className="flex items-center gap-2.5">
+                              <Clock className="w-4 h-4 text-[#f2c14e] shrink-0" />
+                              <span className="text-[#f3ecd9] leading-tight">
+                                Your ticket will be sent to your mail at <strong className="text-[#f2c14e]">8 PM</strong> and you can access your ticket in your space find my ticket.
+                              </span>
+                            </div>
+
+                            {rec.paymentScreenshot && (
+                              <button
+                                type="button"
+                                onClick={() => setViewingReceiptModal(rec.paymentScreenshot || null)}
+                                className="px-2.5 py-1 rounded-lg bg-[#2b220d] border border-[#d4a935]/40 text-[#f2c14e] hover:bg-[#d4a935] hover:text-black font-semibold text-[11px] flex items-center gap-1.5 cursor-pointer shrink-0 transition-colors"
+                              >
+                                <ImageIcon className="w-3.5 h-3.5" />
+                                <span>View Uploaded Receipt</span>
+                              </button>
+                            )}
+                          </div>
+                        )}
+
+                        {/* REGISTERED EVENTS & DETAILED TEAM ROSTER */}
+                        <div className="space-y-2">
+                          <span className="text-[10px] uppercase font-bold text-[#a79f8b] tracking-wider block">
+                            Event Details & Team Members
+                          </span>
+                          {eventObjects.map(ev => {
+                            if (!ev) return null;
+                            const teamInfo = rec.teamDetails?.[ev.id];
+                            const additionalTeammates = teamInfo?.teamMembers || [];
+
+                            return (
+                              <div key={ev.id} className="text-xs space-y-2 bg-[#131318] p-3.5 rounded-xl border border-[#2e2b22]">
+                                <div className="flex items-center justify-between border-b border-[#2e2b22]/70 pb-2">
+                                  <span className="font-bold text-[#f2c14e]">{ev.name} ({ev.category})</span>
+                                  <div className="flex items-center gap-2 text-[11px] text-[#a79f8b]">
+                                    <span className="flex items-center gap-1">
+                                      <Clock className="w-3 h-3 text-[#d4a935]" />
+                                      <span>{ev.time}</span>
+                                    </span>
+                                    <span>·</span>
+                                    <span className="flex items-center gap-1">
+                                      <MapPin className="w-3 h-3 text-[#d4a935]" />
+                                      <span>{ev.venue}</span>
+                                    </span>
+                                  </div>
+                                </div>
+
+                                {teamInfo?.projectTitle && (
+                                  <div className="text-[11px] text-[#9fc7e8]">
+                                    <strong>Project Title:</strong> {teamInfo.projectTitle}
+                                  </div>
+                                )}
+
+                                {teamInfo?.teamName && (
+                                  <div className="space-y-1.5 pt-1">
+                                    <div className="text-[11px] font-semibold text-[#f2c14e] flex items-center gap-1.5">
+                                      <Users className="w-3.5 h-3.5" />
+                                      <span>Team: {teamInfo.teamName} ({1 + additionalTeammates.length} Members)</span>
+                                    </div>
+
+                                    {/* Team Members List */}
+                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1">
+                                      {/* Lead */}
+                                      <div className="p-2 rounded-lg bg-[#0a0a0d] border border-[#2e2b22] text-[11px]">
+                                        <div className="flex items-center justify-between">
+                                          <span className="font-bold text-white">1. {rec.name} (Team Lead)</span>
+                                          <span className="text-[9px] px-1.5 py-0.5 rounded bg-[#1f1b0e] text-[#f2c14e] font-semibold">Lead</span>
+                                        </div>
+                                        <div className="text-[#a79f8b] font-mono text-[10px] mt-0.5">
+                                          Roll: {rec.roll} · {rec.dept} · 📞 {rec.phone}
+                                        </div>
+                                      </div>
+
+                                      {/* Teammates */}
+                                      {additionalTeammates.map((m, idx) => (
+                                        <div key={idx} className="p-2 rounded-lg bg-[#0a0a0d] border border-[#2e2b22] text-[11px]">
+                                          <div className="flex items-center justify-between">
+                                            <span className="font-bold text-white">{idx + 2}. {m.name}</span>
+                                            {m.isIeeeMember && (
+                                              <span className="text-[9px] px-1.5 py-0.5 rounded bg-[#152319] text-[#4cc38a] font-semibold">IEEE</span>
+                                            )}
+                                          </div>
+                                          <div className="text-[#a79f8b] font-mono text-[10px] mt-0.5">
+                                            Roll: {m.roll} · {m.branch} {m.section && `(${m.section})`} · 📞 {m.phone}
+                                          </div>
+                                        </div>
+                                      ))}
+                                    </div>
+                                  </div>
+                                )}
+                              </div>
+                            );
+                          })}
+                        </div>
 
                         {/* Action Buttons */}
-                        <div className="flex items-center justify-between pt-1">
+                        <div className="flex flex-wrap items-center justify-between gap-2.5 pt-2 border-t border-[#2e2b22]">
                           <span className="text-xs text-[#a79f8b]">
-                            Paid: <span className="font-mono text-[#f3ecd9] font-bold">₹{rec.totalPaid}</span>
+                            Total Amount: <span className="font-mono text-[#f3ecd9] font-bold text-sm">₹{rec.totalPaid}</span>
                           </span>
-                          <button
-                            type="button"
-                            onClick={() => {
-                              onOpenTicketPass(rec);
-                              onClose();
-                            }}
-                            className="px-4 py-2 rounded-lg bg-[#f2c14e] text-[#1a1300] font-bold text-xs hover:bg-[#d4a935] transition-all flex items-center gap-1.5 cursor-pointer shadow-sm"
-                          >
-                            <Ticket className="w-3.5 h-3.5" />
-                            <span>View Digital QR Pass</span>
-                          </button>
+
+                          <div className="flex items-center gap-2">
+                            <a
+                              href={SYMPOSIUM_CONFIG.whatsappGroupUrl || 'https://chat.whatsapp.com/sample-nexusverse-2k26'}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="px-3 py-1.5 rounded-lg bg-[#092215] border border-[#25d366]/40 text-[#25d366] hover:bg-[#25d366] hover:text-[#052e16] font-semibold text-xs flex items-center gap-1.5 transition-colors cursor-pointer"
+                            >
+                              <MessageCircle className="w-3.5 h-3.5 fill-current" />
+                              <span>WhatsApp</span>
+                            </a>
+
+                            <button
+                              type="button"
+                              onClick={() => {
+                                onOpenTicketPass(rec);
+                                onClose();
+                              }}
+                              className="px-4 py-2 rounded-lg bg-[#f2c14e] text-[#1a1300] font-bold text-xs hover:bg-[#d4a935] transition-all flex items-center gap-1.5 cursor-pointer shadow-sm"
+                            >
+                              <Ticket className="w-3.5 h-3.5" />
+                              <span>View Digital QR Pass</span>
+                            </button>
+                          </div>
                         </div>
                       </div>
                     );
@@ -1102,6 +1305,36 @@ export const ParticipantSpaceModal: React.FC<ParticipantSpaceModalProps> = ({
                   </button>
                 </div>
               </form>
+            </div>
+          </div>
+        )}
+
+        {/* Lightbox for viewing receipt screenshot from dashboard */}
+        {viewingReceiptModal && (
+          <div 
+            className="fixed inset-0 z-60 flex items-center justify-center p-3 sm:p-6 bg-black/90 backdrop-blur-md animate-in fade-in"
+            onClick={() => setViewingReceiptModal(null)}
+          >
+            <div 
+              className="bg-[#111116] border border-[#2e2b22] rounded-2xl max-w-xl w-full max-h-[90vh] flex flex-col overflow-hidden shadow-2xl"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="p-3.5 border-b border-[#2e2b22] flex items-center justify-between bg-[#181820]">
+                <div className="flex items-center gap-2">
+                  <ImageIcon className="w-4 h-4 text-[#4cc38a]" />
+                  <span className="font-bold text-white text-xs">Uploaded UPI Payment Receipt</span>
+                </div>
+                <button 
+                  type="button" 
+                  onClick={() => setViewingReceiptModal(null)}
+                  className="p-1 rounded-lg text-[#a79f8b] hover:text-white cursor-pointer"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+              <div className="p-4 overflow-auto flex items-center justify-center bg-black/60">
+                <img src={viewingReceiptModal} alt="Uploaded Payment Receipt" className="max-h-[70vh] max-w-full object-contain rounded-lg border border-[#2e2b22]" />
+              </div>
             </div>
           </div>
         )}

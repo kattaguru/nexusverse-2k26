@@ -196,10 +196,18 @@ export async function deleteRegistrationApi(regId: string): Promise<boolean> {
   return supabaseSuccess;
 }
 
+export interface PortalSettingsData {
+  isRegClosed: boolean;
+  closedMessage: string;
+  totalSlotsLimit?: number;
+  ieeeSlotsLimit?: number;
+  nonIeeeSlotsLimit?: number;
+}
+
 /**
- * Fetch portal settings (open/closed status and banner message).
+ * Fetch portal settings (open/closed status, banner message, and slot capacity limits).
  */
-export async function fetchSettingsApi(): Promise<{ isRegClosed: boolean; closedMessage: string }> {
+export async function fetchSettingsApi(): Promise<PortalSettingsData> {
   // 1. Supabase settings
   if (isSupabaseConfigured() && supabase) {
     try {
@@ -210,13 +218,19 @@ export async function fetchSettingsApi(): Promise<{ isRegClosed: boolean; closed
         .single();
 
       if (!error && data) {
-        const result = {
+        const result: PortalSettingsData = {
           isRegClosed: Boolean(data.is_reg_closed),
-          closedMessage: data.closed_message || 'Registration is currently closed.'
+          closedMessage: data.closed_message || 'Registration is currently closed.',
+          totalSlotsLimit: typeof data.total_slots_limit === 'number' ? data.total_slots_limit : 0,
+          ieeeSlotsLimit: typeof data.ieee_slots_limit === 'number' ? data.ieee_slots_limit : 0,
+          nonIeeeSlotsLimit: typeof data.non_ieee_slots_limit === 'number' ? data.non_ieee_slots_limit : 0
         };
         try {
           localStorage.setItem('nexusverse_reg_closed', String(result.isRegClosed));
           localStorage.setItem('nexusverse_closed_msg', result.closedMessage);
+          localStorage.setItem('nexusverse_total_slots_limit', String(result.totalSlotsLimit || 0));
+          localStorage.setItem('nexusverse_ieee_slots_limit', String(result.ieeeSlotsLimit || 0));
+          localStorage.setItem('nexusverse_non_ieee_slots_limit', String(result.nonIeeeSlotsLimit || 0));
         } catch (e) {}
         return result;
       }
@@ -229,12 +243,22 @@ export async function fetchSettingsApi(): Promise<{ isRegClosed: boolean; closed
     if (res.ok) {
       const json = await res.json();
       if (json.success && json.data) {
-        const { isRegClosed, closedMessage } = json.data;
+        const { isRegClosed, closedMessage, totalSlotsLimit, ieeeSlotsLimit, nonIeeeSlotsLimit } = json.data;
+        const result: PortalSettingsData = {
+          isRegClosed: Boolean(isRegClosed),
+          closedMessage: closedMessage || 'Registration is currently closed.',
+          totalSlotsLimit: Number(totalSlotsLimit) || 0,
+          ieeeSlotsLimit: Number(ieeeSlotsLimit) || 0,
+          nonIeeeSlotsLimit: Number(nonIeeeSlotsLimit) || 0
+        };
         try {
-          localStorage.setItem('nexusverse_reg_closed', String(isRegClosed));
+          localStorage.setItem('nexusverse_reg_closed', String(result.isRegClosed));
           if (closedMessage) localStorage.setItem('nexusverse_closed_msg', closedMessage);
+          localStorage.setItem('nexusverse_total_slots_limit', String(result.totalSlotsLimit));
+          localStorage.setItem('nexusverse_ieee_slots_limit', String(result.ieeeSlotsLimit));
+          localStorage.setItem('nexusverse_non_ieee_slots_limit', String(result.nonIeeeSlotsLimit));
         } catch (e) {}
-        return { isRegClosed, closedMessage };
+        return result;
       }
     }
   } catch (err) {}
@@ -242,14 +266,23 @@ export async function fetchSettingsApi(): Promise<{ isRegClosed: boolean; closed
   // 3. Local fallback
   return {
     isRegClosed: localStorage.getItem('nexusverse_reg_closed') === 'true',
-    closedMessage: localStorage.getItem('nexusverse_closed_msg') || 'Registration is currently closed.'
+    closedMessage: localStorage.getItem('nexusverse_closed_msg') || 'Registration is currently closed.',
+    totalSlotsLimit: Number(localStorage.getItem('nexusverse_total_slots_limit')) || 0,
+    ieeeSlotsLimit: Number(localStorage.getItem('nexusverse_ieee_slots_limit')) || 0,
+    nonIeeeSlotsLimit: Number(localStorage.getItem('nexusverse_non_ieee_slots_limit')) || 0
   };
 }
 
 /**
  * Update portal settings on Supabase and Express server.
  */
-export async function updateSettingsApi(settings: { isRegClosed?: boolean; closedMessage?: string }): Promise<boolean> {
+export async function updateSettingsApi(settings: { 
+  isRegClosed?: boolean; 
+  closedMessage?: string;
+  totalSlotsLimit?: number;
+  ieeeSlotsLimit?: number;
+  nonIeeeSlotsLimit?: number;
+}): Promise<boolean> {
   if (typeof settings.isRegClosed === 'boolean') {
     try {
       localStorage.setItem('nexusverse_reg_closed', String(settings.isRegClosed));
@@ -258,6 +291,21 @@ export async function updateSettingsApi(settings: { isRegClosed?: boolean; close
   if (settings.closedMessage) {
     try {
       localStorage.setItem('nexusverse_closed_msg', settings.closedMessage);
+    } catch (e) {}
+  }
+  if (typeof settings.totalSlotsLimit === 'number') {
+    try {
+      localStorage.setItem('nexusverse_total_slots_limit', String(settings.totalSlotsLimit));
+    } catch (e) {}
+  }
+  if (typeof settings.ieeeSlotsLimit === 'number') {
+    try {
+      localStorage.setItem('nexusverse_ieee_slots_limit', String(settings.ieeeSlotsLimit));
+    } catch (e) {}
+  }
+  if (typeof settings.nonIeeeSlotsLimit === 'number') {
+    try {
+      localStorage.setItem('nexusverse_non_ieee_slots_limit', String(settings.nonIeeeSlotsLimit));
     } catch (e) {}
   }
 
@@ -272,6 +320,9 @@ export async function updateSettingsApi(settings: { isRegClosed?: boolean; close
       };
       if (typeof settings.isRegClosed === 'boolean') payload.is_reg_closed = settings.isRegClosed;
       if (settings.closedMessage) payload.closed_message = settings.closedMessage;
+      if (typeof settings.totalSlotsLimit === 'number') payload.total_slots_limit = settings.totalSlotsLimit;
+      if (typeof settings.ieeeSlotsLimit === 'number') payload.ieee_slots_limit = settings.ieeeSlotsLimit;
+      if (typeof settings.nonIeeeSlotsLimit === 'number') payload.non_ieee_slots_limit = settings.nonIeeeSlotsLimit;
 
       const { error } = await supabase
         .from('portal_settings')
