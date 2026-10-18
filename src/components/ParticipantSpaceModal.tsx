@@ -645,7 +645,6 @@ export const ParticipantSpaceModal: React.FC<ParticipantSpaceModalProps> = ({
                       type="tel"
                       value={signUpPhone}
                       onChange={(e) => setSignUpPhone(e.target.value)}
-                      placeholder="e.g. 9876543210"
                       className="w-full px-3 py-2 rounded-xl bg-[#0a0a0d] border border-[#2e2b22] text-[#f3ecd9] placeholder-[#575347] focus:outline-none focus:border-[#d4a935] text-xs sm:text-sm"
                     />
                   </div>

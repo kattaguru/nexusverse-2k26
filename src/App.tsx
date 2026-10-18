@@ -1404,7 +1404,6 @@ export default function App() {
                               setPhone(e.target.value);
                               if (errors.phone) setErrors(prev => ({ ...prev, phone: '' }));
                             }}
-                            placeholder="9876543210"
                             className={`w-full px-3.5 py-2.5 rounded-xl bg-[#0a0a0d] border text-sm text-[#f3ecd9] placeholder-[#5a6a80] focus:outline-none focus:border-[#d4a935] font-mono transition-colors ${
                               errors.phone ? 'border-[#ff8a80]' : 'border-[#2e2b22]'
                             }`}
@@ -1810,7 +1809,6 @@ export default function App() {
                                                   maxLength={10}
                                                   value={member.phone}
                                                   onChange={(e) => handleUpdateTeamMemberField(event.id, mIdx, 'phone', e.target.value)}
-                                                  placeholder="9876543210"
                                                   className={`w-full px-2.5 py-1.5 rounded-lg bg-[#131318] border text-xs text-[#f3ecd9] font-mono focus:outline-none focus:border-[#d4a935] ${
                                                     errors[`member_${event.id}_${mIdx}_phone`] ? 'border-[#ff8a80]' : 'border-[#2e2b22]'
                                                   }`}
