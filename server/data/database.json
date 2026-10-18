@@ -1,6 +1,21 @@
 {
   "registrations": [
     {
+      "regId": "TEST-CHECKIN-1792312964044",
+      "name": "Scanner Test Participant",
+      "roll": "22CS999",
+      "email": "scanner.test@example.com",
+      "phone": "9876543210",
+      "college": "NBKRIST",
+      "branch": "CSE",
+      "isIeee": true,
+      "track1Event": "hackathon",
+      "track2Event": "spot-pass",
+      "amount": 250,
+      "paymentStatus": "verified",
+      "timestamp": "2026-10-18T08:42:44.067Z"
+    },
+    {
       "regId": "NV26-LIVE-NR3F",
       "paymentId": "pay_live_test_999",
       "name": "Nexus Live Tester",

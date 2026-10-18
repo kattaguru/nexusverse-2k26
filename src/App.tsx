@@ -414,7 +414,7 @@ export default function App() {
 
   // Admin Portal & Customization States
   const [isAdminOpen, setIsAdminOpen] = useState(false);
-  const [adminInitialTab, setAdminInitialTab] = useState<'registrations' | 'manual' | 'status' | 'photos' | 'settings'>('registrations');
+  const [adminInitialTab, setAdminInitialTab] = useState<'registrations' | 'scan' | 'manual' | 'status' | 'photos' | 'settings'>('registrations');
   const [isRegClosed, setIsRegClosed] = useState(false);
   const [closedMessage, setClosedMessage] = useState(() => {
     try {

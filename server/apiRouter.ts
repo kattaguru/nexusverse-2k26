@@ -234,7 +234,15 @@ apiRouter.put('/registrations/:regId', (req: Request, res: Response) => {
       is_ieee_member: Boolean(updatedRecord.isIeeeMember),
       ieee_id: updatedRecord.ieeeId || '',
       event_ids: updatedRecord.eventIds || [],
-      team_details: updatedRecord.teamDetails || {},
+      team_details: {
+        ...(updatedRecord.teamDetails || {}),
+        ...(updatedRecord.checkedIn !== undefined ? { _checkedIn: updatedRecord.checkedIn } : {}),
+        ...(updatedRecord.checkInTime ? { _checkInTime: updatedRecord.checkInTime } : {}),
+        ...(updatedRecord.checkedInBy ? { _checkedInBy: updatedRecord.checkedInBy } : {}),
+        ...(updatedRecord.attendedEvents ? { _attendedEvents: updatedRecord.attendedEvents } : {}),
+        ...(updatedRecord.kitIssued !== undefined ? { _kitIssued: updatedRecord.kitIssued } : {}),
+        ...(updatedRecord.checkInNotes ? { _checkInNotes: updatedRecord.checkInNotes } : {})
+      },
       total_paid: Number(updatedRecord.totalPaid || 0),
       promo_code: updatedRecord.promoCode || '',
       timestamp: updatedRecord.timestamp || new Date().toISOString(),

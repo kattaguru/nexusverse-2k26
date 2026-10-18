@@ -50,6 +50,7 @@ import {
   Moon
 } from 'lucide-react';
 import { TicketPass, RegistrationRecord, TeamMemberInfo } from './TicketPass';
+import { AdminTicketScanner } from './AdminTicketScanner';
 import { EVENTS, ALL_EVENTS, SYMPOSIUM_CONFIG } from '../data/symposiumData';
 import { fetchPhotosApi, uploadPhotoApi, deletePhotoApi, syncLocalRegistrationsToSupabase, testEmailApi, sendTicketEmailApi, updateSettingsApi } from '../services/api';
 import { testSupabaseConnection, isSupabaseConfigured, supabase } from '../lib/supabase';
@@ -82,7 +83,7 @@ interface AdminModalProps {
   rightLogo: string;
   onUpdateLeftLogo: (url: string) => void;
   onUpdateRightLogo: (url: string) => void;
-  initialTab?: 'registrations' | 'manual' | 'status' | 'photos' | 'settings';
+  initialTab?: 'registrations' | 'scan' | 'manual' | 'status' | 'photos' | 'settings';
   isFullPage?: boolean;
   theme?: 'dark' | 'light';
   onToggleTheme?: () => void;
@@ -233,7 +234,7 @@ export const AdminModal: React.FC<AdminModalProps> = ({
   const [showPassword, setShowPassword] = useState(false);
   const [passwordError, setPasswordError] = useState('');
   const [isVerifyingLogin, setIsVerifyingLogin] = useState(false);
-  const [activeTab, setActiveTab] = useState<'registrations' | 'manual' | 'status' | 'photos' | 'settings'>(initialTab || 'registrations');
+  const [activeTab, setActiveTab] = useState<'registrations' | 'scan' | 'manual' | 'status' | 'photos' | 'settings'>(initialTab || 'registrations');
 
   useEffect(() => {
     if (isOpen && initialTab) {
@@ -246,6 +247,7 @@ export const AdminModal: React.FC<AdminModalProps> = ({
   const [selectedEventFilter, setSelectedEventFilter] = useState('all');
   const [ieeeFilter, setIeeeFilter] = useState<'all' | 'ieee' | 'non-ieee'>('all');
   const [verificationFilter, setVerificationFilter] = useState<'all' | 'verified' | 'unverified' | 'upi' | 'razorpay'>('all');
+  const [checkInFilter, setCheckInFilter] = useState<'all' | 'checked-in' | 'not-checked-in'>('all');
   const [sortBy, setSortBy] = useState<SortOption>('date-desc');
   const [expandedRecordId, setExpandedRecordId] = useState<string | null>(null);
 
@@ -1179,7 +1181,13 @@ export const AdminModal: React.FC<AdminModalProps> = ({
         (team?.projectTitle && team.projectTitle.toLowerCase().includes(q)) ||
         teammateMatch;
 
-      return matchesEvent && matchesIeee && matchesVerification && matchesQuery;
+      const matchesCheckIn = checkInFilter === 'all'
+        ? true
+        : checkInFilter === 'checked-in'
+        ? Boolean(r.checkedIn)
+        : !r.checkedIn;
+
+      return matchesEvent && matchesIeee && matchesVerification && matchesCheckIn && matchesQuery;
     })
     .sort((a, b) => {
       switch (sortBy) {
@@ -1218,6 +1226,21 @@ export const AdminModal: React.FC<AdminModalProps> = ({
   const verifiedCount = savedRecords.filter(r => r.paymentMode !== 'upi' || r.isVerified).length;
   const upiTotalCount = savedRecords.filter(r => r.paymentMode === 'upi').length;
   const razorpayTotalCount = savedRecords.filter(r => r.paymentMode !== 'upi').length;
+  const checkedInCount = savedRecords.filter(r => r.checkedIn).length;
+  const checkInPercent = totalRegistrations > 0 ? Math.round((checkedInCount / totalRegistrations) * 100) : 0;
+
+  const handleToggleCheckIn = (record: RegistrationRecord) => {
+    const isNowChecked = !record.checkedIn;
+    const updated: RegistrationRecord = {
+      ...record,
+      checkedIn: isNowChecked,
+      checkInTime: isNowChecked ? new Date().toISOString() : undefined,
+      checkedInBy: isNowChecked ? 'Admin Table' : undefined,
+      attendedEvents: isNowChecked ? Array.from(new Set([...(record.attendedEvents || []), ...record.eventIds])) : [],
+      kitIssued: isNowChecked ? true : false
+    };
+    onUpdateRecord(updated);
+  };
 
   return (
     <div 
@@ -1399,6 +1422,22 @@ export const AdminModal: React.FC<AdminModalProps> = ({
 
               <button
                 type="button"
+                onClick={() => setActiveTab('scan')}
+                className={`py-2 px-3 text-xs font-semibold rounded-lg flex items-center gap-1.5 transition-all cursor-pointer whitespace-nowrap ${
+                  activeTab === 'scan'
+                    ? 'bg-gradient-to-r from-[#1f1b0e] to-[#2e250f] text-[#f2c14e] border border-[#d4a935] shadow-md shadow-[#d4a935]/15'
+                    : 'text-[#f2c14e] bg-[#1f1b0e]/50 hover:bg-[#1f1b0e] border border-[#d4a935]/30 hover:border-[#d4a935]/60'
+                }`}
+              >
+                <QrCode className="w-3.5 h-3.5 text-[#f2c14e]" />
+                <span className="font-bold">Scan & Check-In</span>
+                <span className="text-[10px] font-mono px-1.5 py-0.2 rounded bg-[#4cc38a]/20 text-[#4cc38a] border border-[#4cc38a]/30">
+                  {checkedInCount}/{totalRegistrations}
+                </span>
+              </button>
+
+              <button
+                type="button"
                 onClick={() => setActiveTab('manual')}
                 className={`py-2 px-3 text-xs font-semibold rounded-lg flex items-center gap-1.5 transition-all cursor-pointer whitespace-nowrap ${
                   activeTab === 'manual'
@@ -1453,6 +1492,16 @@ export const AdminModal: React.FC<AdminModalProps> = ({
             {/* TAB CONTENT CONTAINER */}
             <div className="p-3.5 sm:p-6 overflow-y-auto flex-1 space-y-5">
               
+              {/* TAB: TICKET SCAN & CHECK-IN */}
+              {activeTab === 'scan' && (
+                <AdminTicketScanner
+                  records={savedRecords}
+                  onUpdateRecord={onUpdateRecord}
+                  onViewPass={onViewPass}
+                  theme={activeTheme}
+                />
+              )}
+
               {/* TAB 1: ALL REGISTRATIONS (SEARCH, SORT, FILTER, DOWNLOAD CSV/JSON, EDIT MEMBERS) */}
               {activeTab === 'registrations' && (
                 <div className="space-y-4">
@@ -1634,6 +1683,22 @@ export const AdminModal: React.FC<AdminModalProps> = ({
                           <option value="upi">All UPI Registrations ({upiTotalCount})</option>
                           <option value="razorpay">Razorpay Auto Verified ({razorpayTotalCount})</option>
                         </select>
+
+                        {/* Attendance / Check-In Filter */}
+                        <select
+                          value={checkInFilter}
+                          onChange={(e) => setCheckInFilter(e.target.value as any)}
+                          className={`px-2.5 py-2 text-xs rounded-lg border focus:outline-none cursor-pointer font-medium transition-colors ${
+                            checkInFilter === 'checked-in'
+                              ? 'bg-[#142617] border-[#4cc38a] text-[#4cc38a]'
+                              : 'bg-[#131318] border-[#2e2b22] text-[#f3ecd9] focus:border-[#d4a935]'
+                          }`}
+                          aria-label="Filter by Attendance Check-In"
+                        >
+                          <option value="all">All Check-In Statuses</option>
+                          <option value="checked-in">Checked In ({checkedInCount})</option>
+                          <option value="not-checked-in">Not Checked In ({totalRegistrations - checkedInCount})</option>
+                        </select>
                       </div>
                     </div>
 
@@ -1646,14 +1711,26 @@ export const AdminModal: React.FC<AdminModalProps> = ({
 
                       <button
                         type="button"
-                        onClick={() => { setIeeeFilter('all'); setVerificationFilter('all'); }}
+                        onClick={() => { setIeeeFilter('all'); setVerificationFilter('all'); setCheckInFilter('all'); }}
                         className={`px-2.5 py-0.5 rounded-full text-[11px] font-semibold transition-all cursor-pointer ${
-                          ieeeFilter === 'all' && verificationFilter === 'all'
+                          ieeeFilter === 'all' && verificationFilter === 'all' && checkInFilter === 'all'
                             ? 'bg-[#d4a935] text-[#1a1300]'
                             : 'bg-[#181820] text-[#a79f8b] hover:text-[#f3ecd9] border border-[#2e2b22]'
                         }`}
                       >
                         All ({totalRegistrations})
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => setCheckInFilter(checkInFilter === 'checked-in' ? 'all' : 'checked-in')}
+                        className={`px-2.5 py-0.5 rounded-full text-[11px] font-semibold transition-all cursor-pointer ${
+                          checkInFilter === 'checked-in'
+                            ? 'bg-[#4cc38a] text-[#0a1a0f]'
+                            : 'bg-[#181820] text-[#a79f8b] hover:text-[#4cc38a] border border-[#2e2b22]'
+                        }`}
+                      >
+                        Checked In ({checkedInCount})
                       </button>
 
                       <button
@@ -1847,6 +1924,16 @@ export const AdminModal: React.FC<AdminModalProps> = ({
                                       <span>Razorpay (Auto Verified)</span>
                                     </span>
                                   )}
+                                  {record.checkedIn ? (
+                                    <span className="admin-badge-checkedin text-[10px] font-semibold text-[#4cc38a] bg-[#142617] px-2 py-0.5 rounded border border-[#4cc38a]/40 font-mono flex items-center gap-1">
+                                      <CheckCircle2 className="w-3 h-3 text-[#4cc38a]" />
+                                      <span>Checked In</span>
+                                    </span>
+                                  ) : (
+                                    <span className="admin-badge-not-checkedin text-[10px] text-[#a79f8b] bg-[#181820] px-2 py-0.5 rounded border border-[#2e2b22] font-mono">
+                                      Not Checked In
+                                    </span>
+                                  )}
                                   <span className="admin-badge-event text-[11px] text-[#9fc7e8] font-medium px-2 py-0.5 rounded bg-[#131f2b] border border-[#234259]">
                                     {eventName}
                                   </span>
@@ -1902,6 +1989,21 @@ export const AdminModal: React.FC<AdminModalProps> = ({
                                     <span>Auto Verified</span>
                                   </span>
                                 )}
+
+                                {/* Quick Check-In / Attendance Button */}
+                                <button
+                                  type="button"
+                                  onClick={() => handleToggleCheckIn(record)}
+                                  className={`p-1.5 px-2.5 rounded-lg border text-xs font-semibold flex items-center gap-1.5 transition-all cursor-pointer ${
+                                    record.checkedIn
+                                      ? 'bg-[#142617] text-[#4cc38a] border-[#4cc38a]/50 hover:bg-[#1b5e39]/40'
+                                      : 'bg-[#181820] text-[#a79f8b] border-[#2e2b22] hover:text-[#4cc38a] hover:border-[#4cc38a]/40'
+                                  }`}
+                                  title={record.checkedIn ? 'Delegate Checked In (Click to Undo)' : 'Click to Check In Delegate'}
+                                >
+                                  <CheckCircle2 className="w-3.5 h-3.5" />
+                                  <span className="hidden md:inline">{record.checkedIn ? 'Checked In' : 'Check In'}</span>
+                                </button>
 
                                 {/* View Official Ticket Pass Button */}
                                 <button

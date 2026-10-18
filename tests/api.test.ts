@@ -201,5 +201,58 @@ describe('NexusVerse 2K26 Backend API Endpoints Unit Tests', () => {
       throw err;
     }
   });
+
+  it('PUT /api/registrations/:regId should update check-in status, attendance, and kitIssued', async () => {
+    try {
+      // 1. Create a registration record
+      const testRegId = `TEST-CHECKIN-${Date.now()}`;
+      const createRes = await fetch(`${BASE_URL}/api/registrations`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          regId: testRegId,
+          name: 'Scanner Test Participant',
+          roll: '22CS999',
+          email: 'scanner.test@example.com',
+          phone: '9876543210',
+          college: 'NBKRIST',
+          branch: 'CSE',
+          isIeee: true,
+          track1Event: 'hackathon',
+          track2Event: 'spot-pass',
+          amount: 250,
+          paymentStatus: 'verified'
+        })
+      });
+      assert.ok(createRes.status === 200 || createRes.status === 201);
+
+      // 2. Perform check-in and event attendance mark
+      const checkInRes = await fetch(`${BASE_URL}/api/registrations/${testRegId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          checkedIn: true,
+          checkInTime: new Date().toISOString(),
+          checkedInBy: 'Front Desk Lead',
+          attendedEvents: ['hackathon', 'spot-pass'],
+          kitIssued: true,
+          checkInNotes: 'Badge and kit handed over at front desk'
+        })
+      });
+      assert.equal(checkInRes.status, 200);
+      const checkInData = await checkInRes.json();
+      assert.equal(checkInData.success, true);
+      assert.equal(checkInData.data.checkedIn, true);
+      assert.equal(checkInData.data.kitIssued, true);
+      assert.deepEqual(checkInData.data.attendedEvents, ['hackathon', 'spot-pass']);
+      assert.equal(checkInData.data.checkInNotes, 'Badge and kit handed over at front desk');
+
+      // 3. Clean up test registration
+      await fetch(`${BASE_URL}/api/registrations/${testRegId}`, { method: 'DELETE' });
+    } catch (err: any) {
+      if (err.code === 'ECONNREFUSED') return;
+      throw err;
+    }
+  });
 });
 

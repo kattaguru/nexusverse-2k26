@@ -67,6 +67,12 @@ export interface RegistrationRecord {
   isVerified?: boolean;
   verifiedAt?: string;
   verifiedBy?: string;
+  checkedIn?: boolean;
+  checkInTime?: string;
+  checkedInBy?: string;
+  attendedEvents?: string[];
+  kitIssued?: boolean;
+  checkInNotes?: string;
 }
 
 interface TicketPassProps {

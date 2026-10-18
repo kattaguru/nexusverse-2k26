@@ -64,6 +64,12 @@ export function mapDbToRegistrationRecord(row: any): RegistrationRecord {
     isVerified: Boolean(row.is_verified ?? row.isVerified ?? (row.team_details?._isVerified)),
     verifiedAt: row.verified_at || row.verifiedAt || row.team_details?._verifiedAt,
     verifiedBy: row.verified_by || row.verifiedBy || row.team_details?._verifiedBy,
+    checkedIn: Boolean(row.checked_in ?? row.checkedIn ?? row.team_details?._checkedIn),
+    checkInTime: row.check_in_time || row.checkInTime || row.team_details?._checkInTime,
+    checkedInBy: row.checked_in_by || row.checkedInBy || row.team_details?._checkedInBy,
+    attendedEvents: Array.isArray(row.attended_events) ? row.attended_events : (row.attendedEvents || row.team_details?._attendedEvents || []),
+    kitIssued: Boolean(row.kit_issued ?? row.kitIssued ?? row.team_details?._kitIssued),
+    checkInNotes: row.check_in_notes || row.checkInNotes || row.team_details?._checkInNotes,
   };
 }
 
@@ -77,7 +83,13 @@ export function mapRegistrationRecordToDb(record: RegistrationRecord): Record<st
     ...(record.paymentMode ? { _paymentMode: record.paymentMode } : {}),
     ...(record.isVerified !== undefined ? { _isVerified: record.isVerified } : {}),
     ...(record.verifiedAt ? { _verifiedAt: record.verifiedAt } : {}),
-    ...(record.verifiedBy ? { _verifiedBy: record.verifiedBy } : {})
+    ...(record.verifiedBy ? { _verifiedBy: record.verifiedBy } : {}),
+    ...(record.checkedIn !== undefined ? { _checkedIn: record.checkedIn } : {}),
+    ...(record.checkInTime ? { _checkInTime: record.checkInTime } : {}),
+    ...(record.checkedInBy ? { _checkedInBy: record.checkedInBy } : {}),
+    ...(record.attendedEvents ? { _attendedEvents: record.attendedEvents } : {}),
+    ...(record.kitIssued !== undefined ? { _kitIssued: record.kitIssued } : {}),
+    ...(record.checkInNotes ? { _checkInNotes: record.checkInNotes } : {})
   };
   return {
     reg_id: record.regId,
