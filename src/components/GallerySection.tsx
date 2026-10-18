@@ -97,22 +97,25 @@ const CATEGORIES = [
 
 interface GallerySectionProps {
   onOpenAdmin?: (tab?: 'registrations' | 'manual' | 'status' | 'photos' | 'settings') => void;
+  isAdmin?: boolean;
 }
 
-export const GallerySection: React.FC<GallerySectionProps> = ({ onOpenAdmin }) => {
+export const GallerySection: React.FC<GallerySectionProps> = ({ onOpenAdmin, isAdmin: propIsAdmin }) => {
   const [photos, setPhotos] = useState<GalleryPhoto[]>(CURATED_DEFAULT_PHOTOS);
   const [selectedCategory, setSelectedCategory] = useState<string>('All Moments');
   const [activeLightboxPhoto, setActiveLightboxPhoto] = useState<GalleryPhoto | null>(null);
   const [isMarqueePaused, setIsMarqueePaused] = useState<boolean>(false);
   const [marqueeSpeed, setMarqueeSpeed] = useState<'slow' | 'normal' | 'fast'>('normal');
   const [viewMode, setViewMode] = useState<'marquee' | 'grid'>('marquee');
-  const [isAdmin, setIsAdmin] = useState<boolean>(() => {
+  const [isAdminState, setIsAdminState] = useState<boolean>(() => {
     try {
       return sessionStorage.getItem('nexusverse_admin_auth') === 'true';
     } catch (e) {
       return false;
     }
   });
+
+  const isAdmin = Boolean(propIsAdmin || isAdminState);
 
   const loadPhotos = async () => {
     try {
@@ -169,10 +172,10 @@ export const GallerySection: React.FC<GallerySectionProps> = ({ onOpenAdmin }) =
     // Listen to admin authentication state changes
     const handleAuthChanged = (e: any) => {
       if (e?.detail?.isAuthenticated !== undefined) {
-        setIsAdmin(Boolean(e.detail.isAuthenticated));
+        setIsAdminState(Boolean(e.detail.isAuthenticated));
       } else {
         try {
-          setIsAdmin(sessionStorage.getItem('nexusverse_admin_auth') === 'true');
+          setIsAdminState(sessionStorage.getItem('nexusverse_admin_auth') === 'true');
         } catch (err) {}
       }
     };
@@ -258,12 +261,14 @@ export const GallerySection: React.FC<GallerySectionProps> = ({ onOpenAdmin }) =
 
           {/* Quick stats & Admin Mode controls */}
           <div className="flex flex-wrap items-center gap-2.5 shrink-0">
-            <div className="flex items-center gap-2 px-3.5 py-2 rounded-xl bg-[#131318] border border-[#2e2b22] text-xs text-[#a79f8b]">
-              <ImageIcon className="w-4 h-4 text-[#f2c14e]" />
-              <span>
-                <strong className="text-white font-mono">{photos.length}</strong> Moments Archived
-              </span>
-            </div>
+            {isAdmin && (
+              <div className="flex items-center gap-2 px-3.5 py-2 rounded-xl bg-[#131318] border border-[#2e2b22] text-xs text-[#a79f8b]">
+                <ImageIcon className="w-4 h-4 text-[#f2c14e]" />
+                <span>
+                  <strong className="text-white font-mono">{photos.length}</strong> Moments Archived
+                </span>
+              </div>
+            )}
 
             {/* Admin Gallery Management Button / Active Indicator (Only visible if admin is logged in) */}
             {isAdmin && (
@@ -311,38 +316,42 @@ export const GallerySection: React.FC<GallerySectionProps> = ({ onOpenAdmin }) =
 
           {/* 3D Marquee Controls: Pause/Play, Speed, and Grid Switcher */}
           <div className="flex items-center gap-2.5 shrink-0 self-start lg:self-auto">
-            {/* Pause/Play Stream Button */}
-            <button
-              type="button"
-              onClick={() => setIsMarqueePaused(!isMarqueePaused)}
-              className={`px-3 py-1.5 rounded-xl border text-xs font-semibold flex items-center gap-1.5 transition-all cursor-pointer ${
-                isMarqueePaused 
-                  ? 'bg-[#ff8a80]/15 border-[#ff8a80]/40 text-[#ff8a80]' 
-                  : 'bg-[#131318] border-[#2e2b22] text-[#f2c14e] hover:border-[#d4a935]/50'
-              }`}
-              title={isMarqueePaused ? 'Resume Right-to-Left 3D Motion' : 'Pause 3D Motion (Hovering any image also freezes it)'}
-            >
-              {isMarqueePaused ? <Play className="w-3.5 h-3.5" /> : <Pause className="w-3.5 h-3.5" />}
-              <span>{isMarqueePaused ? 'Resume 3D Motion' : 'Pause Motion'}</span>
-            </button>
-
-            {/* Speed Selector */}
-            <div className="flex items-center p-0.5 rounded-xl bg-[#131318] border border-[#2e2b22] text-[11px]">
-              {(['slow', 'normal', 'fast'] as const).map((spd) => (
+            {isAdmin && (
+              <>
+                {/* Pause/Play Stream Button */}
                 <button
-                  key={spd}
                   type="button"
-                  onClick={() => setMarqueeSpeed(spd)}
-                  className={`px-2.5 py-1 rounded-lg font-semibold capitalize transition-all cursor-pointer ${
-                    marqueeSpeed === spd
-                      ? 'bg-[#f2c14e] text-[#1a1300] shadow-sm'
-                      : 'text-[#a79f8b] hover:text-white'
+                  onClick={() => setIsMarqueePaused(!isMarqueePaused)}
+                  className={`px-3 py-1.5 rounded-xl border text-xs font-semibold flex items-center gap-1.5 transition-all cursor-pointer ${
+                    isMarqueePaused 
+                      ? 'bg-[#ff8a80]/15 border-[#ff8a80]/40 text-[#ff8a80]' 
+                      : 'bg-[#131318] border-[#2e2b22] text-[#f2c14e] hover:border-[#d4a935]/50'
                   }`}
+                  title={isMarqueePaused ? 'Resume Right-to-Left 3D Motion' : 'Pause 3D Motion (Hovering any image also freezes it)'}
                 >
-                  {spd}
+                  {isMarqueePaused ? <Play className="w-3.5 h-3.5" /> : <Pause className="w-3.5 h-3.5" />}
+                  <span>{isMarqueePaused ? 'Resume 3D Motion' : 'Pause Motion'}</span>
                 </button>
-              ))}
-            </div>
+
+                {/* Speed Selector */}
+                <div className="flex items-center p-0.5 rounded-xl bg-[#131318] border border-[#2e2b22] text-[11px]">
+                  {(['slow', 'normal', 'fast'] as const).map((spd) => (
+                    <button
+                      key={spd}
+                      type="button"
+                      onClick={() => setMarqueeSpeed(spd)}
+                      className={`px-2.5 py-1 rounded-lg font-semibold capitalize transition-all cursor-pointer ${
+                        marqueeSpeed === spd
+                          ? 'bg-[#f2c14e] text-[#1a1300] shadow-sm'
+                          : 'text-[#a79f8b] hover:text-white'
+                      }`}
+                    >
+                      {spd}
+                    </button>
+                  ))}
+                </div>
+              </>
+            )}
 
             {/* View Switcher: 3D Marquee Stream vs Grid */}
             <div className="flex items-center p-0.5 rounded-xl bg-[#131318] border border-[#2e2b22]">

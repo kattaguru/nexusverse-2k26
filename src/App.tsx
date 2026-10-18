@@ -1091,18 +1091,28 @@ export default function App() {
               onRegisterClick={() => {
                 document.getElementById('register-section')?.scrollIntoView({ behavior: 'smooth' });
               }}
-              selectedEventIds={selectedEvents}
-              attendeeName={name}
+              onSelectEvent={(eventId) => {
+                if (eventId === 'spot') {
+                  setIncludeSpotEvents(prev => !prev);
+                } else {
+                  selectEvent(eventId);
+                }
+              }}
+              selectedEventIds={[...selectedEvents, ...(includeSpotEvents ? ['spot'] : [])]}
+              attendeeName={name || currentUser?.name || ''}
               isIeeeMember={isIeeeMember}
               leftLogo={leftLogo}
               rightLogo={rightLogo}
             />
 
             {/* Previous Symposium Memories & Photo Gallery Section */}
-            <GallerySection onOpenAdmin={(tab) => {
-              setAdminInitialTab(tab || 'photos');
-              setIsAdminOpen(true);
-            }} />
+            <GallerySection 
+              isAdmin={isAdminRoute || isAdminOpen}
+              onOpenAdmin={(tab) => {
+                setAdminInitialTab(tab || 'photos');
+                setIsAdminOpen(true);
+              }} 
+            />
 
             {/* Registration Form Section */}
             <section id="register-section" className="py-12 sm:py-20 px-4 sm:px-6 lg:px-8 max-w-7xl mx-auto">

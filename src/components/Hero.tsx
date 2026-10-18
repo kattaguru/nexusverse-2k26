@@ -4,6 +4,7 @@ import { ArrowRight, Sparkles, MapPin, Calendar, Trophy } from 'lucide-react';
 
 interface HeroProps {
   onRegisterClick?: () => void;
+  onSelectEvent?: (eventId: string) => void;
   selectedEventIds?: string[];
   attendeeName?: string;
   isIeeeMember?: boolean;
@@ -15,6 +16,7 @@ export const Hero: React.FC<HeroProps> = ({
   onRegisterClick = () => {
     document.getElementById('register-section')?.scrollIntoView({ behavior: 'smooth' });
   },
+  onSelectEvent,
   selectedEventIds = [],
   attendeeName = '',
   isIeeeMember = false,
@@ -217,30 +219,54 @@ export const Hero: React.FC<HeroProps> = ({
               {/* Pass Body: Event Roster */}
               <div className="p-6 space-y-4">
                 <div className="text-xs font-medium text-[#a79f8b] flex justify-between items-center">
-                  <span>Symposium Tracks & Events</span>
+                  <div className="flex items-center gap-1.5">
+                    <span>Symposium Tracks & Events</span>
+                    <span className="text-[10px] text-[#f2c14e]/80 font-normal hidden sm:inline">(Tap to select)</span>
+                  </div>
                   <span>Fee ({isIeeeMember ? 'Member' : 'Regular'})</span>
                 </div>
 
-                <ul className="space-y-2 text-sm divide-y divide-[#2e2b22]/50 max-h-56 overflow-y-auto pr-1">
+                <ul className="space-y-1.5 text-sm max-h-56 overflow-y-auto pr-1 select-none">
                   {ALL_EVENTS.map((ev) => {
                     const fee = isIeeeMember ? ev.feeMember : ev.feeNonMember;
                     const isSelected = selectedEventIds.includes(ev.id);
                     return (
-                      <li key={ev.id} className="pt-2 first:pt-0 flex items-center justify-between gap-2">
-                        <div className="flex items-center gap-2">
-                          <span className={`w-2.5 h-2.5 rounded-full ${isSelected ? 'bg-[#f2c14e] ring-2 ring-[#f2c14e]/30' : 'bg-[#2e2b22]'}`} />
-                          <span className={`font-medium ${isSelected ? 'text-[#f2c14e] font-semibold' : 'text-[#a79f8b]'}`}>
-                            {ev.name}
-                          </span>
-                          {isSelected && (
-                            <span className="text-[10px] uppercase font-bold tracking-wider px-1.5 py-0.2 rounded bg-[#f2c14e]/15 text-[#f2c14e]">
-                              Selected
+                      <li key={ev.id}>
+                        <button
+                          type="button"
+                          onClick={() => onSelectEvent?.(ev.id)}
+                          className={`w-full flex items-center justify-between gap-2 px-2.5 py-1.5 rounded-lg text-left transition-all cursor-pointer group focus:outline-none focus-visible:ring-1 focus-visible:ring-[#f2c14e] ${
+                            isSelected
+                              ? 'bg-[#f2c14e]/15 border border-[#f2c14e]/40 shadow-sm shadow-[#f2c14e]/10'
+                              : 'bg-transparent border border-transparent hover:bg-white/5 hover:border-white/10'
+                          }`}
+                          title={`Click to select ${ev.name}`}
+                        >
+                          <div className="flex items-center gap-2 min-w-0">
+                            <span 
+                              className={`w-2.5 h-2.5 rounded-full shrink-0 transition-all ${
+                                isSelected 
+                                  ? 'bg-[#f2c14e] ring-2 ring-[#f2c14e]/40 scale-110' 
+                                  : 'bg-[#2e2b22] group-hover:bg-[#a79f8b]'
+                              }`} 
+                            />
+                            <span className={`font-medium truncate transition-colors ${
+                              isSelected ? 'text-[#f2c14e] font-semibold' : 'text-[#a79f8b] group-hover:text-[#f3ecd9]'
+                            }`}>
+                              {ev.name}
                             </span>
-                          )}
-                        </div>
-                        <span className={`font-mono tabular-nums text-xs ${isSelected ? 'text-[#f2c14e] font-bold' : 'text-[#a79f8b]'}`}>
-                          ₹{fee} <span className="font-sans font-normal text-[10px]">/ head</span>
-                        </span>
+                            {isSelected && (
+                              <span className="shrink-0 text-[10px] uppercase font-bold tracking-wider px-1.5 py-0.2 rounded bg-[#f2c14e]/20 text-[#f2c14e] border border-[#f2c14e]/30">
+                                Selected
+                              </span>
+                            )}
+                          </div>
+                          <span className={`shrink-0 font-mono tabular-nums text-xs transition-colors ${
+                            isSelected ? 'text-[#f2c14e] font-bold' : 'text-[#a79f8b] group-hover:text-[#f2c14e]'
+                          }`}>
+                            ₹{fee} <span className="font-sans font-normal text-[10px]">/ head</span>
+                          </span>
+                        </button>
                       </li>
                     );
                   })}
