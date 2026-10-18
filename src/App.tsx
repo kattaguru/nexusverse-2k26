@@ -49,7 +49,9 @@ import {
   Award,
   ChevronRight,
   Shield,
-  Trophy
+  Trophy,
+  ArrowRight,
+  CheckCircle2
 } from 'lucide-react';
 
 export interface FormTeamMember {
