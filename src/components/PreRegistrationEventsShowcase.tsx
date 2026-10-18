@@ -76,13 +76,13 @@ export const PreRegistrationEventsShowcase: React.FC<PreRegistrationEventsShowca
         </div>
 
         {/* Filter Pills */}
-        <div className="flex items-center gap-2 bg-[#0a0a0d] p-1.5 rounded-2xl border border-[#2e2b22] shrink-0 self-start md:self-end">
+        <div className="event-filter-bar flex items-center gap-2 bg-[#0a0a0d] p-1.5 rounded-2xl border border-[#2e2b22] shrink-0 self-start md:self-end">
           <button
             type="button"
             onClick={() => setFilterTab('all')}
-            className={`px-3.5 py-1.5 rounded-xl text-xs font-semibold transition-all cursor-pointer ${
+            className={`event-filter-btn px-3.5 py-1.5 rounded-xl text-xs font-semibold transition-all cursor-pointer ${
               filterTab === 'all'
-                ? 'bg-[#1f1b0e] text-[#f2c14e] border border-[#d4a935]/40 shadow-sm'
+                ? 'is-active bg-[#1f1b0e] text-[#f2c14e] border border-[#d4a935]/40 shadow-sm'
                 : 'text-[#a79f8b] hover:text-white'
             }`}
           >
@@ -91,9 +91,9 @@ export const PreRegistrationEventsShowcase: React.FC<PreRegistrationEventsShowca
           <button
             type="button"
             onClick={() => setFilterTab('technical')}
-            className={`px-3.5 py-1.5 rounded-xl text-xs font-semibold transition-all cursor-pointer ${
+            className={`event-filter-btn px-3.5 py-1.5 rounded-xl text-xs font-semibold transition-all cursor-pointer ${
               filterTab === 'technical'
-                ? 'bg-[#1f1b0e] text-[#f2c14e] border border-[#d4a935]/40 shadow-sm'
+                ? 'is-active bg-[#1f1b0e] text-[#f2c14e] border border-[#d4a935]/40 shadow-sm'
                 : 'text-[#a79f8b] hover:text-white'
             }`}
           >
@@ -102,9 +102,9 @@ export const PreRegistrationEventsShowcase: React.FC<PreRegistrationEventsShowca
           <button
             type="button"
             onClick={() => setFilterTab('spot')}
-            className={`px-3.5 py-1.5 rounded-xl text-xs font-semibold transition-all cursor-pointer ${
+            className={`event-filter-btn px-3.5 py-1.5 rounded-xl text-xs font-semibold transition-all cursor-pointer ${
               filterTab === 'spot'
-                ? 'bg-[#0f2419] text-[#86efac] border border-[#4cc38a]/40 shadow-sm'
+                ? 'is-active bg-[#0f2419] text-[#86efac] border border-[#4cc38a]/40 shadow-sm'
                 : 'text-[#a79f8b] hover:text-white'
             }`}
           >
@@ -119,9 +119,9 @@ export const PreRegistrationEventsShowcase: React.FC<PreRegistrationEventsShowca
           <div className="flex items-center justify-between pb-1">
             <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-[#d4a935]">
               <Trophy className="w-4 h-4 text-[#d4a935]" />
-              <span>Track 1: Morning Flagship Technical Events (10:00 AM – 12:00 PM)</span>
+              <span className="event-track-title">Track 1: Morning Flagship Technical Events (10:00 AM – 12:00 PM)</span>
             </div>
-            <span className="text-xs font-mono text-[#f2c14e] bg-[#1f1b0e] px-2.5 py-1 rounded-lg border border-[#d4a935]/30">
+            <span className="event-track-fee text-xs font-mono text-[#f2c14e] bg-[#1f1b0e] px-2.5 py-1 rounded-lg border border-[#d4a935]/30">
               ₹150 IEEE Member · ₹200 Non-Member
             </span>
           </div>
@@ -130,7 +130,7 @@ export const PreRegistrationEventsShowcase: React.FC<PreRegistrationEventsShowca
             {EVENTS.map((event) => (
               <div
                 key={event.id}
-                className="rounded-3xl bg-[#131318] border border-[#2e2b22] hover:border-[#d4a935]/60 transition-all duration-300 p-6 flex flex-col justify-between space-y-5 shadow-xl hover:shadow-2xl hover:shadow-[#d4a935]/10 group relative overflow-hidden"
+                className="event-showcase-card rounded-3xl bg-[#131318] border border-[#2e2b22] hover:border-[#d4a935]/60 transition-all duration-300 p-6 flex flex-col justify-between space-y-5 shadow-xl hover:shadow-2xl hover:shadow-[#d4a935]/10 group relative overflow-hidden"
               >
                 {/* Subtle top gold glow accent */}
                 <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-transparent via-[#d4a935]/40 to-transparent group-hover:via-[#d4a935] transition-all" />
@@ -139,24 +139,24 @@ export const PreRegistrationEventsShowcase: React.FC<PreRegistrationEventsShowca
                   {/* Category, Icon & Timing Header */}
                   <div className="flex items-start justify-between gap-3">
                     <div className="flex items-center gap-2.5">
-                      <div className="w-10 h-10 rounded-xl bg-[#1c1b16] border border-[#d4a935]/40 flex items-center justify-center shrink-0 shadow-md">
+                      <div className="event-icon-box w-10 h-10 rounded-xl bg-[#1c1b16] border border-[#d4a935]/40 flex items-center justify-center shrink-0 shadow-md">
                         {getEventIcon(event.id)}
                       </div>
                       <div>
-                        <span className="text-[10px] font-bold uppercase tracking-wider text-[#d4a935] block">
+                        <span className="event-card-category text-[10px] font-bold uppercase tracking-wider text-[#d4a935] block">
                           {event.category}
                         </span>
-                        <h4 className="font-serif-title text-xl sm:text-2xl font-bold text-white group-hover:text-[#f2c14e] transition-colors">
+                        <h4 className="event-card-title font-serif-title text-xl sm:text-2xl font-bold text-white group-hover:text-[#f2c14e] transition-colors">
                           {event.name}
                         </h4>
                       </div>
                     </div>
 
-                    <div className="text-right shrink-0">
-                      <span className="text-xs font-mono font-bold text-[#f2c14e] block">
-                        ₹150 <span className="text-[10px] text-[#a79f8b] font-normal">IEEE</span>
+                    <div className="event-card-pricing text-right shrink-0">
+                      <span className="event-price-ieee text-xs font-mono font-bold text-[#f2c14e] block">
+                        ₹150 <span className="event-price-sub text-[10px] text-[#a79f8b] font-normal">IEEE</span>
                       </span>
-                      <span className="text-[10px] font-mono text-[#a79f8b] block">
+                      <span className="event-price-non text-[10px] font-mono text-[#a79f8b] block">
                         ₹200 Non-IEEE
                       </span>
                     </div>
@@ -164,41 +164,41 @@ export const PreRegistrationEventsShowcase: React.FC<PreRegistrationEventsShowca
 
                   {/* Tagline */}
                   {event.tagline && (
-                    <p className="text-xs font-semibold text-[#f2c14e] italic leading-snug">
+                    <p className="event-card-tagline text-xs font-semibold text-[#f2c14e] italic leading-snug">
                       "{event.tagline}"
                     </p>
                   )}
 
                   {/* Description */}
-                  <p className="text-xs text-[#b9ae94] leading-relaxed line-clamp-3">
+                  <p className="event-card-desc text-xs text-[#b9ae94] leading-relaxed line-clamp-3">
                     {event.tag}
                   </p>
 
                   {/* Metadata Chips: Time, Venue, Team Structure */}
                   <div className="flex flex-wrap items-center gap-2 pt-1 text-[11px] text-[#a79f8b]">
-                    <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-[#0a0a0d] border border-[#2e2b22]">
+                    <span className="event-meta-chip inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-[#0a0a0d] border border-[#2e2b22]">
                       <Clock className="w-3.5 h-3.5 text-[#d4a935]" />
                       <span>{event.slot}</span>
                     </span>
 
-                    <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-[#0a0a0d] border border-[#2e2b22]">
+                    <span className="event-meta-chip inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-[#0a0a0d] border border-[#2e2b22]">
                       <MapPin className="w-3.5 h-3.5 text-[#d4a935]" />
                       <span>{event.venue}</span>
                     </span>
 
-                    <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-[#0a0a0d] border border-[#2e2b22] text-[#f3ecd9]">
+                    <span className="event-meta-chip inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-[#0a0a0d] border border-[#2e2b22] text-[#f3ecd9]">
                       <Users className="w-3.5 h-3.5 text-[#d4a935]" />
                       <span>{event.teamLabel}</span>
                     </span>
                   </div>
 
                   {/* Prize Box */}
-                  <div className="p-3 rounded-xl bg-gradient-to-r from-[#1b170a] to-[#12110c] border border-[#d4a935]/30 text-xs space-y-1">
-                    <div className="flex items-center gap-1.5 font-bold text-[#f2c14e]">
+                  <div className="event-prize-box p-3 rounded-xl bg-gradient-to-r from-[#1b170a] to-[#12110c] border border-[#d4a935]/30 text-xs space-y-1">
+                    <div className="event-prize-title flex items-center gap-1.5 font-bold text-[#f2c14e]">
                       <Trophy className="w-3.5 h-3.5" />
                       <span>Cash Prizes & Recognition</span>
                     </div>
-                    <div className="text-[11px] text-[#d8cea7] flex flex-col gap-0.5 pl-5">
+                    <div className="event-prize-body text-[11px] text-[#d8cea7] flex flex-col gap-0.5 pl-5">
                       <span>• <strong>1st Prize:</strong> Winner Trophy + Cash Award + Merit Certificate</span>
                       <span>• <strong>2nd Prize:</strong> Runner-up Trophy + Cash Award + Merit Certificate</span>
                     </div>
@@ -208,7 +208,7 @@ export const PreRegistrationEventsShowcase: React.FC<PreRegistrationEventsShowca
                   {event.highlights && event.highlights.length > 0 && (
                     <div className="flex flex-wrap gap-1.5 pt-1">
                       {event.highlights.slice(0, 3).map((hl, i) => (
-                        <span key={i} className="text-[10px] px-2 py-0.5 rounded-md bg-white/5 border border-white/10 text-[#d8cea7] truncate max-w-full">
+                        <span key={i} className="event-highlight-chip text-[10px] px-2 py-0.5 rounded-md bg-white/5 border border-white/10 text-[#d8cea7] truncate max-w-full">
                           ✓ {hl}
                         </span>
                       ))}
@@ -221,7 +221,7 @@ export const PreRegistrationEventsShowcase: React.FC<PreRegistrationEventsShowca
                   <button
                     type="button"
                     onClick={() => onInspectEvent(event)}
-                    className="w-full sm:flex-1 py-2 px-3 rounded-xl bg-[#1a1a24] hover:bg-[#252533] border border-[#2e2b22] hover:border-[#d4a935]/50 text-[#f3ecd9] hover:text-white text-xs font-semibold flex items-center justify-center gap-1.5 transition-all cursor-pointer"
+                    className="event-rules-btn w-full sm:flex-1 py-2 px-3 rounded-xl bg-[#1a1a24] hover:bg-[#252533] border border-[#2e2b22] hover:border-[#d4a935]/50 text-[#f3ecd9] hover:text-white text-xs font-semibold flex items-center justify-center gap-1.5 transition-all cursor-pointer"
                   >
                     <Eye className="w-3.5 h-3.5 text-[#d4a935]" />
                     <span>View Rules & Rounds</span>
@@ -230,7 +230,7 @@ export const PreRegistrationEventsShowcase: React.FC<PreRegistrationEventsShowca
                   <button
                     type="button"
                     onClick={() => onSelectEventAndRegister(event.id)}
-                    className="w-full sm:flex-1 py-2 px-3 rounded-xl bg-[#f2c14e] hover:bg-[#d4a935] text-[#1a1300] font-bold text-xs flex items-center justify-center gap-1.5 transition-all shadow-md shadow-[#f2c14e]/20 cursor-pointer active:scale-95"
+                    className="event-register-btn w-full sm:flex-1 py-2 px-3 rounded-xl bg-[#f2c14e] hover:bg-[#d4a935] text-[#1a1300] font-bold text-xs flex items-center justify-center gap-1.5 transition-all shadow-md shadow-[#f2c14e]/20 cursor-pointer active:scale-95"
                   >
                     <span>Register for {event.name}</span>
                     <ArrowRight className="w-3.5 h-3.5" />
@@ -248,65 +248,65 @@ export const PreRegistrationEventsShowcase: React.FC<PreRegistrationEventsShowca
           <div className="flex items-center justify-between pb-1">
             <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-[#70baff]">
               <Sparkles className="w-4 h-4 text-[#70baff]" />
-              <span>Track 2: Afternoon Spot Events Arena (01:30 PM – 03:30 PM)</span>
+              <span className="spot-track-title">Track 2: Afternoon Spot Events Arena (01:30 PM – 03:30 PM)</span>
             </div>
-            <span className="text-xs font-mono font-bold text-[#86efac] bg-[#0f2419] px-2.5 py-1 rounded-lg border border-[#4cc38a]/40">
+            <span className="spot-track-fee text-xs font-mono font-bold text-[#86efac] bg-[#0f2419] px-2.5 py-1 rounded-lg border border-[#4cc38a]/40">
               Flat ₹100/- Spot Pass
             </span>
           </div>
 
-          <div className="rounded-3xl bg-gradient-to-br from-[#0c1928] via-[#101e33] to-[#0a1422] border-2 border-[#0088d4]/50 hover:border-[#0088d4] transition-all p-6 sm:p-8 shadow-2xl relative overflow-hidden group space-y-6">
+          <div className="spot-arena-card rounded-3xl bg-gradient-to-br from-[#0c1928] via-[#101e33] to-[#0a1422] border-2 border-[#0088d4]/50 hover:border-[#0088d4] transition-all p-6 sm:p-8 shadow-2xl relative overflow-hidden group space-y-6">
             <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6">
               <div className="space-y-3.5 max-w-3xl">
                 <div className="flex flex-wrap items-center gap-2">
-                  <span className="px-3 py-1 rounded-full bg-[#0088d4]/20 border border-[#0088d4]/40 text-[#70baff] text-xs font-bold uppercase tracking-wider flex items-center gap-1.5">
+                  <span className="spot-arena-badge px-3 py-1 rounded-full bg-[#0088d4]/20 border border-[#0088d4]/40 text-[#70baff] text-xs font-bold uppercase tracking-wider flex items-center gap-1.5">
                     <Gamepad2 className="w-3.5 h-3.5" />
                     <span>Non-Technical Campus Arena</span>
                   </span>
-                  <span className="text-xs text-[#a79f8b]">· Open to all students, zero coding required!</span>
+                  <span className="spot-arena-sub text-xs text-[#a79f8b]">· Open to all students, zero coding required!</span>
                 </div>
 
-                <h4 className="font-serif-title text-2xl sm:text-3xl font-bold text-white group-hover:text-[#70baff] transition-colors">
+                <h4 className="spot-arena-title font-serif-title text-2xl sm:text-3xl font-bold text-white group-hover:text-[#70baff] transition-colors">
                   {SPOT_EVENT.name}
                 </h4>
 
-                <p className="text-xs sm:text-sm font-semibold text-[#f2c14e] italic">
+                <p className="spot-arena-tagline text-xs sm:text-sm font-semibold text-[#f2c14e] italic">
                   "{SPOT_EVENT.tagline}"
                 </p>
 
-                <p className="text-xs sm:text-sm text-[#b9ae94] leading-relaxed">
+                <p className="spot-arena-desc text-xs sm:text-sm text-[#b9ae94] leading-relaxed">
                   {SPOT_EVENT.tag}
                 </p>
 
                 {/* Spot Details Chips */}
                 <div className="flex flex-wrap items-center gap-2 text-xs text-[#a79f8b]">
-                  <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-xl bg-black/40 border border-white/10 text-white font-mono">
+                  <span className="spot-arena-chip inline-flex items-center gap-1.5 px-3 py-1 rounded-xl bg-black/40 border border-white/10 text-white font-mono">
                     <Clock className="w-3.5 h-3.5 text-[#70baff]" />
                     <span>01:30 PM – 03:30 PM</span>
                   </span>
 
-                  <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-xl bg-black/40 border border-white/10 text-white">
+                  <span className="spot-arena-chip inline-flex items-center gap-1.5 px-3 py-1 rounded-xl bg-black/40 border border-white/10 text-white">
                     <MapPin className="w-3.5 h-3.5 text-[#70baff]" />
                     <span>{SPOT_EVENT.venue}</span>
                   </span>
 
-                  <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-xl bg-[#0f2419] border border-[#4cc38a]/40 text-[#86efac] font-bold">
+                  <span className="spot-arena-fee-chip inline-flex items-center gap-1.5 px-3 py-1 rounded-xl bg-[#0f2419] border border-[#4cc38a]/40 text-[#86efac] font-bold">
                     <span>Entry Fee: ₹100 Flat</span>
                   </span>
                 </div>
 
                 {/* Spot Highlights */}
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 pt-1 text-xs">
-                  <div className="p-2.5 rounded-xl bg-black/30 border border-white/10 text-[#d8cea7]">
-                    <strong className="text-white block mb-0.5">🎮 Gaming Arenas</strong>
+                  <div className="spot-arena-box p-2.5 rounded-xl bg-black/30 border border-white/10 text-[#d8cea7]">
+                    <strong className="spot-box-strong text-white block mb-0.5">🎮 Gaming Arenas</strong>
                     Instant multiplayer battles & tech trivia sprints.
                   </div>
-                  <div className="p-2.5 rounded-xl bg-black/30 border border-white/10 text-[#d8cea7]">
-                    <strong className="text-white block mb-0.5">💰 Instant Cash Gifts</strong>
+                  <div className="spot-arena-box p-2.5 rounded-xl bg-black/30 border border-white/10 text-[#d8cea7]">
+                    <strong className="spot-box-strong text-white block mb-0.5">💰 Instant Cash Gifts</strong>
                     On-spot cash prizes, gift cards & hampers for winners.
                   </div>
-                  <div className="p-2.5 rounded-xl bg-black/30 border border-white/10 text-[#d8cea7]">
-                    <strong className="text-white block mb-0.5">📜 Official Certificate</strong>
+                  <div className="spot-arena-box p-2.5 rounded-xl bg-black/30 border border-white/10 text-[#d8cea7]">
+                    <strong className="spot-box-strong text-white block mb-0.5">📜 Official Certificate</strong>
                     Every spot participant receives an authentic certificate.
                   </div>
                 </div>
@@ -317,7 +317,7 @@ export const PreRegistrationEventsShowcase: React.FC<PreRegistrationEventsShowca
                 <button
                   type="button"
                   onClick={onSelectSpotAndRegister}
-                  className="w-full py-3.5 px-5 rounded-xl bg-[#0088d4] hover:bg-[#0099ee] text-white font-bold text-sm flex items-center justify-center gap-2 transition-all shadow-lg shadow-[#0088d4]/30 cursor-pointer active:scale-95"
+                  className="spot-register-btn w-full py-3.5 px-5 rounded-xl bg-[#0088d4] hover:bg-[#0099ee] text-white font-bold text-sm flex items-center justify-center gap-2 transition-all shadow-lg shadow-[#0088d4]/30 cursor-pointer active:scale-95"
                 >
                   <Sparkles className="w-4 h-4" />
                   <span>Register for Spot Pass</span>
@@ -326,7 +326,7 @@ export const PreRegistrationEventsShowcase: React.FC<PreRegistrationEventsShowca
                 <button
                   type="button"
                   onClick={() => onInspectEvent(SPOT_EVENT)}
-                  className="w-full py-2.5 px-4 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 text-[#d8cea7] hover:text-white text-xs font-semibold flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
+                  className="spot-rules-btn w-full py-2.5 px-4 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 text-[#d8cea7] hover:text-white text-xs font-semibold flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
                 >
                   <Eye className="w-3.5 h-3.5 text-[#70baff]" />
                   <span>View Spot Event Details</span>
@@ -338,16 +338,16 @@ export const PreRegistrationEventsShowcase: React.FC<PreRegistrationEventsShowca
       )}
 
       {/* BOTTOM REGISTRATION CALL-TO-ACTION CARD */}
-      <div className="p-6 sm:p-8 rounded-3xl bg-gradient-to-r from-[#171724] via-[#1f1b0e] to-[#171724] border border-[#d4a935]/50 flex flex-col md:flex-row items-center justify-between gap-6 shadow-2xl text-center md:text-left">
+      <div className="cta-register-card p-6 sm:p-8 rounded-3xl bg-gradient-to-r from-[#171724] via-[#1f1b0e] to-[#171724] border border-[#d4a935]/50 flex flex-col md:flex-row items-center justify-between gap-6 shadow-2xl text-center md:text-left">
         <div className="space-y-1.5">
-          <span className="text-xs font-bold uppercase tracking-wider text-[#f2c14e] flex items-center justify-center md:justify-start gap-1.5">
+          <span className="cta-register-badge text-xs font-bold uppercase tracking-wider text-[#f2c14e] flex items-center justify-center md:justify-start gap-1.5">
             <Sparkles className="w-4 h-4 text-[#f2c14e]" />
             <span>Ready to Join NexusVerse 2K26?</span>
           </span>
-          <h4 className="font-serif-title text-xl sm:text-2xl font-bold text-white">
+          <h4 className="cta-register-title font-serif-title text-xl sm:text-2xl font-bold text-white">
             Sign in with Google or Create Your Space to Register
           </h4>
-          <p className="text-xs sm:text-sm text-[#b9ae94] max-w-xl">
+          <p className="cta-register-desc text-xs sm:text-sm text-[#b9ae94] max-w-xl">
             Takes less than 60 seconds. Once signed in, you can pick your technical competition, add teammates, and download your VIP digital QR pass.
           </p>
         </div>

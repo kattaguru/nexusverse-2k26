@@ -30,7 +30,7 @@ export const EventModal: React.FC<EventModalProps> = ({
       aria-labelledby="modal-event-title"
     >
       <div 
-        className="bg-[#131318] text-[#f3ecd9] border border-[#2e2b22] rounded-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto shadow-2xl relative"
+        className="event-modal-container bg-[#131318] text-[#f3ecd9] border border-[#2e2b22] rounded-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto shadow-2xl relative"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}

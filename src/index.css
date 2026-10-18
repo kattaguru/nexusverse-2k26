@@ -840,5 +840,327 @@ html.light .admin-modal-root button.bg-\[\#2a1315\],
   color: #b91c1c !important;
 }
 
+/* ==============================================================================
+   11. PRE-REGISTRATION EVENTS SHOWCASE (nbkristieee.in/register.html#events) LIGHT THEME
+   ============================================================================== */
+
+/* Filter Bar in Light Mode */
+html.light .event-filter-bar,
+[data-theme="light"] .event-filter-bar {
+  background-color: #f4efe4 !important;
+  border-color: #ded7c8 !important;
+}
+
+html.light .event-filter-btn,
+[data-theme="light"] .event-filter-btn {
+  color: #5c5547 !important;
+}
+html.light .event-filter-btn:hover,
+[data-theme="light"] .event-filter-btn:hover {
+  color: #11100d !important;
+}
+
+html.light .event-filter-btn.is-active,
+[data-theme="light"] .event-filter-btn.is-active {
+  background-color: #ffffff !important;
+  color: #925807 !important;
+  border-color: #b8860b !important;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.05) !important;
+}
+
+html.light .event-track-title,
+[data-theme="light"] .event-track-title {
+  color: #925807 !important;
+}
+
+html.light .event-track-fee,
+[data-theme="light"] .event-track-fee {
+  background-color: #fef9ee !important;
+  color: #925807 !important;
+  border-color: rgba(184, 134, 11, 0.4) !important;
+}
+
+/* 5 Technical Event Cards in Light Mode */
+html.light .event-showcase-card,
+[data-theme="light"] .event-showcase-card {
+  background-color: #ffffff !important;
+  border-color: #ded7c8 !important;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.04) !important;
+}
+html.light .event-showcase-card:hover,
+[data-theme="light"] .event-showcase-card:hover {
+  border-color: #b8860b !important;
+  box-shadow: 0 8px 30px rgba(184, 134, 11, 0.12) !important;
+}
+
+/* Event Title (Fixes invisible CODENANO / TECHQUEST in screenshot) */
+html.light .event-card-title,
+html.light .event-showcase-card h4.text-white,
+[data-theme="light"] .event-card-title,
+[data-theme="light"] .event-showcase-card h4.text-white {
+  color: #11100d !important;
+}
+html.light .event-showcase-card:hover .event-card-title,
+[data-theme="light"] .event-showcase-card:hover .event-card-title {
+  color: #b45309 !important;
+}
+
+html.light .event-card-category,
+[data-theme="light"] .event-card-category {
+  color: #b45309 !important;
+}
+
+html.light .event-icon-box,
+[data-theme="light"] .event-icon-box {
+  background-color: #fbf6ec !important;
+  border-color: rgba(184, 134, 11, 0.4) !important;
+  color: #925807 !important;
+}
+
+html.light .event-price-ieee,
+[data-theme="light"] .event-price-ieee {
+  color: #b45309 !important;
+}
+
+html.light .event-price-sub,
+html.light .event-price-non,
+[data-theme="light"] .event-price-sub,
+[data-theme="light"] .event-price-non {
+  color: #5c5547 !important;
+}
+
+html.light .event-card-tagline,
+[data-theme="light"] .event-card-tagline {
+  color: #92400e !important;
+}
+
+html.light .event-card-desc,
+[data-theme="light"] .event-card-desc {
+  color: #4b4437 !important;
+}
+
+/* Metadata Chips (Time, Venue, Team Structure) */
+html.light .event-meta-chip,
+[data-theme="light"] .event-meta-chip {
+  background-color: #f6f2e8 !important;
+  border-color: #ded7c8 !important;
+  color: #2b261b !important;
+  font-weight: 500 !important;
+}
+html.light .event-meta-chip svg,
+[data-theme="light"] .event-meta-chip svg {
+  color: #b45309 !important;
+}
+
+/* Prize Box in Light Mode (replaces black box with luxury ivory gold card) */
+html.light .event-prize-box,
+[data-theme="light"] .event-prize-box {
+  background: linear-gradient(135deg, #fefbf4 0%, #fdf6e7 100%) !important;
+  border-color: rgba(212, 169, 53, 0.45) !important;
+  box-shadow: 0 1px 4px rgba(180, 130, 20, 0.08) !important;
+}
+
+html.light .event-prize-title,
+[data-theme="light"] .event-prize-title {
+  color: #92400e !important;
+}
+
+html.light .event-prize-body,
+[data-theme="light"] .event-prize-body {
+  color: #4a3b1a !important;
+}
+
+html.light .event-prize-body strong,
+[data-theme="light"] .event-prize-body strong {
+  color: #1f1807 !important;
+}
+
+/* Highlights / Checklist pills */
+html.light .event-highlight-chip,
+[data-theme="light"] .event-highlight-chip {
+  background-color: #f4efe4 !important;
+  border-color: #ded7c8 !important;
+  color: #2d281f !important;
+  font-weight: 600 !important;
+}
+
+/* "View Rules & Rounds" button in Light Mode */
+html.light .event-rules-btn,
+[data-theme="light"] .event-rules-btn {
+  background-color: #ffffff !important;
+  border-color: #ded7c8 !important;
+  color: #171511 !important;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04) !important;
+}
+html.light .event-rules-btn:hover,
+[data-theme="light"] .event-rules-btn:hover {
+  background-color: #fbf7ee !important;
+  border-color: #b8860b !important;
+  color: #925807 !important;
+}
+html.light .event-rules-btn svg,
+[data-theme="light"] .event-rules-btn svg {
+  color: #b45309 !important;
+}
+
+/* Track 2: Spot Events Arena in Light Mode */
+html.light .spot-arena-card,
+[data-theme="light"] .spot-arena-card {
+  background: linear-gradient(135deg, #f0f7fe 0%, #e2f0fc 50%, #ffffff 100%) !important;
+  border-color: #38bdf8 !important;
+  box-shadow: 0 8px 30px rgba(0, 136, 212, 0.08) !important;
+}
+
+html.light .spot-track-title,
+[data-theme="light"] .spot-track-title {
+  color: #0284c7 !important;
+}
+
+html.light .spot-arena-badge,
+[data-theme="light"] .spot-arena-badge {
+  background-color: #e0f2fe !important;
+  border-color: #7dd3fc !important;
+  color: #0284c7 !important;
+}
+
+html.light .spot-arena-sub,
+[data-theme="light"] .spot-arena-sub {
+  color: #475569 !important;
+}
+
+html.light .spot-arena-title,
+html.light .spot-arena-card h4.text-white,
+[data-theme="light"] .spot-arena-title,
+[data-theme="light"] .spot-arena-card h4.text-white {
+  color: #0f172a !important;
+}
+html.light .spot-arena-card:hover .spot-arena-title,
+[data-theme="light"] .spot-arena-card:hover .spot-arena-title {
+  color: #0284c7 !important;
+}
+
+html.light .spot-arena-tagline,
+[data-theme="light"] .spot-arena-tagline {
+  color: #92400e !important;
+}
+
+html.light .spot-arena-desc,
+[data-theme="light"] .spot-arena-desc {
+  color: #334155 !important;
+}
+
+html.light .spot-arena-chip,
+[data-theme="light"] .spot-arena-chip {
+  background-color: #ffffff !important;
+  border-color: #bae6fd !important;
+  color: #0369a1 !important;
+  font-weight: 600 !important;
+}
+html.light .spot-arena-chip svg,
+[data-theme="light"] .spot-arena-chip svg {
+  color: #0284c7 !important;
+}
+
+html.light .spot-arena-box,
+[data-theme="light"] .spot-arena-box {
+  background-color: #ffffff !important;
+  border-color: #bae6fd !important;
+  color: #334155 !important;
+  box-shadow: 0 1px 4px rgba(0, 136, 212, 0.06) !important;
+}
+
+html.light .spot-box-strong,
+html.light .spot-arena-box strong.text-white,
+[data-theme="light"] .spot-box-strong,
+[data-theme="light"] .spot-arena-box strong.text-white {
+  color: #0369a1 !important;
+}
+
+html.light .spot-rules-btn,
+[data-theme="light"] .spot-rules-btn {
+  background-color: #ffffff !important;
+  border-color: #bae6fd !important;
+  color: #0284c7 !important;
+}
+html.light .spot-rules-btn:hover,
+[data-theme="light"] .spot-rules-btn:hover {
+  background-color: #f0f9ff !important;
+  border-color: #0284c7 !important;
+  color: #0369a1 !important;
+}
+
+/* Bottom Call to Action Card in Light Mode */
+html.light .cta-register-card,
+[data-theme="light"] .cta-register-card {
+  background: linear-gradient(135deg, #ffffff 0%, #fdfbf7 50%, #faf6ec 100%) !important;
+  border-color: #ded7c8 !important;
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.04) !important;
+}
+
+html.light .cta-register-badge,
+[data-theme="light"] .cta-register-badge {
+  color: #925807 !important;
+}
+
+html.light .cta-register-title,
+html.light .cta-register-card h4.text-white,
+[data-theme="light"] .cta-register-title,
+[data-theme="light"] .cta-register-card h4.text-white {
+  color: #11100d !important;
+}
+
+html.light .cta-register-desc,
+[data-theme="light"] .cta-register-desc {
+  color: #4b4437 !important;
+}
+
+/* Event Rules Modal (EventModal.tsx) in Light Mode */
+html.light .event-modal-container,
+[data-theme="light"] .event-modal-container {
+  background-color: #ffffff !important;
+  border-color: #ded7c8 !important;
+  color: #171511 !important;
+}
+
+html.light .event-modal-container .border-b,
+[data-theme="light"] .event-modal-container .border-b {
+  border-color: #ded7c8 !important;
+}
+
+html.light .event-modal-container .bg-\[\#131318\]\/95,
+[data-theme="light"] .event-modal-container .bg-\[\#131318\]\/95 {
+  background-color: rgba(255, 255, 255, 0.96) !important;
+}
+
+html.light .event-modal-container h3,
+html.light .event-modal-container h4,
+[data-theme="light"] .event-modal-container h3,
+[data-theme="light"] .event-modal-container h4 {
+  color: #11100d !important;
+}
+
+html.light .event-modal-container .bg-\[\#0a0a0d\],
+html.light .event-modal-container .bg-\[\#131318\],
+[data-theme="light"] .event-modal-container .bg-\[\#0a0a0d\],
+[data-theme="light"] .event-modal-container .bg-\[\#131318\] {
+  background-color: #f8f6f0 !important;
+  border-color: #ded7c8 !important;
+  color: #171511 !important;
+}
+
+html.light .event-modal-container .bg-\[\#1f1b0e\]\/70,
+html.light .event-modal-container .bg-\[\#1f1b0e\]\/90,
+[data-theme="light"] .event-modal-container .bg-\[\#1f1b0e\]\/70,
+[data-theme="light"] .event-modal-container .bg-\[\#1f1b0e\]\/90 {
+  background-color: #fdfaf3 !important;
+  border-color: rgba(212, 169, 53, 0.4) !important;
+}
+
+html.light .event-modal-container p,
+[data-theme="light"] .event-modal-container p {
+  color: #4b4437 !important;
+}
+
+
 
 
