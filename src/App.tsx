@@ -72,6 +72,60 @@ export interface FormEventTeamData {
   members: FormTeamMember[];
 }
 
+interface ErrorBoundaryProps {
+  children: React.ReactNode;
+  fallbackTitle?: string;
+}
+
+interface ErrorBoundaryState {
+  hasError: boolean;
+  error?: Error;
+}
+
+export class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoundaryState> {
+  constructor(props: ErrorBoundaryProps) {
+    super(props);
+    this.state = { hasError: false };
+  }
+
+  static getDerivedStateFromError(error: Error): ErrorBoundaryState {
+    return { hasError: true, error };
+  }
+
+  componentDidCatch(error: Error, errorInfo: React.ErrorInfo) {
+    console.error('NexusVerse ErrorBoundary caught error:', error, errorInfo);
+  }
+
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div className="p-6 my-4 rounded-2xl bg-[#14141d] border border-[#d4a935]/40 text-center space-y-3 max-w-lg mx-auto">
+          <div className="w-10 h-10 rounded-full bg-[#2a1315] text-[#ff8a80] border border-[#ff8a80]/30 flex items-center justify-center mx-auto">
+            <AlertCircle className="w-5 h-5" />
+          </div>
+          <h4 className="font-bold text-white text-base">
+            {this.props.fallbackTitle || 'Something went wrong loading this view'}
+          </h4>
+          <p className="text-xs text-[#a79f8b]">
+            Your registration details are safely recorded. Please try refreshing or reopening the space.
+          </p>
+          <button
+            type="button"
+            onClick={() => {
+              this.setState({ hasError: false });
+              window.location.reload();
+            }}
+            className="px-4 py-2 rounded-xl bg-[#f2c14e] text-black font-bold text-xs hover:bg-[#d4a935] cursor-pointer"
+          >
+            Reload Page
+          </button>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
+
 export default function App() {
   // Participant form fields (Lead / Individual)
   const [name, setName] = useState('');
@@ -263,11 +317,13 @@ export default function App() {
             }
           }
 
-          supabase.auth.getSession().then(({ data }) => {
-            if (data?.session) {
-              syncSessionUser(data.session);
-            }
-          });
+          if (supabase) {
+            supabase.auth.getSession().then(({ data }) => {
+              if (data?.session) {
+                syncSessionUser(data.session);
+              }
+            });
+          }
         }
       };
       window.addEventListener('message', handlePopupMessage);
@@ -990,6 +1046,7 @@ export default function App() {
             events={ALL_EVENTS}
             leftLogo={leftLogo}
             rightLogo={rightLogo}
+            onOpenParticipantSpace={() => setIsParticipantSpaceOpen(true)}
             onReset={() => {
               setConfirmedRecord(null);
               setUpiPendingRecord(null);
@@ -2374,20 +2431,22 @@ export default function App() {
       />
 
       {/* Participant Space Modal */}
-      <ParticipantSpaceModal
-        isOpen={isParticipantSpaceOpen}
-        onClose={() => setIsParticipantSpaceOpen(false)}
-        currentUser={currentUser}
-        onUserChange={(usr) => setCurrentUser(usr)}
-        savedRecords={savedRecords}
-        onOpenTicketPass={(rec) => {
-          setConfirmedRecord(rec);
-          setUpiPendingRecord(null);
-          window.scrollTo({ top: 0, behavior: 'smooth' });
-        }}
-        onNavigateToRegister={handlePrefillFromUser}
-        initialMode={participantSpaceInitialMode}
-      />
+      <ErrorBoundary fallbackTitle="Participant Space Dashboard">
+        <ParticipantSpaceModal
+          isOpen={isParticipantSpaceOpen}
+          onClose={() => setIsParticipantSpaceOpen(false)}
+          currentUser={currentUser}
+          onUserChange={(usr) => setCurrentUser(usr)}
+          savedRecords={savedRecords}
+          onOpenTicketPass={(rec) => {
+            setConfirmedRecord(rec);
+            setUpiPendingRecord(null);
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+          }}
+          onNavigateToRegister={handlePrefillFromUser}
+          initialMode={participantSpaceInitialMode}
+        />
+      </ErrorBoundary>
     </div>
   );
 }

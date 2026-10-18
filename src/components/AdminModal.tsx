@@ -49,7 +49,7 @@ import {
 } from 'lucide-react';
 import { TicketPass, RegistrationRecord, TeamMemberInfo } from './TicketPass';
 import { EVENTS, ALL_EVENTS, SYMPOSIUM_CONFIG } from '../data/symposiumData';
-import { fetchPhotosApi, uploadPhotoApi, deletePhotoApi, syncLocalRegistrationsToSupabase, testEmailApi, sendTicketEmailApi } from '../services/api';
+import { fetchPhotosApi, uploadPhotoApi, deletePhotoApi, syncLocalRegistrationsToSupabase, testEmailApi, sendTicketEmailApi, updateSettingsApi } from '../services/api';
 import { testSupabaseConnection, isSupabaseConfigured, supabase } from '../lib/supabase';
 
 export interface GalleryPhoto {

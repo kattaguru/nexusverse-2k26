@@ -51,7 +51,7 @@ export const UpiConfirmationView: React.FC<UpiConfirmationViewProps> = ({
   const [viewingReceiptModal, setViewingReceiptModal] = useState(false);
   const [copiedWa, setCopiedWa] = useState(false);
 
-  const waGroupUrl = SYMPOSIUM_CONFIG.whatsappGroupUrl || 'https://chat.whatsapp.com/sample-nexusverse-2k26';
+  const waGroupUrl = SYMPOSIUM_CONFIG.whatsappGroup?.url || 'https://chat.whatsapp.com/GEpv2i56odNEV0LpLizzaO';
 
   const copyRegId = () => {
     navigator.clipboard.writeText(record.regId);

@@ -37,7 +37,7 @@ import {
   logoutParticipant 
 } from '../services/auth';
 import { RegistrationRecord } from './TicketPass';
-import { ALL_EVENTS } from '../data/symposiumData';
+import { ALL_EVENTS, SYMPOSIUM_CONFIG } from '../data/symposiumData';
 import { supabase, isSupabaseConfigured } from '../lib/supabase';
 
 interface ParticipantSpaceModalProps {
@@ -902,7 +902,14 @@ export const ParticipantSpaceModal: React.FC<ParticipantSpaceModalProps> = ({
                             </span>
                             {rec.timestamp && (
                               <span className="text-[10px] text-[#716c5e]">
-                                Registered on {new Date(rec.timestamp).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                                Registered on {(() => {
+                                  try {
+                                    const d = new Date(rec.timestamp);
+                                    return isNaN(d.getTime()) ? '' : d.toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+                                  } catch {
+                                    return '';
+                                  }
+                                })()}
                               </span>
                             )}
                           </div>
@@ -937,9 +944,9 @@ export const ParticipantSpaceModal: React.FC<ParticipantSpaceModalProps> = ({
                             <div>
                               <span className="text-[10px] text-[#a79f8b] block font-medium">Class, Section & Branch</span>
                               <span className="font-semibold text-white block">
-                                {rec.className} {rec.section && `- Section ${rec.section}`} · {rec.dept}
+                                {rec.className || 'B.Tech'} {rec.section && `- Section ${rec.section}`} · {rec.dept || 'Engineering'}
                               </span>
-                              <span className="text-[11px] text-[#a79f8b]">{rec.year}</span>
+                              <span className="text-[11px] text-[#a79f8b]">{rec.year || '3rd Year'}</span>
                             </div>
 
                             <div>
@@ -1065,19 +1072,28 @@ export const ParticipantSpaceModal: React.FC<ParticipantSpaceModalProps> = ({
                                       </div>
 
                                       {/* Teammates */}
-                                      {additionalTeammates.map((m, idx) => (
-                                        <div key={idx} className="p-2 rounded-lg bg-[#0a0a0d] border border-[#2e2b22] text-[11px]">
-                                          <div className="flex items-center justify-between">
-                                            <span className="font-bold text-white">{idx + 2}. {m.name}</span>
-                                            {m.isIeeeMember && (
-                                              <span className="text-[9px] px-1.5 py-0.5 rounded bg-[#152319] text-[#4cc38a] font-semibold">IEEE</span>
-                                            )}
+                                      {additionalTeammates.map((m: any, idx: number) => {
+                                        const memberName = typeof m === 'string' ? m : (m?.name || `Teammate ${idx + 2}`);
+                                        const memberRoll = typeof m === 'object' ? (m?.roll || '') : '';
+                                        const memberBranch = typeof m === 'object' ? (m?.branch || '') : '';
+                                        const memberSection = typeof m === 'object' ? (m?.section || '') : '';
+                                        const memberPhone = typeof m === 'object' ? (m?.phone || '') : '';
+                                        const memberIsIeee = typeof m === 'object' ? Boolean(m?.isIeeeMember) : false;
+
+                                        return (
+                                          <div key={idx} className="p-2 rounded-lg bg-[#0a0a0d] border border-[#2e2b22] text-[11px]">
+                                            <div className="flex items-center justify-between">
+                                              <span className="font-bold text-white">{idx + 2}. {memberName}</span>
+                                              {memberIsIeee && (
+                                                <span className="text-[9px] px-1.5 py-0.5 rounded bg-[#152319] text-[#4cc38a] font-semibold">IEEE</span>
+                                              )}
+                                            </div>
+                                            <div className="text-[#a79f8b] font-mono text-[10px] mt-0.5">
+                                              Roll: {memberRoll || 'N/A'} {memberBranch && `· ${memberBranch}`} {memberSection && `(${memberSection})`} {memberPhone && `· 📞 ${memberPhone}`}
+                                            </div>
                                           </div>
-                                          <div className="text-[#a79f8b] font-mono text-[10px] mt-0.5">
-                                            Roll: {m.roll} · {m.branch} {m.section && `(${m.section})`} · 📞 {m.phone}
-                                          </div>
-                                        </div>
-                                      ))}
+                                        );
+                                      })}
                                     </div>
                                   </div>
                                 )}
@@ -1094,7 +1110,7 @@ export const ParticipantSpaceModal: React.FC<ParticipantSpaceModalProps> = ({
 
                           <div className="flex items-center gap-2">
                             <a
-                              href={SYMPOSIUM_CONFIG.whatsappGroupUrl || 'https://chat.whatsapp.com/sample-nexusverse-2k26'}
+                              href={SYMPOSIUM_CONFIG.whatsappGroup?.url || 'https://chat.whatsapp.com/GEpv2i56odNEV0LpLizzaO'}
                               target="_blank"
                               rel="noopener noreferrer"
                               className="px-3 py-1.5 rounded-lg bg-[#092215] border border-[#25d366]/40 text-[#25d366] hover:bg-[#25d366] hover:text-[#052e16] font-semibold text-xs flex items-center gap-1.5 transition-colors cursor-pointer"
@@ -1259,7 +1275,7 @@ export const ParticipantSpaceModal: React.FC<ParticipantSpaceModalProps> = ({
                 </p>
               </div>
 
-              <form onSubmit={handleGoogleSimSubmit} className="space-y-3.5 text-left pt-1">
+              <form onSubmit={handleGoogleDirectSubmit} className="space-y-3.5 text-left pt-1">
                 <div>
                   <label className="block text-xs font-medium text-[#a79f8b] mb-1">
                     Google Email Address *

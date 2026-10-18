@@ -73,6 +73,7 @@ interface TicketPassProps {
   record: RegistrationRecord;
   events: SymposiumEvent[];
   onReset: () => void;
+  onOpenParticipantSpace?: () => void;
   leftLogo?: string;
   rightLogo?: string;
 }
@@ -81,6 +82,7 @@ export const TicketPass: React.FC<TicketPassProps> = ({
   record, 
   events, 
   onReset,
+  onOpenParticipantSpace,
   leftLogo = '/symposium-poster.jpg',
   rightLogo = '/ieee-sb-logo.png'
 }) => {
@@ -728,6 +730,17 @@ export const TicketPass: React.FC<TicketPassProps> = ({
           <CalendarPlus className="w-4 h-4 text-[#d4a935]" />
           <span>Add to Calendar</span>
         </button>
+
+        {onOpenParticipantSpace && (
+          <button
+            type="button"
+            onClick={onOpenParticipantSpace}
+            className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl bg-[#1f1b0e] border border-[#d4a935] text-[#f2c14e] font-bold text-sm hover:bg-[#d4a935] hover:text-[#1a1300] active:scale-95 transition-all cursor-pointer shadow-md shadow-[#d4a935]/15"
+          >
+            <User className="w-4 h-4" />
+            <span>Open Your Space / My Dashboard</span>
+          </button>
+        )}
 
         <button
           type="button"
