@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import confetti from 'canvas-confetti';
 import { Navbar } from './components/Navbar';
 import { Hero } from './components/Hero';
@@ -145,6 +145,17 @@ export default function App() {
   const [selectedEvents, setSelectedEvents] = useState<string[]>(['ctf']);
   // Spot Events (Non-Technical, ₹100)
   const [includeSpotEvents, setIncludeSpotEvents] = useState<boolean>(false);
+  // Warning message if user tries to deselect their last remaining event
+  const [eventWarning, setEventWarning] = useState<string>('');
+  const warningTimerRef = useRef<any>(null);
+
+  const triggerEventWarning = (msg: string) => {
+    if (warningTimerRef.current) clearTimeout(warningTimerRef.current);
+    setEventWarning(msg);
+    warningTimerRef.current = setTimeout(() => {
+      setEventWarning('');
+    }, 3500);
+  };
 
   // Structured Team Details for team events
   const [teamDetails, setTeamDetails] = useState<Record<string, FormEventTeamData>>({
@@ -608,13 +619,18 @@ export default function App() {
     setRightLogo(url);
   };
 
-  // Select or toggle single technical event (clicking an already selected event unselects it)
+  // Select or toggle single technical event (clicking an already selected event unselects it ONLY IF spot pass is selected)
   const selectEvent = (id: string) => {
     if (selectedEvents.includes(id)) {
+      if (!includeSpotEvents) {
+        triggerEventWarning('At least one event (Technical or Spot Pass) must be selected.');
+        return;
+      }
       setSelectedEvents([]);
       return;
     }
 
+    setEventWarning('');
     setSelectedEvents([id]);
     if (errors.events) {
       setErrors(prev => {
@@ -643,6 +659,32 @@ export default function App() {
       });
     }
   };
+
+  // Toggle Spot Events pass (ensuring at least one event remains selected)
+  const toggleSpotEvents = (forceValue?: boolean) => {
+    const nextVal = forceValue !== undefined ? forceValue : !includeSpotEvents;
+    if (!nextVal && selectedEvents.length === 0) {
+      triggerEventWarning('At least one event (Technical or Spot Pass) must be selected.');
+      return;
+    }
+
+    setEventWarning('');
+    setIncludeSpotEvents(nextVal);
+    if (errors.events) {
+      setErrors(prev => {
+        const copy = { ...prev };
+        delete copy.events;
+        return copy;
+      });
+    }
+  };
+
+  // Auto-heal to guarantee at least one event is always selected
+  useEffect(() => {
+    if (selectedEvents.length === 0 && !includeSpotEvents) {
+      setSelectedEvents(['ctf']);
+    }
+  }, [selectedEvents, includeSpotEvents]);
 
   // Team Member management helpers
   const handleAddTeamMember = (eventId: string, maxAllowed: number) => {
@@ -1127,7 +1169,7 @@ export default function App() {
               }}
               onSelectEvent={(eventId) => {
                 if (eventId === 'spot') {
-                  setIncludeSpotEvents(prev => !prev);
+                  toggleSpotEvents();
                 } else {
                   selectEvent(eventId);
                 }
@@ -1137,6 +1179,7 @@ export default function App() {
               isIeeeMember={isIeeeMember}
               leftLogo={leftLogo}
               rightLogo={rightLogo}
+              eventWarning={eventWarning}
             />
 
             {/* Previous Symposium Memories & Photo Gallery Section */}
@@ -1694,6 +1737,13 @@ export default function App() {
                         </div>
                       </div>
 
+                      {eventWarning && (
+                        <div className="p-3 rounded-xl bg-amber-500/15 border border-amber-500/40 text-xs text-amber-300 flex items-center gap-2 animate-pulse">
+                          <AlertCircle className="w-4 h-4 shrink-0 text-amber-400" />
+                          <span className="font-medium">{eventWarning}</span>
+                        </div>
+                      )}
+
                       {errors.events && (
                         <div className="p-3 rounded-xl bg-[#ff8a80]/10 border border-[#ff8a80]/30 text-xs text-[#ff8a80] flex items-center gap-2">
                           <AlertCircle className="w-4 h-4 shrink-0" />
@@ -2112,7 +2162,11 @@ export default function App() {
                         <div className="flex justify-end pt-2 pb-0.5">
                           <button
                             type="button"
-                            onClick={() => setSelectedEvents([])}
+                            onClick={() => {
+                              setSelectedEvents([]);
+                              setIncludeSpotEvents(true);
+                              setEventWarning('');
+                            }}
                             className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-lg bg-[#1f1b0e] hover:bg-[#2a2312] text-[#f2c14e] hover:text-[#fff2b2] border border-[#d4a935]/60 hover:border-[#f2c14e] text-xs font-semibold transition-all shadow-sm hover:shadow-[#f2c14e]/10 cursor-pointer active:scale-95"
                           >
                             <span className="text-[#ff8a80] font-bold text-sm leading-none">✕</span>
@@ -2156,16 +2210,7 @@ export default function App() {
 
                       {/* Interactive Spot Events Card */}
                       <div
-                        onClick={() => {
-                          setIncludeSpotEvents(!includeSpotEvents);
-                          if (errors.events) {
-                            setErrors(prev => {
-                              const copy = { ...prev };
-                              delete copy.events;
-                              return copy;
-                            });
-                          }
-                        }}
+                        onClick={() => toggleSpotEvents()}
                         className={`rounded-2xl border transition-all duration-200 overflow-hidden cursor-pointer ${
                           includeSpotEvents
                             ? 'bg-gradient-to-r from-[#0d1e34] via-[#091524] to-[#070e17] border-[#0088d4] shadow-lg shadow-[#0088d4]/15 ring-1 ring-[#0088d4]/50'
@@ -2177,16 +2222,7 @@ export default function App() {
                             <input
                               type="checkbox"
                               checked={includeSpotEvents}
-                              onChange={(e) => {
-                                setIncludeSpotEvents(e.target.checked);
-                                if (errors.events) {
-                                  setErrors(prev => {
-                                    const copy = { ...prev };
-                                    delete copy.events;
-                                    return copy;
-                                  });
-                                }
-                              }}
+                              onChange={(e) => toggleSpotEvents(e.target.checked)}
                               className="mt-1 w-5 h-5 rounded border-[#2e2b22] bg-[#0a0a0d] text-[#0088d4] accent-[#0088d4] cursor-pointer"
                             />
                             <div className="space-y-1">

@@ -1,6 +1,6 @@
 import React from 'react';
 import { EVENTS, ALL_EVENTS } from '../data/symposiumData';
-import { ArrowRight, Sparkles, MapPin, Calendar, Trophy } from 'lucide-react';
+import { ArrowRight, Sparkles, MapPin, Calendar, Trophy, AlertCircle } from 'lucide-react';
 
 interface HeroProps {
   onRegisterClick?: () => void;
@@ -10,6 +10,7 @@ interface HeroProps {
   isIeeeMember?: boolean;
   leftLogo?: string;
   rightLogo?: string;
+  eventWarning?: string;
 }
 
 export const Hero: React.FC<HeroProps> = ({
@@ -21,7 +22,8 @@ export const Hero: React.FC<HeroProps> = ({
   attendeeName = '',
   isIeeeMember = false,
   leftLogo = '/symposium-poster.jpg',
-  rightLogo = '/ieee-sb-logo.png'
+  rightLogo = '/ieee-sb-logo.png',
+  eventWarning = ''
 }) => {
   const displayEvents = selectedEventIds && selectedEventIds.length > 0
     ? ALL_EVENTS.filter(e => selectedEventIds.includes(e.id))
@@ -221,12 +223,22 @@ export const Hero: React.FC<HeroProps> = ({
                 <div className="text-xs font-medium text-[#a79f8b] flex justify-between items-center">
                   <div className="flex items-center gap-1.5">
                     <span>Symposium Tracks & Events</span>
-                    <span className="text-[10px] text-[#f2c14e]/80 font-normal hidden sm:inline">(Tap to select)</span>
+                    <span className="text-[10px] text-[#f2c14e]/90 font-medium hidden sm:inline">(Tap to select · Min 1 event)</span>
                   </div>
                   <span>Fee ({isIeeeMember ? 'Member' : 'Regular'})</span>
                 </div>
 
-                <ul className="space-y-1.5 text-sm max-h-56 overflow-y-auto pr-1 select-none">
+                {eventWarning && (
+                  <div 
+                    role="alert" 
+                    className="flex items-center gap-2 p-2.5 rounded-lg bg-amber-500/15 border border-amber-500/50 text-amber-300 text-xs shadow-md animate-pulse"
+                  >
+                    <AlertCircle className="w-4 h-4 shrink-0 text-amber-400" />
+                    <span className="font-medium">{eventWarning}</span>
+                  </div>
+                )}
+
+                <ul className="space-y-1.5 text-sm max-h-80 overflow-y-auto pr-1 select-none">
                   {ALL_EVENTS.map((ev) => {
                     const fee = isIeeeMember ? ev.feeMember : ev.feeNonMember;
                     const isSelected = selectedEventIds.includes(ev.id);
