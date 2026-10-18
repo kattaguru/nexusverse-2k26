@@ -608,8 +608,13 @@ export default function App() {
     setRightLogo(url);
   };
 
-  // Select single event
+  // Select or toggle single technical event (clicking an already selected event unselects it)
   const selectEvent = (id: string) => {
+    if (selectedEvents.includes(id)) {
+      setSelectedEvents([]);
+      return;
+    }
+
     setSelectedEvents([id]);
     if (errors.events) {
       setErrors(prev => {
@@ -1729,13 +1734,16 @@ export default function App() {
                             >
                               {/* Event Header row */}
                               <div className="p-5 flex items-start justify-between gap-4">
-                                <label className="flex items-start gap-3.5 flex-1 cursor-pointer" onClick={(e) => e.stopPropagation()}>
+                                <div className="flex items-start gap-3.5 flex-1">
                                   <input
-                                    type="radio"
-                                    name="technical_event_selection"
+                                    type="checkbox"
                                     checked={isSelected}
-                                    onChange={() => selectEvent(event.id)}
-                                    className="mt-1 w-5 h-5 border-[#2e2b22] bg-[#0a0a0d] text-[#d4a935] accent-[#d4a935] cursor-pointer"
+                                    onChange={(e) => {
+                                      e.stopPropagation();
+                                      selectEvent(event.id);
+                                    }}
+                                    onClick={(e) => e.stopPropagation()}
+                                    className="mt-1 w-5 h-5 rounded border-[#2e2b22] bg-[#0a0a0d] text-[#d4a935] accent-[#d4a935] cursor-pointer shrink-0"
                                   />
                                   <div className="space-y-1">
                                     <div className="flex flex-wrap items-center gap-2">
@@ -1763,7 +1771,7 @@ export default function App() {
                                       {event.tag}
                                     </p>
                                   </div>
-                                </label>
+                                </div>
 
                                 <div className="text-right shrink-0 flex flex-col items-end gap-1" onClick={(e) => e.stopPropagation()}>
                                   <span className="font-mono tabular-nums text-lg font-bold text-[#f2c14e]">
