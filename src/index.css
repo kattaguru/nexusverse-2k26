@@ -592,5 +592,253 @@ html.light .logo-animated-badge-right {
   border-color: rgba(0, 98, 155, 0.4) !important;
 }
 
+/* ==============================================================================
+   10. ADMIN PORTAL (nbkristieee.in/admin & Admin Modal) LIGHT THEME LUXURY CONTRAST
+   ============================================================================== */
+html.light .admin-modal-root,
+[data-theme="light"] .admin-modal-root {
+  background-color: #f8f6f0 !important;
+  color: #171511 !important;
+}
+
+html.light .admin-modal-inner,
+[data-theme="light"] .admin-modal-inner {
+  background-color: #fcfaf5 !important;
+  border-color: #ded7c8 !important;
+  color: #171511 !important;
+}
+
+/* Header in Light Mode (fixes Arrows 1 & 2) */
+html.light .admin-header,
+[data-theme="light"] .admin-header {
+  background: linear-gradient(135deg, #ffffff 0%, #fdfbf7 50%, #faf6ec 100%) !important;
+  border-color: #ded7c8 !important;
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.04) !important;
+}
+
+html.light .admin-header-shield,
+[data-theme="light"] .admin-header-shield {
+  background-color: #fbf6ec !important;
+  border-color: rgba(184, 134, 11, 0.4) !important;
+  color: #925807 !important;
+}
+
+html.light .admin-header-title,
+[data-theme="light"] .admin-header-title {
+  color: #11100d !important;
+}
+
+html.light .admin-header-badge-text,
+[data-theme="light"] .admin-header-badge-text {
+  color: #925807 !important;
+}
+
+html.light .admin-header-btn,
+[data-theme="light"] .admin-header-btn {
+  background-color: #ffffff !important;
+  color: #171511 !important;
+  border-color: #ded7c8 !important;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04) !important;
+}
+html.light .admin-header-btn:hover,
+[data-theme="light"] .admin-header-btn:hover {
+  background-color: #fbf7ee !important;
+  color: #925807 !important;
+  border-color: #b8860b !important;
+}
+
+html.light .admin-lock-btn,
+[data-theme="light"] .admin-lock-btn {
+  background-color: #fef2f2 !important;
+  color: #b91c1c !important;
+  border-color: #fecaca !important;
+}
+html.light .admin-lock-btn:hover,
+[data-theme="light"] .admin-lock-btn:hover {
+  background-color: #fee2e2 !important;
+  color: #991b1b !important;
+}
+
+/* KPI Quick Stats Cards in Light Mode (fixes Arrow 3) */
+html.light .admin-kpi-card,
+[data-theme="light"] .admin-kpi-card {
+  background-color: #ffffff !important;
+  border-color: #ded7c8 !important;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.03) !important;
+}
+html.light .admin-kpi-card:hover,
+[data-theme="light"] .admin-kpi-card:hover {
+  border-color: #b8860b !important;
+}
+
+html.light .admin-kpi-title,
+[data-theme="light"] .admin-kpi-title {
+  color: #5c5547 !important;
+}
+
+html.light .admin-kpi-value,
+[data-theme="light"] .admin-kpi-value {
+  color: #11100d !important;
+}
+
+html.light .admin-kpi-value-gold,
+[data-theme="light"] .admin-kpi-value-gold {
+  color: #b45309 !important;
+}
+
+html.light .admin-kpi-value-green,
+[data-theme="light"] .admin-kpi-value-green {
+  color: #15803d !important;
+}
+
+html.light .admin-kpi-value-blue,
+[data-theme="light"] .admin-kpi-value-blue {
+  color: #0369a1 !important;
+}
+
+/* Attendee Name and Badges in Light Mode */
+html.light .admin-attendee-name,
+[data-theme="light"] .admin-attendee-name {
+  color: #11100d !important;
+}
+
+html.light .admin-badge-regid,
+[data-theme="light"] .admin-badge-regid {
+  background-color: #fef9ee !important;
+  color: #925807 !important;
+  border-color: rgba(184, 134, 11, 0.4) !important;
+}
+
+html.light .admin-badge-ieee,
+[data-theme="light"] .admin-badge-ieee {
+  background-color: #ecfdf5 !important;
+  color: #065f46 !important;
+  border-color: #a7f3d0 !important;
+}
+
+html.light .admin-badge-non-ieee,
+[data-theme="light"] .admin-badge-non-ieee {
+  background-color: #f4efe4 !important;
+  color: #5c5547 !important;
+  border-color: #ded7c8 !important;
+}
+
+html.light .admin-badge-pending,
+[data-theme="light"] .admin-badge-pending {
+  background-color: #fef3c7 !important;
+  color: #92400e !important;
+  border-color: #fcd34d !important;
+}
+
+html.light .admin-badge-verified,
+[data-theme="light"] .admin-badge-verified {
+  background-color: #dcfce7 !important;
+  color: #166534 !important;
+  border-color: #86efac !important;
+}
+
+html.light .admin-badge-razorpay,
+[data-theme="light"] .admin-badge-razorpay {
+  background-color: #e0f2fe !important;
+  color: #0369a1 !important;
+  border-color: #bae6fd !important;
+}
+
+html.light .admin-badge-event,
+[data-theme="light"] .admin-badge-event {
+  background-color: #eff6ff !important;
+  color: #1d4ed8 !important;
+  border-color: #bfdbfe !important;
+}
+
+html.light .admin-badge-team,
+[data-theme="light"] .admin-badge-team {
+  background-color: #fef9c3 !important;
+  color: #854d0e !important;
+  border-color: #fde047 !important;
+}
+
+/* Comprehensive text-white override for cards and labels in Admin in light mode */
+html.light .admin-modal-root h4.text-white,
+html.light .admin-modal-root h5.text-white,
+html.light .admin-modal-root label.text-white,
+html.light .admin-modal-root span.text-white:not(.admin-btn-white),
+html.light .admin-modal-root div.text-white:not(.admin-btn-white),
+html.light .admin-modal-root strong.text-white,
+[data-theme="light"] .admin-modal-root h4.text-white,
+[data-theme="light"] .admin-modal-root h5.text-white,
+[data-theme="light"] .admin-modal-root label.text-white,
+[data-theme="light"] .admin-modal-root span.text-white:not(.admin-btn-white),
+[data-theme="light"] .admin-modal-root div.text-white:not(.admin-btn-white),
+[data-theme="light"] .admin-modal-root strong.text-white {
+  color: #11100d !important;
+}
+
+/* Preserve crisp white text on colored buttons */
+html.light .admin-btn-white,
+html.light .admin-btn-white span,
+html.light .admin-modal-root button.bg-\[\#1b5e39\],
+html.light .admin-modal-root button.bg-\[\#1b5e39\] span,
+html.light .admin-modal-root button.bg-\[\#00629b\],
+html.light .admin-modal-root button.bg-\[\#00629b\] span,
+[data-theme="light"] .admin-btn-white,
+[data-theme="light"] .admin-btn-white span,
+[data-theme="light"] .admin-modal-root button.bg-\[\#1b5e39\],
+[data-theme="light"] .admin-modal-root button.bg-\[\#1b5e39\] span,
+[data-theme="light"] .admin-modal-root button.bg-\[\#00629b\],
+[data-theme="light"] .admin-modal-root button.bg-\[\#00629b\] span {
+  color: #ffffff !important;
+}
+
+/* Card backgrounds and borders inside Admin modal in light mode */
+html.light .admin-modal-root .bg-\[\#0a0a0d\],
+[data-theme="light"] .admin-modal-root .bg-\[\#0a0a0d\] {
+  background-color: #ffffff !important;
+  border-color: #ded7c8 !important;
+}
+
+html.light .admin-modal-root .bg-\[\#131318\],
+[data-theme="light"] .admin-modal-root .bg-\[\#131318\] {
+  background-color: #ffffff !important;
+  border-color: #ded7c8 !important;
+}
+
+html.light .admin-modal-root .bg-\[\#181820\],
+[data-theme="light"] .admin-modal-root .bg-\[\#181820\] {
+  background-color: #f8f6f0 !important;
+  border-color: #ded7c8 !important;
+}
+
+html.light .admin-modal-root .bg-\[\#0e0e13\],
+[data-theme="light"] .admin-modal-root .bg-\[\#0e0e13\] {
+  background-color: #f8f6f0 !important;
+}
+
+html.light .admin-modal-root .border-\[\#2e2b22\],
+[data-theme="light"] .admin-modal-root .border-\[\#2e2b22\] {
+  border-color: #ded7c8 !important;
+}
+
+/* Action buttons in attendee list */
+html.light .admin-modal-root button.bg-\[\#181820\],
+[data-theme="light"] .admin-modal-root button.bg-\[\#181820\] {
+  background-color: #ffffff !important;
+  border-color: #ded7c8 !important;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04) !important;
+}
+
+html.light .admin-modal-root button.bg-\[\#181820\]:hover,
+[data-theme="light"] .admin-modal-root button.bg-\[\#181820\]:hover {
+  background-color: #fbf7ee !important;
+  border-color: #d4a935 !important;
+}
+
+html.light .admin-modal-root button.bg-\[\#2a1315\],
+[data-theme="light"] .admin-modal-root button.bg-\[\#2a1315\] {
+  background-color: #fef2f2 !important;
+  border-color: #fecaca !important;
+  color: #b91c1c !important;
+}
+
 
 

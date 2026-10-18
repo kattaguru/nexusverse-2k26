@@ -973,6 +973,8 @@ export default function App() {
       <AdminModal
         isOpen={true}
         isFullPage={true}
+        theme={theme}
+        onToggleTheme={handleToggleTheme}
         onClose={() => {
           window.location.href = '/register.html';
         }}
@@ -2440,6 +2442,8 @@ export default function App() {
       {/* Admin Operations & Executive Control Modal */}
       <AdminModal
         isOpen={isAdminOpen}
+        theme={theme}
+        onToggleTheme={handleToggleTheme}
         onClose={() => setIsAdminOpen(false)}
         savedRecords={savedRecords}
         onUpdateRecord={handleUpdateRecord}

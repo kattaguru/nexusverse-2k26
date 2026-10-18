@@ -45,7 +45,9 @@ import {
   QrCode,
   CheckCircle2,
   Ticket,
-  Clock
+  Clock,
+  Sun,
+  Moon
 } from 'lucide-react';
 import { TicketPass, RegistrationRecord, TeamMemberInfo } from './TicketPass';
 import { EVENTS, ALL_EVENTS, SYMPOSIUM_CONFIG } from '../data/symposiumData';
@@ -82,6 +84,8 @@ interface AdminModalProps {
   onUpdateRightLogo: (url: string) => void;
   initialTab?: 'registrations' | 'manual' | 'status' | 'photos' | 'settings';
   isFullPage?: boolean;
+  theme?: 'dark' | 'light';
+  onToggleTheme?: () => void;
 }
 
 type SortOption = 
@@ -177,8 +181,53 @@ export const AdminModal: React.FC<AdminModalProps> = ({
   onUpdateLeftLogo,
   onUpdateRightLogo,
   initialTab,
-  isFullPage = false
+  isFullPage = false,
+  theme: propTheme,
+  onToggleTheme: propOnToggleTheme
 }) => {
+  const [internalTheme, setInternalTheme] = useState<'dark' | 'light'>(() => {
+    if (typeof document !== 'undefined') {
+      const current = document.documentElement.getAttribute('data-theme');
+      if (current === 'light' || current === 'dark') return current;
+    }
+    try {
+      return (localStorage.getItem('nexusverse_theme') as 'dark' | 'light') || 'dark';
+    } catch {
+      return 'dark';
+    }
+  });
+
+  const activeTheme = propTheme || internalTheme;
+
+  const handleThemeToggle = () => {
+    if (propOnToggleTheme) {
+      propOnToggleTheme();
+    } else {
+      const nextTheme = activeTheme === 'dark' ? 'light' : 'dark';
+      setInternalTheme(nextTheme);
+      document.documentElement.setAttribute('data-theme', nextTheme);
+      if (nextTheme === 'light') {
+        document.documentElement.classList.add('light');
+      } else {
+        document.documentElement.classList.remove('light');
+      }
+      try {
+        localStorage.setItem('nexusverse_theme', nextTheme);
+      } catch {}
+    }
+  };
+
+  useEffect(() => {
+    const handleStorage = () => {
+      try {
+        const t = localStorage.getItem('nexusverse_theme');
+        if (t === 'light' || t === 'dark') setInternalTheme(t);
+      } catch {}
+    };
+    window.addEventListener('storage', handleStorage);
+    return () => window.removeEventListener('storage', handleStorage);
+  }, []);
+
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [passwordInput, setPasswordInput] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -430,6 +479,17 @@ export const AdminModal: React.FC<AdminModalProps> = ({
           setIsAuthenticated(true);
         }
       } catch (e) {}
+
+      const handleAuthEvent = (e: any) => {
+        if (e?.detail?.isAuthenticated !== undefined) {
+          setIsAuthenticated(Boolean(e.detail.isAuthenticated));
+        } else {
+          try {
+            setIsAuthenticated(sessionStorage.getItem('nexusverse_admin_auth') === 'true');
+          } catch (err) {}
+        }
+      };
+      window.addEventListener('nexusverse_admin_auth_changed', handleAuthEvent);
 
       // Fetch active Razorpay & Direct UPI configuration from server
       fetch('/api/razorpay/config')
@@ -1161,48 +1221,69 @@ export const AdminModal: React.FC<AdminModalProps> = ({
 
   return (
     <div 
-      className={
+      className={`admin-modal-root admin-portal-wrapper ${
         isFullPage
           ? "min-h-screen bg-[#07070a] text-[#f3ecd9] flex flex-col selection:bg-[#d4a935]/30 selection:text-[#f2c14e]"
           : "fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 bg-black/90 backdrop-blur-md animate-in fade-in duration-200 selection:bg-[#d4a935]/30 selection:text-[#f2c14e]"
-      }
+      }`}
       role={isFullPage ? "region" : "dialog"}
       aria-modal={isFullPage ? undefined : true}
       aria-labelledby="admin-panel-title"
       onClick={isFullPage ? undefined : onClose}
     >
       <div 
-        className={
+        className={`admin-modal-inner ${
           isFullPage
             ? "w-full flex-1 flex flex-col min-h-screen bg-[#0e0e13]"
             : "bg-[#111116] border border-[#2e2b22] text-[#f3ecd9] rounded-2xl w-full max-w-6xl shadow-2xl flex flex-col max-h-[96vh] overflow-hidden animate-in zoom-in-95 duration-200"
-        }
+        }`}
         onClick={(e) => e.stopPropagation()}
       >
         {/* TOP HEADER */}
-        <div className="bg-gradient-to-r from-[#181820] via-[#1f1b0e] to-[#181820] p-4 sm:p-5 border-b border-[#2e2b22] flex items-center justify-between shrink-0 shadow-md">
+        <div className="admin-header bg-gradient-to-r from-[#181820] via-[#1f1b0e] to-[#181820] p-4 sm:p-5 border-b border-[#2e2b22] flex items-center justify-between shrink-0 shadow-md">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-[#d4a935]/20 border border-[#d4a935]/50 flex items-center justify-center text-[#f2c14e] shadow-md shrink-0">
+            <div className="admin-header-shield w-10 h-10 rounded-xl bg-[#d4a935]/20 border border-[#d4a935]/50 flex items-center justify-center text-[#f2c14e] shadow-md shrink-0">
               <ShieldCheck className="w-5 h-5" />
             </div>
             <div>
               <div className="text-[10px] sm:text-[11px] text-[#f2c14e] font-mono tracking-wider uppercase font-semibold flex items-center gap-1.5">
                 <span>NexusVerse 2K26</span>
                 <span className="w-1.5 h-1.5 rounded-full bg-[#4cc38a] animate-pulse" />
-                <span>Executive Operations Center</span>
+                <span className="admin-header-badge-text">Executive Operations Center</span>
               </div>
-              <h3 id="admin-panel-title" className="text-sm sm:text-lg font-bold text-[#ffffff] leading-tight">
+              <h3 id="admin-panel-title" className="admin-header-title text-sm sm:text-lg font-bold text-[#ffffff] leading-tight">
                 Symposium Admin & Delegate Management Portal
               </h3>
             </div>
           </div>
 
           <div className="flex items-center gap-2">
+            {/* Dark / Light Theme Toggle Button */}
+            <button
+              type="button"
+              onClick={handleThemeToggle}
+              className="admin-header-btn px-2.5 py-1.5 text-xs font-semibold rounded-lg border border-[#2e2b22] text-[#f2c14e] hover:bg-[#1f1b0e] hover:border-[#d4a935]/40 transition-all flex items-center gap-1.5 cursor-pointer shadow-sm"
+              title={`Switch to ${activeTheme === 'dark' ? 'Light' : 'Dark'} Mode`}
+              aria-label="Toggle dark/light theme mode"
+            >
+              {activeTheme === 'dark' ? (
+                <>
+                  <Sun className="w-3.5 h-3.5 text-[#f2c14e]" />
+                  <span className="hidden sm:inline">Light</span>
+                </>
+              ) : (
+                <>
+                  <Moon className="w-3.5 h-3.5 text-[#925807]" />
+                  <span className="hidden sm:inline">Dark</span>
+                </>
+              )}
+            </button>
+
             {isAuthenticated && (
               <button
                 type="button"
                 onClick={handleLogout}
-                className="px-2.5 py-1.5 text-xs font-semibold rounded-lg bg-[#2a1315] border border-[#ff8a80]/30 text-[#ff8a80] hover:bg-[#ff8a80]/20 transition-colors cursor-pointer"
+                className="admin-lock-btn px-2.5 py-1.5 text-xs font-semibold rounded-lg bg-[#2a1315] border border-[#ff8a80]/30 text-[#ff8a80] hover:bg-[#ff8a80]/20 transition-colors cursor-pointer"
                 title="Lock admin session"
               >
                 Lock Session
@@ -1211,7 +1292,7 @@ export const AdminModal: React.FC<AdminModalProps> = ({
             {isFullPage ? (
               <a
                 href="/register.html"
-                className="px-3 py-1.5 text-xs font-semibold text-[#f3ecd9] hover:text-[#f2c14e] rounded-lg border border-[#2e2b22] hover:bg-[#1f1b0e] hover:border-[#d4a935]/40 transition-all flex items-center gap-1.5 cursor-pointer shadow-sm"
+                className="admin-header-btn px-3 py-1.5 text-xs font-semibold text-[#f3ecd9] hover:text-[#f2c14e] rounded-lg border border-[#2e2b22] hover:bg-[#1f1b0e] hover:border-[#d4a935]/40 transition-all flex items-center gap-1.5 cursor-pointer shadow-sm"
                 title="Return to Public Website"
               >
                 <span>&larr; View Live Website</span>
@@ -1220,7 +1301,7 @@ export const AdminModal: React.FC<AdminModalProps> = ({
               <button
                 type="button"
                 onClick={onClose}
-                className="p-1.5 text-[#a79f8b] hover:text-[#ffffff] rounded-lg border border-[#2e2b22] hover:bg-[#0a0a0d] transition-colors cursor-pointer"
+                className="admin-header-btn p-1.5 text-[#a79f8b] hover:text-[#ffffff] rounded-lg border border-[#2e2b22] hover:bg-[#0a0a0d] transition-colors cursor-pointer"
                 aria-label="Close Admin Modal"
               >
                 <X className="w-4 h-4" />
@@ -1380,7 +1461,7 @@ export const AdminModal: React.FC<AdminModalProps> = ({
                     <button
                       type="button"
                       onClick={() => { setIeeeFilter('all'); setVerificationFilter('all'); }}
-                      className={`p-3 rounded-xl bg-[#0a0a0d] border text-left transition-all cursor-pointer ${
+                      className={`admin-kpi-card p-3 rounded-xl bg-[#0a0a0d] border text-left transition-all cursor-pointer ${
                         ieeeFilter === 'all' && verificationFilter === 'all'
                           ? 'border-[#d4a935] ring-1 ring-[#d4a935]/50 shadow-md shadow-[#d4a935]/10'
                           : 'border-[#2e2b22] hover:border-[#a79f8b]'
@@ -1388,7 +1469,7 @@ export const AdminModal: React.FC<AdminModalProps> = ({
                       title="Show all registered delegates"
                     >
                       <div className="flex items-center justify-between">
-                        <span className="text-[10px] text-[#a79f8b] uppercase block font-semibold">Total Delegates</span>
+                        <span className="admin-kpi-title text-[10px] text-[#a79f8b] uppercase block font-semibold">Total Delegates</span>
                         {Number(inputTotalSlots) > 0 ? (
                           <span className={`text-[9px] px-1.5 py-0.2 rounded font-semibold ${
                             totalRegistrations >= Number(inputTotalSlots)
@@ -1404,22 +1485,22 @@ export const AdminModal: React.FC<AdminModalProps> = ({
                         )}
                       </div>
                       <div className="flex items-baseline gap-1.5">
-                        <span className="text-lg sm:text-xl font-bold font-mono text-white">{totalRegistrations}</span>
+                        <span className="admin-kpi-value text-lg sm:text-xl font-bold font-mono text-white">{totalRegistrations}</span>
                         {Number(inputTotalSlots) > 0 && (
                           <span className="text-xs font-mono text-[#a79f8b]">/ {inputTotalSlots}</span>
                         )}
                       </div>
                     </button>
 
-                    <div className="p-3 rounded-xl bg-[#0a0a0d] border border-[#2e2b22]">
-                      <span className="text-[10px] text-[#a79f8b] uppercase block font-semibold">Total Collected</span>
-                      <span className="text-lg sm:text-xl font-bold font-mono text-[#f2c14e]">₹{totalRevenue}</span>
+                    <div className="admin-kpi-card p-3 rounded-xl bg-[#0a0a0d] border border-[#2e2b22]">
+                      <span className="admin-kpi-title text-[10px] text-[#a79f8b] uppercase block font-semibold">Total Collected</span>
+                      <span className="admin-kpi-value-gold text-lg sm:text-xl font-bold font-mono text-[#f2c14e]">₹{totalRevenue}</span>
                     </div>
 
                     <button
                       type="button"
                       onClick={() => setIeeeFilter(ieeeFilter === 'ieee' ? 'all' : 'ieee')}
-                      className={`p-3 rounded-xl bg-[#0a0a0d] border text-left transition-all cursor-pointer ${
+                      className={`admin-kpi-card p-3 rounded-xl bg-[#0a0a0d] border text-left transition-all cursor-pointer ${
                         ieeeFilter === 'ieee'
                           ? 'border-[#4cc38a] ring-1 ring-[#4cc38a]/50 shadow-md shadow-[#4cc38a]/10 bg-[#0d2316]'
                           : 'border-[#2e2b22] hover:border-[#4cc38a]/60'
@@ -1427,7 +1508,7 @@ export const AdminModal: React.FC<AdminModalProps> = ({
                       title="Click to filter by IEEE Members"
                     >
                       <div className="flex items-center justify-between">
-                        <span className="text-[10px] text-[#a79f8b] uppercase block font-semibold">IEEE Members</span>
+                        <span className="admin-kpi-title text-[10px] text-[#a79f8b] uppercase block font-semibold">IEEE Members</span>
                         {Number(inputIeeeSlots) > 0 ? (
                           <span className={`text-[9px] px-1.5 py-0.2 rounded font-semibold ${
                             totalIeeeMembers >= Number(inputIeeeSlots)
@@ -1443,7 +1524,7 @@ export const AdminModal: React.FC<AdminModalProps> = ({
                         )}
                       </div>
                       <div className="flex items-baseline gap-1.5">
-                        <span className="text-lg sm:text-xl font-bold font-mono text-[#4cc38a]">{totalIeeeMembers}</span>
+                        <span className="admin-kpi-value-green text-lg sm:text-xl font-bold font-mono text-[#4cc38a]">{totalIeeeMembers}</span>
                         {Number(inputIeeeSlots) > 0 && (
                           <span className="text-xs font-mono text-[#a79f8b]">/ {inputIeeeSlots}</span>
                         )}
@@ -1453,7 +1534,7 @@ export const AdminModal: React.FC<AdminModalProps> = ({
                     <button
                       type="button"
                       onClick={() => setIeeeFilter(ieeeFilter === 'non-ieee' ? 'all' : 'non-ieee')}
-                      className={`p-3 rounded-xl bg-[#0a0a0d] border text-left transition-all cursor-pointer ${
+                      className={`admin-kpi-card p-3 rounded-xl bg-[#0a0a0d] border text-left transition-all cursor-pointer ${
                         ieeeFilter === 'non-ieee'
                           ? 'border-[#70baff] ring-1 ring-[#70baff]/50 shadow-md shadow-[#70baff]/10 bg-[#0c1c2a]'
                           : 'border-[#2e2b22] hover:border-[#70baff]/60'
@@ -1461,7 +1542,7 @@ export const AdminModal: React.FC<AdminModalProps> = ({
                       title="Click to filter by Non-IEEE Delegates"
                     >
                       <div className="flex items-center justify-between">
-                        <span className="text-[10px] text-[#a79f8b] uppercase block font-semibold">Non-IEEE Delegates</span>
+                        <span className="admin-kpi-title text-[10px] text-[#a79f8b] uppercase block font-semibold">Non-IEEE Delegates</span>
                         {Number(inputNonIeeeSlots) > 0 ? (
                           <span className={`text-[9px] px-1.5 py-0.2 rounded font-semibold ${
                             totalNonIeeeMembers >= Number(inputNonIeeeSlots)
@@ -1477,7 +1558,7 @@ export const AdminModal: React.FC<AdminModalProps> = ({
                         )}
                       </div>
                       <div className="flex items-baseline gap-1.5">
-                        <span className="text-lg sm:text-xl font-bold font-mono text-[#9fc7e8]">{totalNonIeeeMembers}</span>
+                        <span className="admin-kpi-value-blue text-lg sm:text-xl font-bold font-mono text-[#9fc7e8]">{totalNonIeeeMembers}</span>
                         {Number(inputNonIeeeSlots) > 0 && (
                           <span className="text-xs font-mono text-[#a79f8b]">/ {inputNonIeeeSlots}</span>
                         )}
@@ -1728,49 +1809,49 @@ export const AdminModal: React.FC<AdminModalProps> = ({
                         return (
                           <div
                             key={record.regId}
-                            className="bg-[#0a0a0d] border border-[#2e2b22] rounded-xl overflow-hidden hover:border-[#d4a935]/50 transition-all"
+                            className="admin-record-card bg-[#0a0a0d] border border-[#2e2b22] rounded-xl overflow-hidden hover:border-[#d4a935]/50 transition-all"
                           >
                             {/* Record Header Summary */}
                             <div className="p-3.5 sm:p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
                               <div className="space-y-1">
                                 <div className="flex flex-wrap items-center gap-2">
-                                  <span className="font-mono font-bold text-xs text-[#f2c14e] bg-[#1f1b0e] px-2 py-0.5 rounded border border-[#d4a935]/30">
+                                  <span className="admin-badge-regid font-mono font-bold text-xs text-[#f2c14e] bg-[#1f1b0e] px-2 py-0.5 rounded border border-[#d4a935]/30">
                                     {record.regId}
                                   </span>
-                                  <span className="font-bold text-sm text-white">{record.name}</span>
+                                  <span className="admin-attendee-name font-bold text-sm text-white">{record.name}</span>
                                   <span className="font-mono text-[#a79f8b]">({record.roll})</span>
                                   {record.isIeeeMember ? (
-                                    <span className="text-[10px] font-semibold text-[#4cc38a] bg-[#4cc38a]/10 px-2 py-0.5 rounded border border-[#4cc38a]/30">
+                                    <span className="admin-badge-ieee text-[10px] font-semibold text-[#4cc38a] bg-[#4cc38a]/10 px-2 py-0.5 rounded border border-[#4cc38a]/30">
                                       IEEE: #{record.ieeeId || 'Active'}
                                     </span>
                                   ) : (
-                                    <span className="text-[10px] text-[#a79f8b] bg-[#181820] px-2 py-0.5 rounded border border-[#2e2b22]">
+                                    <span className="admin-badge-non-ieee text-[10px] text-[#a79f8b] bg-[#181820] px-2 py-0.5 rounded border border-[#2e2b22]">
                                       Non-IEEE
                                     </span>
                                   )}
                                   {record.paymentMode === 'upi' ? (
                                     record.isVerified ? (
-                                      <span className="text-[10px] font-semibold text-[#4cc38a] bg-[#1b5e39]/30 px-2 py-0.5 rounded border border-[#4cc38a]/40 font-mono flex items-center gap-1">
+                                      <span className="admin-badge-verified text-[10px] font-semibold text-[#4cc38a] bg-[#1b5e39]/30 px-2 py-0.5 rounded border border-[#4cc38a]/40 font-mono flex items-center gap-1">
                                         <CheckCircle2 className="w-3 h-3 text-[#4cc38a]" />
                                         <span>UPI · Verified</span>
                                       </span>
                                     ) : (
-                                      <span className="text-[10px] font-semibold text-[#f2c14e] bg-[#2a1e06] px-2 py-0.5 rounded border border-[#d4a935]/50 font-mono flex items-center gap-1">
+                                      <span className="admin-badge-pending text-[10px] font-semibold text-[#f2c14e] bg-[#2a1e06] px-2 py-0.5 rounded border border-[#d4a935]/50 font-mono flex items-center gap-1">
                                         <Clock className="w-3 h-3 text-[#f2c14e]" />
                                         <span>UPI · Pending Verification</span>
                                       </span>
                                     )
                                   ) : (
-                                    <span className="text-[10px] font-semibold text-[#70baff] bg-[#00629b]/30 px-2 py-0.5 rounded border border-[#0088d4]/40 font-mono flex items-center gap-1">
+                                    <span className="admin-badge-razorpay text-[10px] font-semibold text-[#70baff] bg-[#00629b]/30 px-2 py-0.5 rounded border border-[#0088d4]/40 font-mono flex items-center gap-1">
                                       <ShieldCheck className="w-3 h-3 text-[#4cc38a]" />
                                       <span>Razorpay (Auto Verified)</span>
                                     </span>
                                   )}
-                                  <span className="text-[11px] text-[#9fc7e8] font-medium px-2 py-0.5 rounded bg-[#131f2b] border border-[#234259]">
+                                  <span className="admin-badge-event text-[11px] text-[#9fc7e8] font-medium px-2 py-0.5 rounded bg-[#131f2b] border border-[#234259]">
                                     {eventName}
                                   </span>
                                   {team?.teamName && (
-                                    <span className="text-[10px] text-[#f2c14e] bg-[#2a220d] px-2 py-0.5 rounded border border-[#d4a935]/30">
+                                    <span className="admin-badge-team text-[10px] text-[#f2c14e] bg-[#2a220d] px-2 py-0.5 rounded border border-[#d4a935]/30">
                                       Team: {team.teamName} ({teammates.length + 1} members)
                                     </span>
                                   )}
