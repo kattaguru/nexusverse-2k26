@@ -21,6 +21,13 @@ import {
 } from './services/auth';
 import { supabase, isSupabaseConfigured } from './lib/supabase';
 import { getLeftLogo, getRightLogo, setLeftLogo, setRightLogo } from './utils/logoManager';
+import { 
+  saveFormDraft, 
+  loadFormDraft, 
+  clearFormDraft, 
+  formatDraftAge 
+} from './utils/formCache';
+import { registerServiceWorker } from './utils/cacheManager';
 import { TimelineSection } from './components/TimelineSection';
 import { FaqSection } from './components/FaqSection';
 import { ContactSection } from './components/ContactSection';
@@ -204,6 +211,96 @@ export default function App() {
   const [upiPendingRecord, setUpiPendingRecord] = useState<RegistrationRecord | null>(null);
   const [savedRecords, setSavedRecords] = useState<RegistrationRecord[]>([]);
   const [isScannedPass, setIsScannedPass] = useState(false);
+
+  // Form Draft Cache Memory State
+  const [draftRestoredNotice, setDraftRestoredNotice] = useState<{ age: string; timestamp: number } | null>(null);
+  const [isDraftSaved, setIsDraftSaved] = useState<boolean>(false);
+  const draftSaveTimerRef = useRef<any>(null);
+
+  // Initialize Service Worker for Offline PWA and Asset Caching
+  useEffect(() => {
+    registerServiceWorker();
+  }, []);
+
+  // Restore Form Draft from Cache Memory on initial load
+  useEffect(() => {
+    const draft = loadFormDraft();
+    if (draft) {
+      if (draft.name) setName(draft.name);
+      if (draft.roll) setRoll(draft.roll);
+      if (draft.classNameVal) setClassNameVal(draft.classNameVal);
+      if (draft.sectionVal) setSectionVal(draft.sectionVal);
+      if (draft.dept) setDept(draft.dept);
+      if (draft.year) setYear(draft.year);
+      if (draft.phone) setPhone(draft.phone);
+      if (draft.college) setCollege(draft.college);
+      if (draft.email) setEmail(draft.email);
+      if (draft.isIeeeMember !== undefined) setIsIeeeMember(draft.isIeeeMember);
+      if (draft.ieeeId) setIeeeId(draft.ieeeId);
+      if (draft.selectedEvents && draft.selectedEvents.length > 0) setSelectedEvents(draft.selectedEvents);
+      if (draft.includeSpotEvents !== undefined) setIncludeSpotEvents(draft.includeSpotEvents);
+      if (draft.spotMembersSelected) setSpotMembersSelected(draft.spotMembersSelected);
+      if (draft.teamDetails && Object.keys(draft.teamDetails).length > 0) {
+        setTeamDetails(prev => ({ ...prev, ...draft.teamDetails }));
+      }
+      if (draft.termsAccepted !== undefined) setTermsAccepted(draft.termsAccepted);
+
+      setDraftRestoredNotice({
+        age: formatDraftAge(draft.savedAt),
+        timestamp: draft.savedAt
+      });
+      setIsDraftSaved(true);
+    }
+  }, []);
+
+  // Auto-save form draft to Cache Memory in background with 400ms debounce
+  useEffect(() => {
+    if (draftSaveTimerRef.current) clearTimeout(draftSaveTimerRef.current);
+    draftSaveTimerRef.current = setTimeout(() => {
+      const saved = saveFormDraft({
+        name,
+        roll,
+        classNameVal,
+        sectionVal,
+        dept,
+        year,
+        phone,
+        college,
+        email,
+        isIeeeMember,
+        ieeeId,
+        selectedEvents,
+        includeSpotEvents,
+        spotMembersSelected,
+        teamDetails,
+        termsAccepted
+      });
+      if (saved) {
+        setIsDraftSaved(true);
+      }
+    }, 400);
+
+    return () => {
+      if (draftSaveTimerRef.current) clearTimeout(draftSaveTimerRef.current);
+    };
+  }, [
+    name,
+    roll,
+    classNameVal,
+    sectionVal,
+    dept,
+    year,
+    phone,
+    college,
+    email,
+    isIeeeMember,
+    ieeeId,
+    selectedEvents,
+    includeSpotEvents,
+    spotMembersSelected,
+    teamDetails,
+    termsAccepted
+  ]);
 
   // Participant User Session & Space Modal State
   const [currentUser, setCurrentUser] = useState<ParticipantUser | null>(() => getStoredParticipant());
@@ -1133,6 +1230,11 @@ export default function App() {
       }
     }
 
+    // Clear auto-saved form draft memory upon successful ticket registration
+    clearFormDraft();
+    setDraftRestoredNotice(null);
+    setIsDraftSaved(false);
+
     // Trigger celebratory confetti
     try {
       confetti({
@@ -1527,6 +1629,48 @@ export default function App() {
                       </div>
                     </div>
 
+                    {/* Draft Restored from Cache Memory Banner */}
+                    {draftRestoredNotice && (
+                      <div className="lg:col-span-12 p-3.5 rounded-2xl bg-gradient-to-r from-[#1f1b0e] via-[#242013] to-[#14141d] border border-[#d4a935]/50 flex flex-wrap items-center justify-between gap-3 text-xs shadow-lg animate-in fade-in">
+                        <div className="flex items-center gap-2.5">
+                          <div className="w-8 h-8 rounded-xl bg-[#d4a935]/20 text-[#f2c14e] border border-[#d4a935]/30 flex items-center justify-center font-bold text-sm">
+                            ⚡
+                          </div>
+                          <div>
+                            <div className="flex items-center gap-2">
+                              <span className="font-bold text-[#f2c14e]">
+                                Form draft restored from cache memory
+                              </span>
+                              <span className="text-[10px] text-[#4cc38a] font-mono px-2 py-0.5 rounded-full bg-[#4cc38a]/15 border border-[#4cc38a]/30">
+                                Auto-Loaded
+                              </span>
+                            </div>
+                            <span className="text-xs text-[#a79f8b]">
+                              Saved {draftRestoredNotice.age}. All participant details and team choices are intact.
+                            </span>
+                          </div>
+                        </div>
+
+                        <div className="flex items-center gap-2">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              clearFormDraft();
+                              setDraftRestoredNotice(null);
+                              setIsDraftSaved(false);
+                              setName('');
+                              setRoll('');
+                              setPhone('');
+                              setDept('');
+                            }}
+                            className="px-3 py-1.5 rounded-xl bg-[#2a1315] hover:bg-[#3d191d] text-[#ff8a80] border border-[#ff8a80]/30 font-semibold text-xs cursor-pointer transition-colors"
+                          >
+                            Clear Draft
+                          </button>
+                        </div>
+                      </div>
+                    )}
+
                     {/* Left Column: Form Details & Events Selection */}
                     <div className="lg:col-span-8 space-y-8">
                     {/* 1. PARTICIPANT INFORMATION CARD */}
@@ -1536,7 +1680,15 @@ export default function App() {
                           <User className="w-5 h-5 sm:w-6 sm:h-6 text-[#d4a935]" />
                           <span>1. Participant Information (Team Lead / Delegate)</span>
                         </h3>
-                        <span className="text-xs font-sans text-[#a79f8b] font-normal">All fields required</span>
+                        <div className="flex items-center gap-2">
+                          {isDraftSaved && (
+                            <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-[#4cc38a]/15 text-[#4cc38a] border border-[#4cc38a]/30 flex items-center gap-1">
+                              <span className="w-1.5 h-1.5 rounded-full bg-[#4cc38a]" />
+                              Saved in Cache Memory
+                            </span>
+                          )}
+                          <span className="text-xs font-sans text-[#a79f8b] font-normal">All fields required</span>
+                        </div>
                       </div>
 
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">

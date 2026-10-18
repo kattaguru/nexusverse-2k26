@@ -4,6 +4,7 @@ import dotenv from 'dotenv';
 import { createClient } from '@supabase/supabase-js';
 import { readDatabase, writeDatabase, ParticipantUser } from './db.js';
 import { sendTicketConfirmationEmail, isEmailConfigured, EmailTicketPayload } from './emailService.js';
+import { serverCache } from './memoryCache.js';
 
 const NEXUS_AUTH_SALT = 'nexusverse_2k26_secure_participant_salt';
 function hashPassword(password: string): string {
@@ -64,7 +65,22 @@ apiRouter.get('/health', (_req: Request, res: Response) => {
 // 2. Get all registrations
 apiRouter.get('/registrations', (_req: Request, res: Response) => {
   try {
+    const cached = serverCache.get<{ count: number; data: any[] }>('api:registrations:all');
+    if (cached) {
+      res.setHeader('X-Cache', 'HIT');
+      return res.json({
+        success: true,
+        count: cached.count,
+        data: cached.data
+      });
+    }
+
     const db = readDatabase();
+    serverCache.set('api:registrations:all', {
+      count: db.registrations.length,
+      data: db.registrations
+    }, 30000);
+    res.setHeader('X-Cache', 'MISS');
     res.json({
       success: true,
       count: db.registrations.length,
@@ -158,6 +174,7 @@ apiRouter.post('/registrations', async (req: Request, res: Response) => {
     }
 
     writeDatabase(db);
+    serverCache.delete('api:registrations:all');
 
     // Sync to Supabase Cloud PostgreSQL in resilient background task
     const teamDetailsWithPayment = {
@@ -216,6 +233,7 @@ apiRouter.put('/registrations/:regId', (req: Request, res: Response) => {
     };
 
     writeDatabase(db);
+    serverCache.delete('api:registrations:all');
 
     // Sync updated registration to Supabase Cloud PostgreSQL
     const updatedRecord = db.registrations[index];
@@ -272,6 +290,7 @@ apiRouter.delete('/registrations/:regId', (req: Request, res: Response) => {
     }
 
     writeDatabase(db);
+    serverCache.delete('api:registrations:all');
 
     // Sync deletion to Supabase Cloud PostgreSQL
     syncToSupabaseAsync((client) => client.from('registrations').delete().eq('reg_id', regId));
@@ -288,7 +307,18 @@ apiRouter.delete('/registrations/:regId', (req: Request, res: Response) => {
 // 6. Get portal settings (open/closed status, banner)
 apiRouter.get('/settings', (_req: Request, res: Response) => {
   try {
+    const cached = serverCache.get<any>('api:settings');
+    if (cached) {
+      res.setHeader('X-Cache', 'HIT');
+      return res.json({
+        success: true,
+        data: cached
+      });
+    }
+
     const db = readDatabase();
+    serverCache.set('api:settings', db.settings, 60000);
+    res.setHeader('X-Cache', 'MISS');
     res.json({
       success: true,
       data: db.settings
@@ -347,6 +377,8 @@ apiRouter.post('/settings', (req: Request, res: Response) => {
     }
 
     writeDatabase(db);
+    serverCache.delete('api:settings');
+    serverCache.delete('api:razorpay:config');
 
     // Sync portal open/closed settings to Supabase Cloud PostgreSQL
     const supabasePayload: Record<string, any> = {
@@ -437,7 +469,22 @@ apiRouter.post('/admin/change-password', async (req: Request, res: Response) => 
 // 8. Get photos
 apiRouter.get('/photos', (_req: Request, res: Response) => {
   try {
+    const cached = serverCache.get<{ count: number; data: any[] }>('api:photos:all');
+    if (cached) {
+      res.setHeader('X-Cache', 'HIT');
+      return res.json({
+        success: true,
+        count: cached.count,
+        data: cached.data
+      });
+    }
+
     const db = readDatabase();
+    serverCache.set('api:photos:all', {
+      count: db.photos.length,
+      data: db.photos
+    }, 120000);
+    res.setHeader('X-Cache', 'MISS');
     res.json({
       success: true,
       count: db.photos.length,
@@ -504,6 +551,7 @@ apiRouter.post('/photos', async (req: Request, res: Response) => {
     const db = readDatabase();
     db.photos.unshift(newPhoto);
     writeDatabase(db);
+    serverCache.delete('api:photos:all');
 
     // Sync uploaded photo to Supabase Cloud PostgreSQL
     syncToSupabaseAsync((client) => client.from('gallery_photos').upsert({
@@ -530,6 +578,7 @@ apiRouter.delete('/photos/:id', (req: Request, res: Response) => {
     const db = readDatabase();
     db.photos = db.photos.filter((p: any) => p.id !== id);
     writeDatabase(db);
+    serverCache.delete('api:photos:all');
 
     // Sync photo deletion to Supabase Cloud PostgreSQL
     syncToSupabaseAsync((client) => client.from('gallery_photos').delete().eq('id', id));
@@ -550,6 +599,12 @@ function getActiveRazorpayKeys() {
 
 // 11. Razorpay & Direct UPI: Get Public Configuration
 apiRouter.get('/razorpay/config', (_req: Request, res: Response) => {
+  const cached = serverCache.get<any>('api:razorpay:config');
+  if (cached) {
+    res.setHeader('X-Cache', 'HIT');
+    return res.json(cached);
+  }
+
   const { keyId } = getActiveRazorpayKeys();
   const db = readDatabase();
   const isLive = keyId.startsWith('rzp_live_');
@@ -557,7 +612,7 @@ apiRouter.get('/razorpay/config', (_req: Request, res: Response) => {
   const upiVpa = (db.settings as any).upiVpa || process.env.VITE_UPI_VPA || '9441759500@ptyes';
   const upiPayeeName = (db.settings as any).upiPayeeName || db.settings.razorpayMeName || 'NexusVerse 2K26';
 
-  res.json({
+  const responsePayload = {
     success: true,
     keyId,
     isLive,
@@ -567,7 +622,11 @@ apiRouter.get('/razorpay/config', (_req: Request, res: Response) => {
     upiPayeeName,
     razorpayMeLink: db.settings.razorpayMeLink || 'https://razorpay.me/@veluriprasanth',
     razorpayMeName: db.settings.razorpayMeName || 'VELURI PRASANTH'
-  });
+  };
+
+  serverCache.set('api:razorpay:config', responsePayload, 300000);
+  res.setHeader('X-Cache', 'MISS');
+  res.json(responsePayload);
 });
 
 // 12. Razorpay: Test Credentials Connection
@@ -630,6 +689,8 @@ apiRouter.post('/razorpay/save-keys', (req: Request, res: Response) => {
     }
 
     writeDatabase(db);
+    serverCache.delete('api:settings');
+    serverCache.delete('api:razorpay:config');
     res.json({
       success: true,
       message: 'Payment configuration saved successfully.',
@@ -1393,6 +1454,47 @@ apiRouter.post('/admin/sync-supabase', async (_req: Request, res: Response) => {
       totalLocalRegistrations: db.registrations.length,
       totalLocalUsers: (db.users || []).length,
       notices: errors
+    });
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// 26. In-Memory Cache Stats & Metrics
+apiRouter.get('/cache/stats', (_req: Request, res: Response) => {
+  try {
+    const stats = serverCache.getStats();
+    res.json({
+      success: true,
+      stats
+    });
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// 27. In-Memory Cache Purge & Key Invalidation
+apiRouter.post('/cache/clear', (req: Request, res: Response) => {
+  try {
+    const { key, pattern } = req.body || {};
+    let clearedCount = 0;
+
+    if (key) {
+      const existed = serverCache.delete(key);
+      clearedCount = existed ? 1 : 0;
+    } else if (pattern) {
+      clearedCount = serverCache.invalidatePattern(pattern);
+    } else {
+      const prevStats = serverCache.getStats();
+      clearedCount = prevStats.keyCount;
+      serverCache.clear();
+    }
+
+    res.json({
+      success: true,
+      message: `Cache memory cleared successfully (${clearedCount} key${clearedCount === 1 ? '' : 's'} evicted).`,
+      clearedCount,
+      stats: serverCache.getStats()
     });
   } catch (err: any) {
     res.status(500).json({ success: false, error: err.message });

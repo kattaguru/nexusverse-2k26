@@ -47,10 +47,12 @@ import {
   Ticket,
   Clock,
   Sun,
-  Moon
+  Moon,
+  Cpu
 } from 'lucide-react';
 import { TicketPass, RegistrationRecord, TeamMemberInfo } from './TicketPass';
 import { AdminTicketScanner } from './AdminTicketScanner';
+import { AdminCacheManager } from './AdminCacheManager';
 import { EVENTS, ALL_EVENTS, SYMPOSIUM_CONFIG } from '../data/symposiumData';
 import { fetchPhotosApi, uploadPhotoApi, deletePhotoApi, syncLocalRegistrationsToSupabase, testEmailApi, sendTicketEmailApi, updateSettingsApi } from '../services/api';
 import { testSupabaseConnection, isSupabaseConfigured, supabase } from '../lib/supabase';
@@ -83,7 +85,7 @@ interface AdminModalProps {
   rightLogo: string;
   onUpdateLeftLogo: (url: string) => void;
   onUpdateRightLogo: (url: string) => void;
-  initialTab?: 'registrations' | 'scan' | 'manual' | 'status' | 'photos' | 'settings';
+  initialTab?: 'registrations' | 'scan' | 'manual' | 'status' | 'photos' | 'settings' | 'cache';
   isFullPage?: boolean;
   theme?: 'dark' | 'light';
   onToggleTheme?: () => void;
@@ -234,7 +236,7 @@ export const AdminModal: React.FC<AdminModalProps> = ({
   const [showPassword, setShowPassword] = useState(false);
   const [passwordError, setPasswordError] = useState('');
   const [isVerifyingLogin, setIsVerifyingLogin] = useState(false);
-  const [activeTab, setActiveTab] = useState<'registrations' | 'scan' | 'manual' | 'status' | 'photos' | 'settings'>(initialTab || 'registrations');
+  const [activeTab, setActiveTab] = useState<'registrations' | 'scan' | 'manual' | 'status' | 'photos' | 'settings' | 'cache'>(initialTab || 'registrations');
 
   useEffect(() => {
     if (isOpen && initialTab) {
@@ -1490,6 +1492,19 @@ export const AdminModal: React.FC<AdminModalProps> = ({
               >
                 <Database className="w-3.5 h-3.5" />
                 <span>Backup & Security</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setActiveTab('cache')}
+                className={`py-2 px-3 text-xs font-semibold rounded-lg flex items-center gap-1.5 transition-all cursor-pointer whitespace-nowrap ${
+                  activeTab === 'cache'
+                    ? 'bg-[#1f1b0e] text-[#f2c14e] border border-[#d4a935]/40 shadow-sm'
+                    : 'text-[#a79f8b] hover:text-[#f3ecd9]'
+                }`}
+              >
+                <Cpu className="w-3.5 h-3.5" />
+                <span>Cache Memory</span>
               </button>
             </div>
 
@@ -3843,6 +3858,11 @@ export const AdminModal: React.FC<AdminModalProps> = ({
                     </button>
                   </div>
                 </div>
+              )}
+
+              {/* TAB: CACHE MEMORY MANAGEMENT */}
+              {activeTab === 'cache' && (
+                <AdminCacheManager theme={activeTheme} />
               )}
             </div>
           </div>
