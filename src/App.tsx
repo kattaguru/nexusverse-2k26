@@ -145,6 +145,11 @@ export default function App() {
   const [selectedEvents, setSelectedEvents] = useState<string[]>(['ctf']);
   // Spot Events (Non-Technical, ₹100)
   const [includeSpotEvents, setIncludeSpotEvents] = useState<boolean>(false);
+  // Spot Events Delegate Selection for Teams ({ lead: boolean, [memberIndex: number]: boolean })
+  const [spotMembersSelected, setSpotMembersSelected] = useState<{ lead: boolean; [key: number]: boolean }>({
+    lead: true,
+    0: true
+  });
   // Warning message if user tries to deselect their last remaining event
   const [eventWarning, setEventWarning] = useState<string>('');
   const warningTimerRef = useRef<any>(null);
@@ -670,6 +675,14 @@ export default function App() {
 
     setEventWarning('');
     setIncludeSpotEvents(nextVal);
+    if (nextVal) {
+      // By default auto-select all members in active team
+      const updated: { lead: boolean; [key: number]: boolean } = { lead: true };
+      teamMembersList.forEach((_, idx) => {
+        updated[idx] = true;
+      });
+      setSpotMembersSelected(updated);
+    }
     if (errors.events) {
       setErrors(prev => {
         const copy = { ...prev };
@@ -686,9 +699,9 @@ export default function App() {
     }
   }, [selectedEvents, includeSpotEvents]);
 
-  // Team Member management helpers
   const handleAddTeamMember = (eventId: string, maxAllowed: number) => {
     const current = teamDetails[eventId] || { teamName: '', members: [] };
+    const newIndex = current.members?.length || 0;
     // Leader is 1, so additional members can be at most maxAllowed - 1
     if ((current.members?.length || 0) + 1 >= maxAllowed) return;
 
@@ -711,6 +724,12 @@ export default function App() {
           }
         ]
       }
+    }));
+
+    // Auto-include newly added team member in Spot Pass by default
+    setSpotMembersSelected(prev => ({
+      ...prev,
+      [newIndex]: true
     }));
   };
 
@@ -770,7 +789,85 @@ export default function App() {
     }
   };
 
-  // Pricing calculations: Technical events: ₹200 (₹150 IEEE); Spot Events: ₹100 flat
+  // Active technical event team details (if any)
+  const activeTechEvent = selectedEvents[0] ? EVENTS.find(e => e.id === selectedEvents[0]) : null;
+  const activeTechDetails = selectedEvents[0] ? teamDetails[selectedEvents[0]] : null;
+  const teamMembersList = (activeTechEvent && activeTechEvent.max > 1) ? (activeTechDetails?.members || []) : [];
+  const totalTeamHeads = 1 + teamMembersList.length;
+
+  // Calculate how many spot passes are selected across team members
+  const getSelectedSpotCount = () => {
+    if (!includeSpotEvents) return 0;
+    if (totalTeamHeads <= 1) return 1;
+
+    let count = 0;
+    if (spotMembersSelected.lead !== false) count++;
+    teamMembersList.forEach((_, idx) => {
+      if (spotMembersSelected[idx] !== false) count++;
+    });
+    return Math.max(1, count);
+  };
+
+  const getSelectedSpotMemberNames = () => {
+    if (!includeSpotEvents) return [];
+    if (totalTeamHeads <= 1) return [name.trim() || 'Team Lead'];
+
+    const names: string[] = [];
+    if (spotMembersSelected.lead !== false) {
+      names.push(name.trim() || 'Team Lead');
+    }
+    teamMembersList.forEach((m, idx) => {
+      if (spotMembersSelected[idx] !== false) {
+        names.push(m.name.trim() || `Member ${idx + 2}`);
+      }
+    });
+    return names;
+  };
+
+  const effectiveSpotCount = getSelectedSpotCount();
+  const spotMemberNames = getSelectedSpotMemberNames();
+
+  const toggleSpotMember = (target: 'lead' | number) => {
+    setSpotMembersSelected(prev => {
+      const currentVal = prev[target] !== false;
+      const nextVal = !currentVal;
+
+      let remainingCount = 0;
+      if (target === 'lead' ? nextVal : (prev.lead !== false)) remainingCount++;
+      teamMembersList.forEach((_, idx) => {
+        const val = target === idx ? nextVal : (prev[idx] !== false);
+        if (val) remainingCount++;
+      });
+
+      if (remainingCount === 0) {
+        toggleSpotEvents(false);
+        return prev;
+      }
+
+      return {
+        ...prev,
+        [target]: nextVal
+      };
+    });
+  };
+
+  const selectAllSpotMembers = () => {
+    const updated: { lead: boolean; [key: number]: boolean } = { lead: true };
+    teamMembersList.forEach((_, idx) => {
+      updated[idx] = true;
+    });
+    setSpotMembersSelected(updated);
+  };
+
+  const selectLeadOnlySpot = () => {
+    const updated: { lead: boolean; [key: number]: boolean } = { lead: true };
+    teamMembersList.forEach((_, idx) => {
+      updated[idx] = false;
+    });
+    setSpotMembersSelected(updated);
+  };
+
+  // Pricing calculations: Technical events: ₹200 (₹150 IEEE); Spot Events: ₹100 per member; GST: 5% (₹5 for every ₹100)
   const calculateTotal = () => {
     let subtotal = 0;
 
@@ -788,9 +885,11 @@ export default function App() {
       }
     }
 
-    // 2. Spot events pass (₹100 flat per registrant)
+    // 2. Spot events pass (₹100 per selected team member / registrant)
+    const spotPassCount = effectiveSpotCount;
+    const spotSubtotal = spotPassCount * SPOT_EVENT.feeNonMember;
     if (includeSpotEvents) {
-      subtotal += SPOT_EVENT.feeNonMember; // ₹100
+      subtotal += spotSubtotal;
     }
 
     // 3. GST: 5% (₹5 for every ₹100 of base registration fee)
@@ -798,10 +897,10 @@ export default function App() {
     const gstAmount = Math.round((subtotal * gstPercent) / 100);
     const total = subtotal + gstAmount;
 
-    return { subtotal, gstAmount, gstPercent, total };
+    return { subtotal, spotPassCount, spotSubtotal, gstAmount, gstPercent, total };
   };
 
-  const { subtotal, gstAmount, gstPercent, total } = calculateTotal();
+  const { subtotal, spotPassCount, spotSubtotal, gstAmount, gstPercent, total } = calculateTotal();
 
   // Validate form
   const validateForm = () => {
@@ -988,6 +1087,8 @@ export default function App() {
       ieeeId: isIeeeMember ? ieeeId.trim() : undefined,
       eventIds: combinedEventIds,
       teamDetails: formattedTeamDetails,
+      spotPassCount: effectiveSpotCount,
+      spotMembers: spotMemberNames,
       subtotal,
       gstAmount,
       totalPaid: total,
@@ -1737,7 +1838,7 @@ export default function App() {
                           )}
                           {includeSpotEvents && (
                             <span className="text-xs font-mono text-[#70baff] bg-[#0c1c2e] px-2.5 py-1 rounded-md border border-[#0088d4]/30">
-                              + Spot Pass (₹100)
+                              + Spot Pass ({effectiveSpotCount} {effectiveSpotCount === 1 ? 'Head' : 'Heads'} · ₹{spotSubtotal})
                             </span>
                           )}
                         </div>
@@ -2267,13 +2368,115 @@ export default function App() {
 
                           <div className="text-right shrink-0 flex flex-col items-end gap-1" onClick={(e) => e.stopPropagation()}>
                             <span className="font-mono tabular-nums text-2xl font-bold text-[#4cc38a]">
-                              ₹100
+                              ₹{includeSpotEvents && totalTeamHeads > 1 ? spotSubtotal : 100}
                             </span>
                             <span className="text-[10px] uppercase font-bold tracking-wider text-[#8ea8c9]">
-                              Spot Events
+                              {includeSpotEvents && totalTeamHeads > 1 ? `${effectiveSpotCount} Passes (₹100/ea)` : 'Spot Events (₹100)'}
                             </span>
                           </div>
                         </div>
+
+                        {/* When a team event (like CTF 2 members) is active, allow selecting Spot Passes for all or specific team members */}
+                        {includeSpotEvents && totalTeamHeads > 1 && (
+                          <div className="p-4 pt-3.5 border-t border-[#0088d4]/30 bg-[#071320]/70 space-y-3" onClick={(e) => e.stopPropagation()}>
+                            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                              <div>
+                                <span className="text-xs font-bold text-[#ffffff] flex items-center gap-1.5">
+                                  <Users className="w-3.5 h-3.5 text-[#70baff]" />
+                                  <span>Team Spot Event Passes ({effectiveSpotCount} of {totalTeamHeads} Selected · ₹{spotSubtotal})</span>
+                                </span>
+                                <p className="text-[11px] text-[#8ea8c9] mt-0.5">
+                                  Select which team members participate in afternoon spot games (₹100 per member):
+                                </p>
+                              </div>
+                              <div className="flex items-center gap-2 shrink-0">
+                                <button
+                                  type="button"
+                                  onClick={selectAllSpotMembers}
+                                  className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                                    effectiveSpotCount === totalTeamHeads
+                                      ? 'bg-[#0088d4] text-white shadow-sm'
+                                      : 'bg-white/5 hover:bg-white/10 text-[#70baff] border border-[#0088d4]/40'
+                                  }`}
+                                >
+                                  All ({totalTeamHeads} Passes · ₹{totalTeamHeads * 100})
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={selectLeadOnlySpot}
+                                  className={`px-2.5 py-1 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
+                                    effectiveSpotCount === 1 && spotMembersSelected.lead !== false && !teamMembersList.some((_, i) => spotMembersSelected[i])
+                                      ? 'bg-[#0088d4] text-white shadow-sm'
+                                      : 'bg-white/5 hover:bg-white/10 text-[#a79f8b] border border-white/10'
+                                  }`}
+                                >
+                                  Lead Only (1 Pass · ₹100)
+                                </button>
+                              </div>
+                            </div>
+
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 pt-1">
+                              {/* Team Lead Checkbox */}
+                              <label className={`flex items-center justify-between p-3 rounded-xl border transition-all cursor-pointer ${
+                                spotMembersSelected.lead !== false
+                                  ? 'bg-[#0088d4]/15 border-[#0088d4]/60 text-white shadow-sm'
+                                  : 'bg-[#0a0a0d] border-[#2e2b22] text-[#a79f8b] hover:border-white/20'
+                              }`}>
+                                <div className="flex items-center gap-2.5 min-w-0">
+                                  <input
+                                    type="checkbox"
+                                    checked={spotMembersSelected.lead !== false}
+                                    onChange={() => toggleSpotMember('lead')}
+                                    className="w-4 h-4 rounded border-[#2e2b22] text-[#0088d4] accent-[#0088d4] cursor-pointer"
+                                  />
+                                  <div className="truncate">
+                                    <span className="font-semibold text-xs text-[#f3ecd9] block truncate">
+                                      {name.trim() || 'Team Lead'} (Leader)
+                                    </span>
+                                    <span className="text-[10px] text-[#70baff] font-mono">
+                                      {roll ? `Roll: ${roll}` : 'Lead Participant'}
+                                    </span>
+                                  </div>
+                                </div>
+                                <span className="font-mono text-xs font-bold text-[#4cc38a] ml-2 shrink-0">
+                                  ₹100
+                                </span>
+                              </label>
+
+                              {/* Teammates Checkboxes */}
+                              {teamMembersList.map((m, idx) => {
+                                const isChecked = spotMembersSelected[idx] !== false;
+                                return (
+                                  <label key={idx} className={`flex items-center justify-between p-3 rounded-xl border transition-all cursor-pointer ${
+                                    isChecked
+                                      ? 'bg-[#0088d4]/15 border-[#0088d4]/60 text-white shadow-sm'
+                                      : 'bg-[#0a0a0d] border-[#2e2b22] text-[#a79f8b] hover:border-white/20'
+                                  }`}>
+                                    <div className="flex items-center gap-2.5 min-w-0">
+                                      <input
+                                        type="checkbox"
+                                        checked={isChecked}
+                                        onChange={() => toggleSpotMember(idx)}
+                                        className="w-4 h-4 rounded border-[#2e2b22] text-[#0088d4] accent-[#0088d4] cursor-pointer"
+                                      />
+                                      <div className="truncate">
+                                        <span className="font-semibold text-xs text-[#f3ecd9] block truncate">
+                                          {m.name.trim() || `Member ${idx + 2}`} (Teammate)
+                                        </span>
+                                        <span className="text-[10px] text-[#8ea8c9] font-mono">
+                                          {m.roll ? `Roll: ${m.roll}` : `Team Member ${idx + 2}`}
+                                        </span>
+                                      </div>
+                                    </div>
+                                    <span className="font-mono text-xs font-bold text-[#4cc38a] ml-2 shrink-0">
+                                      ₹100
+                                    </span>
+                                  </label>
+                                );
+                              })}
+                            </div>
+                          </div>
+                        )}
                       </div>
                     </div>
                   </div>
@@ -2346,11 +2549,16 @@ export default function App() {
                               </span>
                               <span className="text-[#8ea8c9] text-[11px] block">01:30 PM – 03:30 PM · Non-Technical</span>
                             </div>
-                            <span className="font-mono font-bold text-[#70baff] text-sm">₹100</span>
+                            <span className="font-mono font-bold text-[#70baff] text-sm">₹{spotSubtotal}</span>
                           </div>
                           <div className="pt-1.5 border-t border-[#1b324d]/60 flex items-center justify-between text-[11px] text-[#8ea8c9]">
-                            <span>1 Delegate (Afternoon Arena Pass)</span>
-                            <span className="font-mono">₹100 flat</span>
+                            <span>
+                              {effectiveSpotCount} {effectiveSpotCount === 1 ? 'Delegate' : 'Delegates'}
+                              {totalTeamHeads > 1 ? ` (${spotMemberNames.join(' + ')})` : ' (Afternoon Arena Pass)'}
+                            </span>
+                            <span className="font-mono">
+                              {effectiveSpotCount > 1 ? `₹100 × ${effectiveSpotCount}` : '₹100 flat'}
+                            </span>
                           </div>
                         </div>
                       )}
@@ -2515,7 +2723,7 @@ export default function App() {
         year={year}
         eventName={[
           ...selectedEvents.map(id => EVENTS.find(e => e.id === id)?.name).filter(Boolean),
-          ...(includeSpotEvents ? ['Spot Events (Non-Technical)'] : [])
+          ...(includeSpotEvents ? [`Spot Events Pass (${effectiveSpotCount} ${effectiveSpotCount === 1 ? 'Delegate' : 'Delegates'})`] : [])
         ].join(' + ') || 'NexusVerse 2K26 Registration'}
         onSuccess={handlePaymentSuccess}
       />

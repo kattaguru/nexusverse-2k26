@@ -61,6 +61,8 @@ export interface RegistrationRecord {
     teamMembers?: TeamMemberInfo[];
     projectTitle?: string;
   }>;
+  spotPassCount?: number;
+  spotMembers?: string[];
   subtotal?: number;
   gstAmount?: number;
   totalPaid: number;
@@ -510,7 +512,7 @@ export const TicketPass: React.FC<TicketPassProps> = ({
                             </div>
                           </div>
                           <span className="px-3 py-1 rounded-lg bg-[#00629b]/40 text-[#70baff] border border-[#0088d4]/50 font-bold text-xs font-mono shadow-sm">
-                            ₹100 · Spot Pass Included
+                            ₹{(record.spotPassCount || 1) * 100} · {record.spotPassCount || 1} {(record.spotPassCount || 1) === 1 ? 'Spot Pass' : 'Spot Passes'} Included
                           </span>
                         </div>
 

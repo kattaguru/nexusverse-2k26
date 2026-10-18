@@ -83,6 +83,36 @@ describe('Razorpay Utilities & Payment Calculation Unit Tests', () => {
     assert.equal(ieeePlusSpot.total, 263, 'Total should be ₹263');
   });
 
+  it('should support team member spot pass selection for multi-member events like CTF', () => {
+    const nonMemberTechFee = 200;
+    const spotFee = 100;
+    const ctfHeads = 2; // Lead + 1 Member
+
+    // Case A: CTF (2 members) + Spot Pass for BOTH members (2 Spot Passes)
+    const techSubtotal = ctfHeads * nonMemberTechFee; // ₹400
+    const bothSpotSubtotal = ctfHeads * spotFee; // ₹200
+    const subtotalBoth = techSubtotal + bothSpotSubtotal; // ₹600
+    const gstBoth = Math.round(subtotalBoth * 0.05); // ₹30 (₹5 per ₹100)
+    const totalBoth = subtotalBoth + gstBoth; // ₹630
+
+    assert.equal(techSubtotal, 400);
+    assert.equal(bothSpotSubtotal, 200);
+    assert.equal(subtotalBoth, 600);
+    assert.equal(gstBoth, 30);
+    assert.equal(totalBoth, 630);
+
+    // Case B: CTF (2 members) + Spot Pass for LEAD ONLY (1 Spot Pass)
+    const singleSpotSubtotal = 1 * spotFee; // ₹100
+    const subtotalSingle = techSubtotal + singleSpotSubtotal; // ₹500
+    const gstSingle = Math.round(subtotalSingle * 0.05); // ₹25 (₹5 per ₹100)
+    const totalSingle = subtotalSingle + gstSingle; // ₹525
+
+    assert.equal(singleSpotSubtotal, 100);
+    assert.equal(subtotalSingle, 500);
+    assert.equal(gstSingle, 25);
+    assert.equal(totalSingle, 525);
+  });
+
   it('should format standard NPCI Direct UPI payment URI correctly with custom UPI ID', () => {
     const upiVpa = '9441759500@ptyes';
     const payeeName = 'NexusVerse 2K26';
