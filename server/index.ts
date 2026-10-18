@@ -56,6 +56,11 @@ app.get(['/admin', '/admin.html'], (_req, res) => {
   res.sendFile(path.resolve(distPath, 'register.html'));
 });
 
+// Direct Ticket Pass verification shortcuts (e.g. /pass/NV26-101)
+app.get(['/pass/:regId', '/verify/:regId'], (req, res) => {
+  res.redirect(`/register.html?passId=${encodeURIComponent(req.params.regId)}`);
+});
+
 app.get('*', (req, res, next) => {
   if (req.path.startsWith('/api')) {
     return next();

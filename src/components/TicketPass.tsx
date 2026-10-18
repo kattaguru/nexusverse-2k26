@@ -1,7 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import QRCode from 'qrcode';
 import { 
-  Download, 
   Printer, 
   CalendarPlus, 
   Copy, 
@@ -18,7 +17,11 @@ import {
   MessageCircle,
   ExternalLink,
   Clock,
-  ShieldCheck 
+  ShieldCheck,
+  QrCode as QrIcon,
+  CheckCircle2,
+  Hash,
+  BookOpen
 } from 'lucide-react';
 import { SymposiumEvent, SYMPOSIUM_CONFIG, SPOT_EVENT } from '../data/symposiumData';
 
@@ -84,23 +87,36 @@ export const TicketPass: React.FC<TicketPassProps> = ({
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const ticketRef = useRef<HTMLDivElement>(null);
   const [copied, setCopied] = useState(false);
+  const [copiedUrl, setCopiedUrl] = useState(false);
+  const [copiedWa, setCopiedWa] = useState(false);
 
-  // Generate QR Code onto canvas
+  // Compute live verification URL for QR code & sharing
+  const origin = typeof window !== 'undefined' && window.location.origin 
+    ? window.location.origin 
+    : 'https://www.nbkristieee.in';
+  const passVerificationUrl = `${origin}/register.html?passId=${encodeURIComponent(record.regId)}`;
+
+  // Generate crisp, high-contrast QR Code onto canvas (pure black on white for 100% camera readability)
   useEffect(() => {
     if (!canvasRef.current) return;
-    const qrPayload = `NEXUSVERSE2K26|${record.regId}|${record.roll}|${record.phone}|${record.email}|${record.eventIds.join(',')}|PAY:${record.paymentId}`;
     
-    QRCode.toCanvas(canvasRef.current, qrPayload, {
-      width: 170,
-      margin: 1,
-      color: {
-        dark: '#0a0a0d',
-        light: '#f2c14e'
+    QRCode.toCanvas(
+      canvasRef.current, 
+      passVerificationUrl, 
+      {
+        width: 210,
+        margin: 2,
+        errorCorrectionLevel: 'H',
+        color: {
+          dark: '#000000',
+          light: '#ffffff'
+        }
+      }, 
+      (error) => {
+        if (error) console.error('QR code generation error:', error);
       }
-    }, (error) => {
-      if (error) console.error('QR code generation error:', error);
-    });
-  }, [record]);
+    );
+  }, [passVerificationUrl, record]);
 
   const copyRegId = () => {
     navigator.clipboard.writeText(record.regId);
@@ -108,7 +124,12 @@ export const TicketPass: React.FC<TicketPassProps> = ({
     setTimeout(() => setCopied(false), 2000);
   };
 
-  const [copiedWa, setCopiedWa] = useState(false);
+  const copyPassUrl = () => {
+    navigator.clipboard.writeText(passVerificationUrl);
+    setCopiedUrl(true);
+    setTimeout(() => setCopiedUrl(false), 2000);
+  };
+
   const waGroupUrl = SYMPOSIUM_CONFIG.whatsappGroup?.url || "https://chat.whatsapp.com/GEpv2i56odNEV0LpLizzaO?s=cl&p=a&mlu=4&ilr=4&iam=2";
 
   const copyWaLink = () => {
@@ -161,34 +182,35 @@ export const TicketPass: React.FC<TicketPassProps> = ({
   };
 
   return (
-    <div className="max-w-3xl mx-auto py-8 px-4 sm:px-6 space-y-8 animate-in fade-in-50 duration-300">
-      {/* Success Notification Banner */}
+    <div className="max-w-4xl mx-auto py-6 px-3 sm:px-6 space-y-6 animate-in fade-in-50 duration-300">
+      {/* Top Banner / Confirmation Notice */}
       <div className="text-center space-y-3 no-print">
-        <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-[#4cc38a]/15 text-[#4cc38a] border border-[#4cc38a]/30 shadow-lg">
-          <Check className="w-8 h-8" />
+        <div className="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-[#4cc38a]/15 text-[#4cc38a] border border-[#4cc38a]/40 shadow-xl shadow-[#4cc38a]/10">
+          <CheckCircle2 className="w-8 h-8" />
         </div>
         <h2 className="font-serif-title text-3xl sm:text-4xl font-extrabold text-[#ffffff] tracking-tight">
-          Registration Confirmed!
+          Official Delegate Pass Generated!
         </h2>
-        <p className="text-sm text-[#a79f8b] max-w-md mx-auto">
-          Payment authorized via Razorpay. Your official delegate pass has been generated. Keep this pass handy for entry on event day.
+        <p className="text-xs sm:text-sm text-[#b9ae94] max-w-lg mx-auto">
+          Your registration has been confirmed. Below is your official authenticated QR Delegate Pass for <strong>NexusVerse 2K26</strong>.
         </p>
 
-        {/* Reg ID Badge */}
-        <div className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-[#131318] border border-[#2e2b22] text-[#f2c14e] font-mono text-lg font-bold">
-          <span>{record.regId}</span>
+        {/* Pass ID Pill & Copy Action */}
+        <div className="inline-flex items-center gap-3 px-5 py-2.5 rounded-2xl bg-[#14141b] border-2 border-[#d4a935]/40 text-[#f2c14e] shadow-lg">
+          <span className="text-[11px] uppercase tracking-wider text-[#a79f8b] font-semibold">Pass ID:</span>
+          <span className="font-mono text-lg sm:text-xl font-black text-[#f2c14e] tracking-wider">{record.regId}</span>
           <button
             type="button"
             onClick={copyRegId}
-            className="p-1 text-[#a79f8b] hover:text-[#f3ecd9] transition-colors cursor-pointer"
-            title="Copy Registration ID"
+            className="p-1.5 text-[#a79f8b] hover:text-[#f3ecd9] bg-white/5 rounded-lg border border-white/10 hover:border-[#d4a935]/50 transition-colors cursor-pointer"
+            title="Copy Registration Pass ID"
           >
             {copied ? <Check className="w-4 h-4 text-[#4cc38a]" /> : <Copy className="w-4 h-4" />}
           </button>
         </div>
       </div>
 
-      {/* UPI Payment Status Banner */}
+      {/* UPI Notice Banner (if UPI was used) */}
       {record.paymentMode === 'upi' && (
         <div className={`no-print p-4 sm:p-5 rounded-2xl border text-xs sm:text-sm text-[#f3ecd9] flex items-center gap-3.5 shadow-xl ${
           record.isVerified
@@ -204,17 +226,17 @@ export const TicketPass: React.FC<TicketPassProps> = ({
           </div>
           <div>
             <span className={`font-bold block text-sm ${record.isVerified ? 'text-[#4cc38a]' : 'text-[#f2c14e]'}`}>
-              {record.isVerified ? 'UPI Payment Verified ✓ · Official Entry Authorized' : 'UPI Payment Recorded · Mail at 8 PM'}
+              {record.isVerified ? 'UPI Payment Verified ✓ · Official Entry Authorized' : 'UPI Payment Recorded · Official Ticket Access'}
             </span>
             <span className="text-[#d8cea7] text-xs">
-              Your ticket will be sent to your mail at <strong>8 PM</strong> and you can access your ticket in <strong>your space</strong> (<strong>find my ticket</strong>).
+              Your ticket will be sent to your mail at <strong>8 PM</strong> and you can access your live ticket anytime in <strong>your space</strong> (<strong>find my ticket</strong>).
             </span>
           </div>
         </div>
       )}
 
-      {/* Mandatory Official WhatsApp Group Notification Card */}
-      <div className="no-print p-4 sm:p-5 rounded-2xl bg-gradient-to-r from-[#0d2a1a] via-[#123824] to-[#0d2a1a] border-2 border-[#25d366]/70 shadow-2xl shadow-[#25d366]/20 space-y-3 animate-in zoom-in-95 duration-300 relative overflow-hidden">
+      {/* Official WhatsApp Group Notification Banner */}
+      <div className="no-print p-4 sm:p-5 rounded-2xl bg-gradient-to-r from-[#0d2a1a] via-[#123824] to-[#0d2a1a] border-2 border-[#25d366]/70 shadow-2xl shadow-[#25d366]/20 space-y-3 relative overflow-hidden">
         <div className="absolute -top-12 -right-12 w-32 h-32 rounded-full bg-[#25d366]/10 blur-2xl pointer-events-none" />
         
         <div className="flex flex-col sm:flex-row items-center justify-between gap-4 relative z-10">
@@ -225,7 +247,7 @@ export const TicketPass: React.FC<TicketPassProps> = ({
             <div>
               <div className="flex flex-wrap items-center justify-center sm:justify-start gap-2">
                 <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-[#25d366]/20 text-[#25d366] border border-[#25d366]/40">
-                  Mandatory Next Step
+                  Mandatory Participant Step
                 </span>
                 <span className="text-xs text-[#a7f3d0] font-semibold">Join Official Community</span>
               </div>
@@ -233,7 +255,7 @@ export const TicketPass: React.FC<TicketPassProps> = ({
                 Join the NexusVerse 2K26 WhatsApp Group
               </h3>
               <p className="text-xs text-[#a7f3d0]/80 mt-0.5 leading-relaxed">
-                Stay updated with live event schedules, lab & room allocations, spot event timings, and coordinator announcements.
+                Stay updated with live event schedules, room & lab allocations, and coordinator announcements.
               </p>
             </div>
           </div>
@@ -263,161 +285,234 @@ export const TicketPass: React.FC<TicketPassProps> = ({
         </div>
       </div>
 
-      {/* The Printable Digital Pass */}
+      {/* =========================================================================
+          THE LUXURY VIP BOARDING PASS / SYMPOSIUM BADGE (PRINTABLE & SCANNABLE)
+          ========================================================================= */}
       <div 
+        id="nexusverse-printable-ticket"
         ref={ticketRef}
-        className="bg-[#131318] border-2 border-[#d4a935]/50 rounded-3xl overflow-hidden shadow-2xl relative text-[#f3ecd9] ticket-pass-card"
+        className="ticket-pass-card bg-gradient-to-b from-[#161620] via-[#101017] to-[#0a0a0e] border-2 border-[#d4a935]/80 rounded-3xl overflow-hidden shadow-[0_25px_60px_-15px_rgba(212,169,53,0.3)] relative text-[#f3ecd9]"
       >
-        {/* Pass Header */}
-        <div className="bg-gradient-to-r from-[#181820] via-[#1f1b0e] to-[#181820] p-6 sm:p-8 border-b-2 border-dashed border-[#2e2b22] relative ticket-pass-top">
-          {/* Side Cutouts */}
-          <div className="absolute -bottom-4 -left-4 w-8 h-8 rounded-full bg-[#0a0a0d] border border-[#2e2b22] ticket-pass-cutout" />
-          <div className="absolute -bottom-4 -right-4 w-8 h-8 rounded-full bg-[#0a0a0d] border border-[#2e2b22] ticket-pass-cutout" />
+        {/* Top Gold Shimmer Line */}
+        <div className="h-2 w-full bg-gradient-to-r from-[#d4a935] via-[#ffe599] via-[#f2c14e] to-[#d4a935]" />
 
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-            <div className="flex items-center gap-3.5">
-              <div className="w-12 h-12 rounded-xl bg-black/60 p-1 border border-[#d4a935]/40 shadow flex items-center justify-center shrink-0 overflow-hidden">
-                <img src={leftLogo || '/symposium-poster.jpg'} alt="NexusVerse" className="max-h-full max-w-full object-contain" />
-              </div>
-              <div>
-                <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-[#d4a935]">
-                  <Sparkles className="w-3.5 h-3.5" />
-                  <span>IEEE-SB NBKRIST PRESENTS</span>
+        {/* ==================== PASS STUB HEADER ==================== */}
+        <div className="bg-gradient-to-r from-[#191924] via-[#241f12] to-[#191924] p-5 sm:p-7 border-b-2 border-dashed border-[#d4a935]/40 relative ticket-pass-top">
+          {/* Perforated Ticket Notches */}
+          <div className="absolute -bottom-4 -left-4 w-8 h-8 rounded-full bg-[#0a0a0d] border border-[#d4a935]/50 shadow-inner ticket-pass-cutout" />
+          <div className="absolute -bottom-4 -right-4 w-8 h-8 rounded-full bg-[#0a0a0d] border border-[#d4a935]/50 shadow-inner ticket-pass-cutout" />
+
+          <div className="flex flex-col md:flex-row md:items-center justify-between gap-5">
+            {/* Logos & Institution Branding */}
+            <div className="flex items-center gap-4">
+              <div className="flex items-center gap-2 shrink-0">
+                {/* College / Symposium Crest */}
+                <div className="w-14 h-14 sm:w-16 sm:h-16 rounded-2xl bg-[#0a0a0d] p-1.5 border-2 border-[#d4a935]/60 shadow-xl flex items-center justify-center overflow-hidden">
+                  <img 
+                    src={leftLogo || '/symposium-poster.jpg'} 
+                    alt="NBKRIST NexusVerse" 
+                    className="max-h-full max-w-full object-contain rounded-lg"
+                  />
                 </div>
-                <h3 className="font-serif-title text-2xl sm:text-3xl font-black text-[#ffffff] tracking-tight mt-0.5">
+                {/* IEEE Student Branch Crest */}
+                <div className="w-14 h-14 sm:w-16 sm:h-16 rounded-2xl bg-white p-1.5 border-2 border-[#00629b] shadow-xl flex items-center justify-center overflow-hidden">
+                  <img 
+                    src={rightLogo || '/ieee-sb-logo.png'} 
+                    alt="IEEE Student Branch" 
+                    className="max-h-full max-w-full object-contain"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <div className="flex items-center gap-2 text-[10px] sm:text-xs font-bold uppercase tracking-widest text-[#f2c14e]">
+                  <Sparkles className="w-3.5 h-3.5 text-[#f2c14e]" />
+                  <span>IEEE-SB NBKRIST · NATIONAL SYMPOSIUM</span>
+                </div>
+                <h1 className="font-serif-title text-2xl sm:text-3xl md:text-4xl font-black text-transparent bg-clip-text bg-gradient-to-r from-[#ffffff] via-[#ffe599] to-[#f2c14e] tracking-tight leading-tight mt-0.5">
                   NexusVerse 2K26
-                </h3>
-                <p className="text-xs text-[#a79f8b]">
-                  National Level Technical Symposium · 29 October 2026
+                </h1>
+                <p className="text-[11px] sm:text-xs text-[#d8cea7] font-medium leading-relaxed mt-0.5">
+                  N.B.K.R. Institute of Science & Technology · Vidyanagar, Tirupati
                 </p>
+                <div className="flex items-center gap-2 mt-1 text-[10px] text-[#a79f8b]">
+                  <span className="font-semibold text-[#f2c14e]">Event Date:</span> 29 October 2026 (Thursday) · 08:30 AM Onwards
+                </div>
               </div>
             </div>
 
-            <div className="flex items-center sm:flex-col sm:items-end justify-between gap-3">
-              <div className="w-12 h-12 rounded-full bg-white p-1 border border-[#2e2b22] shadow flex items-center justify-center shrink-0">
-                <img src={rightLogo} alt="IEEE-SB" className="max-h-full max-w-full object-contain" />
+            {/* VIP Pass ID Holographic Box */}
+            <div className="flex flex-row md:flex-col items-center md:items-end justify-between md:justify-center p-3 sm:p-4 rounded-2xl bg-[#0f0f15] border-2 border-[#d4a935]/50 shadow-inner">
+              <div className="text-left md:text-right">
+                <span className="text-[10px] font-bold uppercase tracking-widest text-[#a79f8b] block">
+                  OFFICIAL DELEGATE PASS
+                </span>
+                <span className="font-mono text-xl sm:text-2xl font-black text-[#f2c14e] tracking-wider block">
+                  {record.regId}
+                </span>
               </div>
-              <div className="text-right">
-                <span className="text-[10px] uppercase font-bold tracking-widest text-[#a79f8b] block">PASS ID</span>
-                <span className="font-mono text-xl font-bold text-[#f2c14e]">{record.regId}</span>
-                <span className="text-[10px] font-mono text-[#4cc38a] block mt-0.5">● PAYMENT VERIFIED</span>
+              <div className="mt-1 flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-[#1b5e39]/30 border border-[#4cc38a]/50 text-[#4cc38a] text-[10px] font-bold">
+                <CheckCircle2 className="w-3.5 h-3.5 text-[#4cc38a]" />
+                <span>{record.isVerified ? 'VERIFIED ENTRY' : 'OFFICIAL PASS'}</span>
               </div>
             </div>
           </div>
         </div>
 
-        {/* Pass Main Grid */}
-        <div className="p-6 sm:p-8 grid grid-cols-1 md:grid-cols-12 gap-8 items-start">
-          {/* Attendee Details */}
-          <div className="md:col-span-8 space-y-6">
-            <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 text-xs">
-              <div className="col-span-2 sm:col-span-1">
-                <span className="text-[#a79f8b] block flex items-center gap-1">
-                  <User className="w-3.5 h-3.5 text-[#d4a935]" /> Delegate Name
+        {/* Perforated Security Micro-Stripe */}
+        <div className="bg-[#12121a] px-6 py-1.5 border-b border-[#2e2b22] flex items-center justify-between text-[9px] sm:text-[10px] font-mono text-[#a79f8b] tracking-wider uppercase">
+          <span>✦ AUTHENTICATED ENTRY BADGE ✦</span>
+          <span className="hidden sm:inline">REPORTING TIME: 08:30 AM · ORIGINAL COLLEGE ID REQUIRED</span>
+          <span>STB 00000 · VIDYANAGAR</span>
+        </div>
+
+        {/* ==================== PASS MAIN CONTENT ==================== */}
+        <div className="p-5 sm:p-7 grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+          {/* Left Column: Attendee Credentials & Events (8 Cols) */}
+          <div className="lg:col-span-8 space-y-6">
+            
+            {/* Delegate Details Grid */}
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-bold uppercase tracking-wider text-[#d4a935] flex items-center gap-1.5">
+                  <User className="w-4 h-4 text-[#d4a935]" />
+                  <span>Delegate Credentials</span>
                 </span>
-                <span className="font-bold text-sm text-[#ffffff] block mt-0.5">{record.name}</span>
-              </div>
-              <div>
-                <span className="text-[#a79f8b] block">Roll Number</span>
-                <span className="font-mono font-bold text-xs text-[#f2c14e] block mt-0.5">
-                  {record.roll}
-                </span>
-              </div>
-              <div>
-                <span className="text-[#a79f8b] block flex items-center gap-1">
-                  <Phone className="w-3.5 h-3.5 text-[#d4a935]" /> Phone Number
-                </span>
-                <span className="font-mono text-xs text-[#f3ecd9] block mt-0.5">
-                  {record.phone}
-                </span>
-              </div>
-              <div>
-                <span className="text-[#a79f8b] block flex items-center gap-1">
-                  <Layers className="w-3.5 h-3.5 text-[#d4a935]" /> Class & Section
-                </span>
-                <span className="font-semibold text-xs text-[#f3ecd9] block mt-0.5">
-                  {record.className} · Sec {record.section}
-                </span>
-              </div>
-              <div>
-                <span className="text-[#a79f8b] block">Branch & Year</span>
-                <span className="font-semibold text-xs text-[#f3ecd9] block mt-0.5">
-                  {record.dept} ({record.year})
-                </span>
-              </div>
-              <div>
-                <span className="text-[#a79f8b] block flex items-center gap-1">
-                  <School className="w-3.5 h-3.5 text-[#d4a935]" /> College / Inst.
-                </span>
-                <span className="font-semibold text-xs text-[#f3ecd9] block mt-0.5 truncate" title={record.college}>
-                  {record.college}
+                <span className="text-[11px] font-mono text-[#a79f8b]">
+                  Status: <strong className="text-[#4cc38a]">Active Delegate</strong>
                 </span>
               </div>
 
-              <div className="col-span-2 sm:col-span-1">
-                <span className="text-[#a79f8b] block flex items-center gap-1">
-                  <Award className="w-3.5 h-3.5 text-[#d4a935]" /> Pass Category
-                </span>
-                <span className="font-semibold text-xs text-[#f2c14e] bg-[#1f1b0e] px-2.5 py-0.5 rounded border border-[#d4a935]/30 inline-block mt-0.5">
-                  {hasTech && hasSpot 
-                    ? `Tech + Spot Pass (${record.isIeeeMember ? 'IEEE' : 'Regular'})` 
-                    : hasSpot 
-                    ? 'Spot Events Pass (Non-Technical)' 
-                    : `Technical Event (${record.isIeeeMember ? 'IEEE' : 'Regular'})`}
-                </span>
-              </div>
-
-              {record.isIeeeMember && (
-                <div className="col-span-2 sm:col-span-2 p-2 rounded-lg bg-[#1f1b0e] border border-[#d4a935]/30 flex items-center justify-between">
-                  <div className="flex items-center gap-1.5 text-xs text-[#f2c14e] font-semibold">
-                    <Award className="w-4 h-4" />
-                    <span>IEEE Student Member</span>
-                  </div>
-                  <span className="font-mono text-xs text-[#a79f8b]">ID: {record.ieeeId}</span>
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 text-xs">
+                {/* 1. Delegate Name */}
+                <div className="col-span-2 sm:col-span-1 p-3 rounded-xl bg-[#13131b] border border-[#2e2b22]">
+                  <span className="text-[#a79f8b] text-[10px] block font-medium uppercase tracking-wider">
+                    Delegate Name
+                  </span>
+                  <span className="font-bold text-sm text-[#ffffff] block mt-0.5 truncate" title={record.name}>
+                    {record.name}
+                  </span>
                 </div>
-              )}
+
+                {/* 2. Roll Number */}
+                <div className="p-3 rounded-xl bg-[#13131b] border border-[#2e2b22]">
+                  <span className="text-[#a79f8b] text-[10px] block font-medium uppercase tracking-wider flex items-center gap-1">
+                    <Hash className="w-3 h-3 text-[#d4a935]" /> Roll Number
+                  </span>
+                  <span className="font-mono font-bold text-xs text-[#f2c14e] block mt-0.5">
+                    {record.roll}
+                  </span>
+                </div>
+
+                {/* 3. Phone */}
+                <div className="p-3 rounded-xl bg-[#13131b] border border-[#2e2b22]">
+                  <span className="text-[#a79f8b] text-[10px] block font-medium uppercase tracking-wider flex items-center gap-1">
+                    <Phone className="w-3 h-3 text-[#d4a935]" /> Phone
+                  </span>
+                  <span className="font-mono text-xs text-[#f3ecd9] block mt-0.5">
+                    {record.phone}
+                  </span>
+                </div>
+
+                {/* 4. Branch & Year */}
+                <div className="p-3 rounded-xl bg-[#13131b] border border-[#2e2b22]">
+                  <span className="text-[#a79f8b] text-[10px] block font-medium uppercase tracking-wider flex items-center gap-1">
+                    <BookOpen className="w-3 h-3 text-[#d4a935]" /> Branch & Year
+                  </span>
+                  <span className="font-semibold text-xs text-[#f3ecd9] block mt-0.5">
+                    {record.dept} ({record.year})
+                  </span>
+                </div>
+
+                {/* 5. Class & Section */}
+                <div className="p-3 rounded-xl bg-[#13131b] border border-[#2e2b22]">
+                  <span className="text-[#a79f8b] text-[10px] block font-medium uppercase tracking-wider flex items-center gap-1">
+                    <Layers className="w-3 h-3 text-[#d4a935]" /> Class & Sec
+                  </span>
+                  <span className="font-semibold text-xs text-[#f3ecd9] block mt-0.5">
+                    {record.className} · Sec {record.section}
+                  </span>
+                </div>
+
+                {/* 6. College */}
+                <div className="col-span-2 sm:col-span-1 p-3 rounded-xl bg-[#13131b] border border-[#2e2b22]">
+                  <span className="text-[#a79f8b] text-[10px] block font-medium uppercase tracking-wider flex items-center gap-1">
+                    <School className="w-3 h-3 text-[#d4a935]" /> Institution
+                  </span>
+                  <span className="font-semibold text-xs text-[#f3ecd9] block mt-0.5 truncate" title={record.college}>
+                    {record.college}
+                  </span>
+                </div>
+              </div>
+
+              {/* Membership Status Badge Bar */}
+              <div className="p-3 rounded-xl bg-gradient-to-r from-[#17161f] via-[#1c1912] to-[#17161f] border border-[#d4a935]/40 flex flex-wrap items-center justify-between gap-2">
+                <div className="flex items-center gap-2">
+                  <Award className="w-4 h-4 text-[#f2c14e]" />
+                  <span className="text-xs font-bold text-[#ffffff]">
+                    Pass Category:
+                  </span>
+                  <span className="text-xs text-[#f2c14e] font-semibold">
+                    {hasTech && hasSpot 
+                      ? `Tech + Spot Pass (${record.isIeeeMember ? 'IEEE Student' : 'Standard'})` 
+                      : hasSpot 
+                      ? 'Spot Events Pass (Non-Technical)' 
+                      : `Technical Symposium Pass (${record.isIeeeMember ? 'IEEE' : 'Standard'})`}
+                  </span>
+                </div>
+
+                {record.isIeeeMember ? (
+                  <span className="px-2.5 py-0.5 rounded-full bg-[#00629b]/30 text-[#70baff] border border-[#0088d4]/40 font-mono text-[11px] font-bold flex items-center gap-1">
+                    <Award className="w-3.5 h-3.5" />
+                    <span>IEEE Member ID: {record.ieeeId || 'Verified'}</span>
+                  </span>
+                ) : (
+                  <span className="px-2.5 py-0.5 rounded-full bg-white/5 text-[#a79f8b] border border-white/10 font-mono text-[11px]">
+                    Non-IEEE Delegate
+                  </span>
+                )}
+              </div>
             </div>
 
-            {/* Registered Events */}
-            <div className="space-y-3 pt-2 border-t border-[#2e2b22]">
-              <div className="text-xs font-semibold uppercase tracking-wider text-[#d4a935] flex items-center gap-1.5">
+            {/* Confirmed Events & Schedules */}
+            <div className="space-y-3 pt-3 border-t border-[#2e2b22]">
+              <div className="text-xs font-bold uppercase tracking-wider text-[#d4a935] flex items-center gap-1.5">
                 <Trophy className="w-4 h-4 text-[#d4a935]" />
-                <span>
-                  {hasTech && hasSpot 
-                    ? 'Confirmed Registrations (Technical + Spot Events)'
-                    : hasSpot 
-                    ? 'Confirmed Spot Events Registration'
-                    : 'Confirmed Technical Event'}
-                </span>
+                <span>Confirmed Event Access & Schedule</span>
               </div>
+
               <div className="space-y-3 text-xs">
                 {registeredEvents.map((ev) => {
                   if (ev.id === 'spot') {
                     return (
-                      <div key={ev.id} className="p-4 rounded-xl bg-gradient-to-r from-[#0d1e34] via-[#091524] to-[#070e17] border border-[#0088d4]/50 shadow-md space-y-2.5">
+                      <div key={ev.id} className="p-4 rounded-2xl bg-gradient-to-r from-[#0d1e34] via-[#091524] to-[#070e17] border-2 border-[#0088d4]/60 shadow-lg space-y-2.5">
                         <div className="flex flex-wrap items-center justify-between gap-2">
                           <div>
                             <div className="font-bold text-sm text-[#ffffff] flex items-center gap-1.5">
                               <Sparkles className="w-4 h-4 text-[#70baff]" />
                               <span>{ev.name}</span>
-                              <span className="text-[10px] px-2 py-0.2 rounded-full bg-[#0088d4]/20 text-[#70baff] border border-[#0088d4]/40 font-mono">
+                              <span className="text-[10px] px-2 py-0.5 rounded-full bg-[#0088d4]/20 text-[#70baff] border border-[#0088d4]/40 font-mono font-bold">
                                 Non-Technical
                               </span>
                             </div>
-                            <div className="text-[#8ea8c9] text-[11px] mt-0.5">{ev.slot} · {ev.venue}</div>
+                            <div className="text-[#8ea8c9] text-[11px] mt-0.5 font-medium">
+                              {ev.slot} · {ev.venue}
+                            </div>
                           </div>
-                          <span className="px-2.5 py-1 rounded-md bg-[#00629b]/30 text-[#70baff] border border-[#0088d4]/40 font-semibold text-xs font-mono">
-                            ₹100 · Spot Pass
+                          <span className="px-3 py-1 rounded-lg bg-[#00629b]/40 text-[#70baff] border border-[#0088d4]/50 font-bold text-xs font-mono shadow-sm">
+                            ₹100 · Spot Pass Included
                           </span>
                         </div>
+
                         <p className="text-[11px] text-[#8ea8c9] leading-relaxed">
                           {ev.tag}
                         </p>
-                        <div className="flex flex-wrap items-center gap-2 pt-1 border-t border-[#1b324d]/60">
-                          <span className="text-[10px] px-2 py-0.5 rounded bg-[#0b1726] border border-[#1b324d] text-[#9fc7e8]">
-                            Afternoon Session: 01:30 PM – 03:30 PM
+
+                        <div className="flex flex-wrap items-center gap-2 pt-1.5 border-t border-[#1b324d]/60">
+                          <span className="text-[10px] px-2.5 py-0.5 rounded-md bg-[#0b1726] border border-[#1b324d] text-[#9fc7e8] font-mono">
+                            Session: 01:30 PM – 03:30 PM
                           </span>
-                          <span className="text-[10px] px-2 py-0.5 rounded bg-[#0b1726] border border-[#1b324d] text-[#4cc38a] font-medium flex items-center gap-1">
+                          <span className="text-[10px] px-2.5 py-0.5 rounded-md bg-[#0b1726] border border-[#1b324d] text-[#4cc38a] font-semibold flex items-center gap-1">
                             <Check className="w-3 h-3 text-[#4cc38a]" />
                             <span>Entry to All Non-Technical Spot Competitions</span>
                           </span>
@@ -430,43 +525,48 @@ export const TicketPass: React.FC<TicketPassProps> = ({
                   const structuredMembers = teamInfo?.teamMembers || [];
 
                   return (
-                    <div key={ev.id} className="p-4 rounded-xl bg-[#0a0a0d] border border-[#2e2b22] space-y-3">
+                    <div key={ev.id} className="p-4 rounded-2xl bg-[#0d0d12] border-2 border-[#d4a935]/30 space-y-3">
                       <div className="flex flex-wrap items-center justify-between gap-2">
                         <div>
                           <div className="font-bold text-sm text-[#ffffff] flex items-center gap-2">
                             <span>{ev.name}</span>
-                            <span className="text-[10px] px-2 py-0.2 rounded-full bg-[#d4a935]/20 text-[#f2c14e] border border-[#d4a935]/40 font-mono">
+                            <span className="text-[10px] px-2 py-0.5 rounded-full bg-[#d4a935]/20 text-[#f2c14e] border border-[#d4a935]/40 font-mono font-bold">
                               Technical Event
                             </span>
                           </div>
-                          <div className="text-[#a79f8b] text-[11px] mt-0.5">{ev.slot} · {ev.time} · {ev.venue}</div>
+                          <div className="text-[#d8cea7] text-[11px] mt-0.5 font-medium">
+                            {ev.slot} · {ev.time} · {ev.venue}
+                          </div>
                         </div>
+
                         {teamInfo?.teamName && (
-                          <span className="px-2.5 py-1 rounded-md bg-[#1f1b0e] text-[#f2c14e] border border-[#d4a935]/30 font-semibold text-xs">
+                          <span className="px-3 py-1 rounded-lg bg-[#1f1b0e] text-[#f2c14e] border border-[#d4a935]/40 font-bold text-xs">
                             Team: {teamInfo.teamName}
                           </span>
                         )}
                       </div>
 
                       {teamInfo?.projectTitle && (
-                        <div className="text-[11px] text-[#b9ae94] italic bg-[#131318] p-2 rounded-lg border border-[#2e2b22]">
+                        <div className="text-[11px] text-[#f3ecd9] italic bg-[#15151e] p-2.5 rounded-xl border border-[#2e2b22]">
                           Project Title: &quot;{teamInfo.projectTitle}&quot;
                         </div>
                       )}
 
-                      {/* Structured Team Members List if present */}
+                      {/* Structured Team Members Roster */}
                       {structuredMembers.length > 0 && (
                         <div className="pt-2 border-t border-[#2e2b22] space-y-2">
                           <div className="flex items-center gap-1.5 text-[11px] text-[#d4a935] font-semibold">
                             <Users className="w-3.5 h-3.5" />
-                            <span>Team Members ({structuredMembers.length + 1} Total with Lead):</span>
+                            <span>Registered Team Members ({structuredMembers.length + 1} Total with Lead):</span>
                           </div>
                           <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                             {/* Member 1 (Lead) */}
-                            <div className="p-2.5 rounded-lg bg-[#131318] border border-[#d4a935]/30 text-[11px] space-y-0.5">
+                            <div className="p-2.5 rounded-xl bg-[#14141d] border border-[#d4a935]/40 text-[11px] space-y-0.5">
                               <div className="flex items-center justify-between font-bold text-[#ffffff]">
                                 <span>{record.name}</span>
-                                <span className="text-[10px] text-[#f2c14e] font-mono">LEAD</span>
+                                <span className="text-[10px] text-[#f2c14e] font-mono px-1.5 py-0.2 rounded bg-[#f2c14e]/10 border border-[#f2c14e]/30">
+                                  LEAD
+                                </span>
                               </div>
                               <div className="text-[#a79f8b] font-mono">Roll: {record.roll} · {record.phone}</div>
                               <div className="text-[#a79f8b]">{record.className} {record.section} · {record.dept} ({record.year})</div>
@@ -474,7 +574,7 @@ export const TicketPass: React.FC<TicketPassProps> = ({
                                 {record.isIeeeMember ? (
                                   <span className="text-[#f2c14e] font-medium flex items-center gap-1">
                                     <Award className="w-3 h-3 text-[#f2c14e]" />
-                                    <span>IEEE Member: {record.ieeeId || 'Verified'}</span>
+                                    <span>IEEE: {record.ieeeId || 'Verified'}</span>
                                   </span>
                                 ) : (
                                   <span className="text-[#a79f8b]">Non-IEEE Member</span>
@@ -484,10 +584,12 @@ export const TicketPass: React.FC<TicketPassProps> = ({
 
                             {/* Additional Members */}
                             {structuredMembers.map((m, idx) => (
-                              <div key={idx} className="p-2.5 rounded-lg bg-[#131318] border border-[#2e2b22] text-[11px] space-y-0.5">
+                              <div key={idx} className="p-2.5 rounded-xl bg-[#14141d] border border-[#2e2b22] text-[11px] space-y-0.5">
                                 <div className="flex items-center justify-between font-bold text-[#ffffff]">
                                   <span>{m.name || `Member ${idx + 2}`}</span>
-                                  <span className="text-[10px] text-[#a79f8b] font-mono">MEMBER {idx + 2}</span>
+                                  <span className="text-[10px] text-[#a79f8b] font-mono px-1.5 py-0.2 rounded bg-white/5 border border-white/10">
+                                    MEMBER {idx + 2}
+                                  </span>
                                 </div>
                                 <div className="text-[#a79f8b] font-mono">Roll: {m.roll || 'N/A'} {m.phone ? `· ${m.phone}` : ''}</div>
                                 <div className="text-[#a79f8b]">
@@ -497,7 +599,7 @@ export const TicketPass: React.FC<TicketPassProps> = ({
                                   {m.isIeeeMember ? (
                                     <span className="text-[#f2c14e] font-medium flex items-center gap-1">
                                       <Award className="w-3 h-3 text-[#f2c14e]" />
-                                      <span>IEEE Member: {m.ieeeId || 'Verified'}</span>
+                                      <span>IEEE: {m.ieeeId || 'Verified'}</span>
                                     </span>
                                   ) : (
                                     <span className="text-[#a79f8b]">Non-IEEE Member</span>
@@ -515,33 +617,89 @@ export const TicketPass: React.FC<TicketPassProps> = ({
             </div>
           </div>
 
-          {/* QR Code & Scan verification */}
-          <div className="md:col-span-4 flex flex-col items-center justify-center p-4 bg-[#0a0a0d] rounded-2xl border border-[#2e2b22] text-center space-y-3">
-            <div className="p-2 rounded-xl bg-[#f2c14e] shadow-md inline-block">
-              <canvas ref={canvasRef} className="block rounded-lg" />
+          {/* Right Column: High-Contrast Scannable QR Security Column (4 Cols) */}
+          <div className="lg:col-span-4 flex flex-col items-center justify-center p-5 bg-[#0e0e14] rounded-2xl border-2 border-[#d4a935]/50 text-center space-y-4 shadow-xl">
+            {/* Scannable QR Container with Crisp White Background */}
+            <div className="p-3 bg-white rounded-2xl shadow-2xl border-2 border-[#d4a935] ring-4 ring-[#d4a935]/20 flex flex-col items-center">
+              <canvas 
+                ref={canvasRef} 
+                className="block w-[180px] h-[180px] sm:w-[200px] sm:h-[200px] rounded-lg" 
+              />
+              <div className="mt-2 text-center">
+                <span className="text-[10px] font-mono font-bold tracking-wider text-black block uppercase">
+                  INSTANT CAMERA SCAN
+                </span>
+                <span className="text-[9px] text-[#555] font-medium block">
+                  Scan to Open & Verify Online
+                </span>
+              </div>
             </div>
-            <div className="text-center">
-              <span className="text-[11px] font-mono text-[#a79f8b] block">SCAN AT RECEPTION DESK</span>
-              <span className="text-[10px] text-[#a79f8b] block mt-1">29 Oct 2026, 8:30 AM onwards</span>
-              <span className="text-[10px] font-mono text-[#4cc38a] block mt-1">Authorized Entry Pass</span>
+
+            {/* QR Instructions & Actions */}
+            <div className="w-full space-y-2.5">
+              <div className="text-center">
+                <span className="text-[11px] font-mono font-bold text-[#f2c14e] block flex items-center justify-center gap-1.5">
+                  <QrIcon className="w-3.5 h-3.5 text-[#f2c14e]" />
+                  <span>OFFICIAL DIGITAL PASS</span>
+                </span>
+                <p className="text-[10px] text-[#a79f8b] mt-1 leading-relaxed">
+                  Scan with any phone camera or Google Lens to immediately verify delegate identity and hall allocation.
+                </p>
+              </div>
+
+              {/* Direct Link Preview & Copy Link Button */}
+              <div className="pt-2 border-t border-[#2e2b22] space-y-2">
+                <a
+                  href={passVerificationUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="w-full py-2 px-3 rounded-xl bg-[#1f1b0e] border border-[#d4a935]/60 text-[#f2c14e] hover:bg-[#f2c14e] hover:text-[#1a1300] font-bold text-xs flex items-center justify-center gap-1.5 transition-all cursor-pointer shadow-sm no-print"
+                >
+                  <span>Open Live Pass Link</span>
+                  <ExternalLink className="w-3.5 h-3.5" />
+                </a>
+
+                <button
+                  type="button"
+                  onClick={copyPassUrl}
+                  className="w-full py-1.5 px-3 rounded-xl bg-white/5 border border-white/10 text-[#d8cea7] hover:text-white hover:border-[#d4a935]/40 text-[11px] font-semibold flex items-center justify-center gap-1.5 transition-colors cursor-pointer no-print"
+                >
+                  {copiedUrl ? <Check className="w-3.5 h-3.5 text-[#4cc38a]" /> : <Copy className="w-3.5 h-3.5" />}
+                  <span>{copiedUrl ? 'Copied Link!' : 'Copy Verification URL'}</span>
+                </button>
+              </div>
+
+              {/* Security Authorization Stamp */}
+              <div className="p-2.5 rounded-xl bg-[#14141d] border border-[#2e2b22] text-[10px] text-[#a79f8b] space-y-1">
+                <div className="flex items-center justify-between">
+                  <span>Authorized Reception:</span>
+                  <strong className="text-white">Desk 1 / Desk 2</strong>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span>Entry Status:</span>
+                  <strong className="text-[#4cc38a]">AUTHORIZED ✓</strong>
+                </div>
+              </div>
             </div>
           </div>
         </div>
 
-        {/* Pass Footer */}
-        <div className="bg-[#181820] px-6 py-4 border-t border-[#2e2b22] flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-[#a79f8b]">
-          <div className="flex items-center gap-1.5">
-            <MapPin className="w-3.5 h-3.5 text-[#d4a935]" />
-            <span>Bring this pass & original College Identity Card · Join WhatsApp group for live hall allocations</span>
+        {/* ==================== PASS FOOTER ==================== */}
+        <div className="bg-[#14141d] px-5 sm:px-7 py-4 border-t-2 border-[#2e2b22] flex flex-col md:flex-row items-center justify-between gap-3 text-xs text-[#a79f8b]">
+          <div className="flex items-center gap-2 text-center md:text-left">
+            <MapPin className="w-4 h-4 text-[#d4a935] shrink-0" />
+            <span>
+              <strong>Mandatory:</strong> Bring this pass & original College Identity Card for gate verification.
+            </span>
           </div>
-          <div className="font-mono text-[11px]">
-            Amount Paid: <span className="text-[#f2c14e] font-bold">₹{record.totalPaid}</span> ({record.paymentMode === 'upi' ? 'UPI UTR' : 'Razorpay Ref'}: {record.paymentId})
+          <div className="font-mono text-[11px] text-center md:text-right">
+            Amount Paid: <span className="text-[#f2c14e] font-bold">₹{record.totalPaid}</span> ({record.paymentMode === 'upi' ? 'UPI UTR' : 'Razorpay Ref'}: <span className="text-white">{record.paymentId}</span>)
           </div>
         </div>
       </div>
 
-      {/* Action Buttons */}
-      <div className="flex flex-wrap items-center justify-center gap-3 pt-4 no-print">
+      {/* ==================== ACTION BUTTONS (NO-PRINT) ==================== */}
+      <div className="flex flex-wrap items-center justify-center gap-3 pt-2 no-print">
         <a
           href={waGroupUrl}
           target="_blank"
@@ -556,7 +714,7 @@ export const TicketPass: React.FC<TicketPassProps> = ({
         <button
           type="button"
           onClick={handlePrint}
-          className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl bg-[#131318] border border-[#2e2b22] text-[#f3ecd9] font-medium text-sm hover:bg-[#181820] hover:border-[#d4a935] transition-all cursor-pointer"
+          className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl bg-[#171720] border border-[#d4a935]/50 text-[#f3ecd9] font-medium text-sm hover:bg-[#20202c] hover:border-[#d4a935] transition-all cursor-pointer shadow-md"
         >
           <Printer className="w-4 h-4 text-[#d4a935]" />
           <span>Print Pass / Save PDF</span>
@@ -565,7 +723,7 @@ export const TicketPass: React.FC<TicketPassProps> = ({
         <button
           type="button"
           onClick={handleAddToCalendar}
-          className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl bg-[#131318] border border-[#2e2b22] text-[#f3ecd9] font-medium text-sm hover:bg-[#181820] hover:border-[#d4a935] transition-all cursor-pointer"
+          className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl bg-[#171720] border border-[#2e2b22] text-[#f3ecd9] font-medium text-sm hover:bg-[#20202c] hover:border-[#d4a935] transition-all cursor-pointer"
         >
           <CalendarPlus className="w-4 h-4 text-[#d4a935]" />
           <span>Add to Calendar</span>
@@ -574,7 +732,7 @@ export const TicketPass: React.FC<TicketPassProps> = ({
         <button
           type="button"
           onClick={onReset}
-          className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl bg-[#f2c14e] text-[#1a1300] font-semibold text-sm hover:bg-[#d4a935] transition-all cursor-pointer"
+          className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl bg-[#f2c14e] text-[#1a1300] font-bold text-sm hover:bg-[#d4a935] active:scale-95 transition-all cursor-pointer shadow-md shadow-[#f2c14e]/20"
         >
           <span>Register Another Delegate</span>
         </button>

@@ -75,6 +75,28 @@ apiRouter.get('/registrations', (_req: Request, res: Response) => {
   }
 });
 
+// 2b. Get single registration by regId or roll
+apiRouter.get('/registrations/:regId', (req: Request, res: Response) => {
+  try {
+    const { regId } = req.params;
+    const clean = regId.trim().toLowerCase();
+    const db = readDatabase();
+    const record = db.registrations.find((r: any) => 
+      r.regId?.toLowerCase() === clean || 
+      r.roll?.toLowerCase() === clean
+    );
+    if (!record) {
+      return res.status(404).json({ success: false, error: `Registration ${regId} not found.` });
+    }
+    res.json({
+      success: true,
+      data: record
+    });
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
 // 3. Create new registration
 apiRouter.post('/registrations', async (req: Request, res: Response) => {
   try {

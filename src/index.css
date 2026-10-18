@@ -188,12 +188,68 @@ body {
 }
 
 @media print {
-  .no-print {
+  @page {
+    size: A4 portrait;
+    margin: 6mm 8mm;
+  }
+
+  /* Reset modal containers & scroll traps so full ticket is visible */
+  html, body {
+    background: #0a0a0d !important;
+    color: #f3ecd9 !important;
+    overflow: visible !important;
+    height: auto !important;
+    width: 100% !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  /* Hide everything marked no-print, modals backdrops, nav, buttons */
+  .no-print,
+  nav,
+  header:not(#nexusverse-printable-ticket *),
+  footer:not(#nexusverse-printable-ticket *),
+  .modal-backdrop,
+  button:not(#nexusverse-printable-ticket *) {
     display: none !important;
   }
-  body {
-    background: #ffffff !important;
-    color: #000000 !important;
+
+  /* Ensure parents of the ticket don't clip it with fixed height / overflow */
+  div:has(#nexusverse-printable-ticket) {
+    overflow: visible !important;
+    max-height: none !important;
+    height: auto !important;
+    position: static !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    background: transparent !important;
+    border: none !important;
+    box-shadow: none !important;
+  }
+
+  #nexusverse-printable-ticket {
+    display: block !important;
+    position: static !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    margin: 0 auto !important;
+    box-shadow: none !important;
+    page-break-inside: avoid !important;
+    break-inside: avoid !important;
+    border: 2px solid #d4a935 !important;
+    background: #101017 !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  /* Prevent page breaks and preserve colors */
+  .ticket-pass-card,
+  .ticket-pass-top,
+  #nexusverse-printable-ticket * {
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
   }
 }
 

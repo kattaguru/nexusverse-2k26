@@ -130,6 +130,7 @@ export default function App() {
   const [confirmedRecord, setConfirmedRecord] = useState<RegistrationRecord | null>(null);
   const [upiPendingRecord, setUpiPendingRecord] = useState<RegistrationRecord | null>(null);
   const [savedRecords, setSavedRecords] = useState<RegistrationRecord[]>([]);
+  const [isScannedPass, setIsScannedPass] = useState(false);
 
   // Participant User Session & Space Modal State
   const [currentUser, setCurrentUser] = useState<ParticipantUser | null>(() => getStoredParticipant());
@@ -418,6 +419,40 @@ export default function App() {
           }
           if (typeof settings.nonIeeeSlotsLimit === 'number') {
             setNonIeeeSlotsLimit(settings.nonIeeeSlotsLimit);
+          }
+        }
+
+        // Direct QR Code Scan & Pass Verification Handling (?passId=NV26-... or ?verify=...)
+        const urlParams = new URLSearchParams(window.location.search);
+        const targetPassId = urlParams.get('passId') || urlParams.get('regId') || urlParams.get('verify');
+        if (targetPassId && mounted) {
+          const cleanTarget = targetPassId.trim().toLowerCase();
+          const matched = (records || []).find((r: RegistrationRecord) => 
+            r.regId.toLowerCase() === cleanTarget || 
+            (r.roll && r.roll.toLowerCase() === cleanTarget)
+          );
+          if (matched) {
+            setConfirmedRecord(matched);
+            setUpiPendingRecord(null);
+            setIsScannedPass(true);
+            setTimeout(() => {
+              window.scrollTo({ top: 0, behavior: 'smooth' });
+            }, 300);
+          } else {
+            try {
+              const singleRes = await fetch(`/api/registrations/${encodeURIComponent(cleanTarget)}`);
+              if (singleRes.ok) {
+                const singleJson = await singleRes.json();
+                if (singleJson.success && singleJson.data && mounted) {
+                  setConfirmedRecord(singleJson.data);
+                  setUpiPendingRecord(null);
+                  setIsScannedPass(true);
+                  setTimeout(() => {
+                    window.scrollTo({ top: 0, behavior: 'smooth' });
+                  }, 300);
+                }
+              }
+            } catch (e) {}
           }
         }
       } catch (err) {
@@ -936,6 +971,16 @@ export default function App() {
       )}
 
       <main className="relative w-full max-w-full overflow-x-hidden">
+        {/* Scanned QR Pass Verified Banner */}
+        {isScannedPass && confirmedRecord && (
+          <div className="bg-gradient-to-r from-[#0d2a1c] via-[#143a28] to-[#0d2a1c] border-b-2 border-[#4cc38a] py-3.5 px-4 text-center sticky top-18 z-40 shadow-xl no-print animate-in slide-in-from-top duration-300">
+            <div className="max-w-4xl mx-auto flex items-center justify-center gap-2.5 text-xs sm:text-sm font-bold text-[#4cc38a]">
+              <CheckCircle2 className="w-5 h-5 text-[#4cc38a] shrink-0" />
+              <span>LIVE QR SCAN AUTHENTICATED · OFFICIAL NEXUSVERSE 2K26 ENTRY PASS VERIFIED</span>
+            </div>
+          </div>
+        )}
+
         {/* Confirmed Ticket Pass View OR UPI Submission Confirmation */}
         {confirmedRecord ? (
           <TicketPass 
@@ -946,6 +991,7 @@ export default function App() {
             onReset={() => {
               setConfirmedRecord(null);
               setUpiPendingRecord(null);
+              setIsScannedPass(false);
               setSelectedEvents(['ctf']);
               setIncludeSpotEvents(false);
               setName('');

@@ -4167,7 +4167,7 @@ export const AdminModal: React.FC<AdminModalProps> = ({
               className="bg-[#111116] border-2 border-[#d4a935]/60 rounded-3xl max-w-4xl w-full max-h-[94vh] overflow-y-auto p-4 sm:p-6 relative shadow-2xl space-y-4"
               onClick={(e) => e.stopPropagation()}
             >
-              <div className="flex flex-wrap items-center justify-between gap-3 pb-3 border-b border-[#2e2b22]">
+              <div className="flex flex-wrap items-center justify-between gap-3 pb-3 border-b border-[#2e2b22] no-print">
                 <div className="flex items-center gap-3">
                   <div className="w-10 h-10 rounded-xl bg-[#1f1b0e] border border-[#d4a935]/50 flex items-center justify-center text-[#f2c14e] shadow shrink-0">
                     <Ticket className="w-5 h-5" />

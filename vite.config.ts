@@ -19,6 +19,10 @@ function adminRoutePlugin() {
         if (pathname === '/admin' || pathname === '/admin.html') {
           const query = req.url.includes('?') ? req.url.slice(req.url.indexOf('?')) : '';
           req.url = '/register.html' + query;
+        } else if (pathname.startsWith('/pass/') || pathname.startsWith('/verify/')) {
+          const parts = pathname.split('/');
+          const passId = parts[2];
+          req.url = `/register.html?passId=${encodeURIComponent(passId)}`;
         }
         next();
       });
