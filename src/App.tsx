@@ -374,6 +374,33 @@ export default function App() {
     };
   }, []);
 
+  // Handle initial page load and hash change for sections (e.g. #events, #events-section, #gallery-section, etc.)
+  useEffect(() => {
+    const handleHashNavigation = () => {
+      if (typeof window === 'undefined') return;
+      const rawHash = window.location.hash.replace('#', '').trim();
+      if (!rawHash) return;
+
+      const targetId = (rawHash === 'events' || rawHash === 'events-section')
+        ? (document.getElementById('events-section') ? 'events-section' : 'events')
+        : rawHash;
+
+      setTimeout(() => {
+        let el = document.getElementById(targetId);
+        if (!el && (rawHash === 'events' || rawHash === 'events-section')) {
+          el = document.getElementById('events-section') || document.getElementById('events');
+        }
+        if (el) {
+          el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
+      }, 150);
+    };
+
+    handleHashNavigation();
+    window.addEventListener('hashchange', handleHashNavigation);
+    return () => window.removeEventListener('hashchange', handleHashNavigation);
+  }, [currentUser]);
+
   // Admin Portal & Customization States
   const [isAdminOpen, setIsAdminOpen] = useState(false);
   const [adminInitialTab, setAdminInitialTab] = useState<'registrations' | 'manual' | 'status' | 'photos' | 'settings'>('registrations');
@@ -1636,7 +1663,8 @@ export default function App() {
                     </div>
 
                     {/* 2. CHOOSE YOUR EVENTS (TECHNICAL & SPOT) */}
-                    <div className="bg-[#131318] p-4 sm:p-6 md:p-8 rounded-2xl border border-[#2e2b22] space-y-6" id="events-section">
+                    <div id="events" className="scroll-mt-24" />
+                    <div className="bg-[#131318] p-4 sm:p-6 md:p-8 rounded-2xl border border-[#2e2b22] space-y-6 scroll-mt-24" id="events-section">
                       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-[#2e2b22] pb-4">
                         <div>
                           <h3 className="font-serif-title text-xl sm:text-2xl font-bold text-[#ffffff]">

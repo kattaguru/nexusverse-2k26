@@ -29,6 +29,21 @@ export const Navbar: React.FC<NavbarProps> = ({
 }) => {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
+  const handleNavClick = (e: React.MouseEvent<HTMLAnchorElement>, targetId: string) => {
+    e.preventDefault();
+    setMobileMenuOpen(false);
+    let targetEl = document.getElementById(targetId);
+    if (!targetEl && (targetId === 'events-section' || targetId === 'events')) {
+      targetEl = document.getElementById('events-section') || document.getElementById('events');
+    }
+    if (targetEl) {
+      targetEl.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      window.history.replaceState(null, '', `#${targetId}`);
+    } else {
+      window.location.hash = targetId;
+    }
+  };
+
   return (
     <header className="sticky top-0 z-40 bg-[#050507]/95 backdrop-blur-md border-b border-[#2e2b22] transition-colors">
       <div className="max-w-7xl mx-auto px-2.5 sm:px-6 h-16 sm:h-18 flex items-center justify-between gap-2 sm:gap-4 overflow-hidden">
@@ -64,19 +79,39 @@ export const Navbar: React.FC<NavbarProps> = ({
           <a href="/" className="text-xs text-[#d4a935] hover:text-[#f2c14e] transition-colors flex items-center gap-1.5 whitespace-nowrap px-2.5 py-1 rounded-md bg-[#1f1b0e] border border-[#d4a935]/30 font-semibold" title="Return to Main Starting Poster">
             <span>← Home Poster</span>
           </a>
-          <a href="#gallery-section" className="hover:text-[#f3ecd9] transition-colors whitespace-nowrap">
+          <a 
+            href="#gallery-section" 
+            onClick={(e) => handleNavClick(e, 'gallery-section')}
+            className="hover:text-[#f3ecd9] transition-colors whitespace-nowrap cursor-pointer"
+          >
             Gallery
           </a>
-          <a href="#events-section" className="hover:text-[#f3ecd9] transition-colors whitespace-nowrap">
+          <a 
+            href="#events-section" 
+            onClick={(e) => handleNavClick(e, 'events-section')}
+            className="hover:text-[#f3ecd9] transition-colors whitespace-nowrap cursor-pointer"
+          >
             Events
           </a>
-          <a href="#timeline-section" className="hover:text-[#f3ecd9] transition-colors whitespace-nowrap">
+          <a 
+            href="#timeline-section" 
+            onClick={(e) => handleNavClick(e, 'timeline-section')}
+            className="hover:text-[#f3ecd9] transition-colors whitespace-nowrap cursor-pointer"
+          >
             Schedule
           </a>
-          <a href="#faq-section" className="hover:text-[#f3ecd9] transition-colors whitespace-nowrap">
+          <a 
+            href="#faq-section" 
+            onClick={(e) => handleNavClick(e, 'faq-section')}
+            className="hover:text-[#f3ecd9] transition-colors whitespace-nowrap cursor-pointer"
+          >
             FAQs
           </a>
-          <a href="#contact-section" className="hover:text-[#f3ecd9] transition-colors whitespace-nowrap">
+          <a 
+            href="#contact-section" 
+            onClick={(e) => handleNavClick(e, 'contact-section')}
+            className="hover:text-[#f3ecd9] transition-colors whitespace-nowrap cursor-pointer"
+          >
             Contact
           </a>
           <button
@@ -182,36 +217,36 @@ export const Navbar: React.FC<NavbarProps> = ({
           </a>
           <a 
             href="#gallery-section" 
-            onClick={() => setMobileMenuOpen(false)}
-            className="block text-sm font-medium text-[#f3ecd9] py-1"
+            onClick={(e) => handleNavClick(e, 'gallery-section')}
+            className="block text-sm font-medium text-[#f3ecd9] py-1 cursor-pointer"
           >
             Memories Gallery
           </a>
           <a 
             href="#events-section" 
-            onClick={() => setMobileMenuOpen(false)}
-            className="block text-sm font-medium text-[#f3ecd9] py-1"
+            onClick={(e) => handleNavClick(e, 'events-section')}
+            className="block text-sm font-medium text-[#f3ecd9] py-1 cursor-pointer"
           >
             Events
           </a>
           <a 
             href="#timeline-section" 
-            onClick={() => setMobileMenuOpen(false)}
-            className="block text-sm font-medium text-[#f3ecd9] py-1"
+            onClick={(e) => handleNavClick(e, 'timeline-section')}
+            className="block text-sm font-medium text-[#f3ecd9] py-1 cursor-pointer"
           >
             Schedule
           </a>
           <a 
             href="#faq-section" 
-            onClick={() => setMobileMenuOpen(false)}
-            className="block text-sm font-medium text-[#f3ecd9] py-1"
+            onClick={(e) => handleNavClick(e, 'faq-section')}
+            className="block text-sm font-medium text-[#f3ecd9] py-1 cursor-pointer"
           >
             FAQs
           </a>
           <a 
             href="#contact-section" 
-            onClick={() => setMobileMenuOpen(false)}
-            className="block text-sm font-medium text-[#f3ecd9] py-1"
+            onClick={(e) => handleNavClick(e, 'contact-section')}
+            className="block text-sm font-medium text-[#f3ecd9] py-1 cursor-pointer"
           >
             Contact
           </a>

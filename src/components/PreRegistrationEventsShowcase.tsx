@@ -59,7 +59,11 @@ export const PreRegistrationEventsShowcase: React.FC<PreRegistrationEventsShowca
   };
 
   return (
-    <section className="space-y-8 pt-4 pb-8 animate-in fade-in duration-300">
+    <section 
+      id="events-section" 
+      className="space-y-8 pt-4 pb-8 animate-in fade-in duration-300 scroll-mt-24"
+    >
+      <div id="events" className="scroll-mt-24" />
       {/* SECTION HEADER */}
       <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 border-b border-[#2e2b22] pb-6">
         <div>
