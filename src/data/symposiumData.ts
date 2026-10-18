@@ -43,19 +43,19 @@ export const SYMPOSIUM_CONFIG = {
   coordinators: [
     {
       name: "N. Upali",
-      role: "Student Chair, IEEE-SB",
+      role: "Chair",
       phone: "6305349156",
       phoneFormatted: "+91 63053 49156"
     },
     {
       name: "K. Guravaiah",
-      role: "Technical Lead & Organizing Secretary",
+      role: "Vice Chair",
       phone: "9491501919",
       phoneFormatted: "+91 94915 01919"
     },
     {
       name: "K. Rithika",
-      role: "Treasurer & Registration Desk",
+      role: "Secretary",
       phone: "7708731095",
       phoneFormatted: "+91 77087 31095"
     }

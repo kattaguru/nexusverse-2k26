@@ -33,6 +33,22 @@ describe('Symposium Data & Configuration Unit Tests', () => {
     assert.equal(SYMPOSIUM_CONFIG.whatsappGroup.url, 'https://chat.whatsapp.com/GEpv2i56odNEV0LpLizzaO?s=cl&p=a&mlu=4&ilr=4&iam=2');
   });
 
+  it('should have designated symposium coordinators: Chair, Vice Chair, and Secretary', () => {
+    const coords = SYMPOSIUM_CONFIG.coordinators;
+    assert.equal(coords.length, 3);
+    const upali = coords.find(c => c.name.includes('Upali'));
+    assert.ok(upali);
+    assert.equal(upali.role, 'Chair');
+
+    const guravaiah = coords.find(c => c.name.includes('Guravaiah'));
+    assert.ok(guravaiah);
+    assert.equal(guravaiah.role, 'Vice Chair');
+
+    const rithika = coords.find(c => c.name.includes('Rithika'));
+    assert.ok(rithika);
+    assert.equal(rithika.role, 'Secretary');
+  });
+
   it('should contain all 5 required technical events with correct IDs', () => {
     const eventIds = EVENTS.map(e => e.id);
     assert.equal(EVENTS.length, 5);
