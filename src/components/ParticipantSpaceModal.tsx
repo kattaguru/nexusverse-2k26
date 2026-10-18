@@ -1106,6 +1106,11 @@ export const ParticipantSpaceModal: React.FC<ParticipantSpaceModalProps> = ({
                         <div className="flex flex-wrap items-center justify-between gap-2.5 pt-2 border-t border-[#2e2b22]">
                           <span className="text-xs text-[#a79f8b]">
                             Total Amount: <span className="font-mono text-[#f3ecd9] font-bold text-sm">₹{rec.totalPaid}</span>
+                            {rec.gstAmount ? (
+                              <span className="text-[10px] text-[#a79f8b] font-mono ml-1.5">
+                                (Base: ₹{rec.subtotal || (rec.totalPaid - rec.gstAmount)} + 5% GST: ₹{rec.gstAmount})
+                              </span>
+                            ) : null}
                           </span>
 
                           <div className="flex items-center gap-2">

@@ -61,6 +61,8 @@ export interface RegistrationRecord {
     teamMembers?: TeamMemberInfo[];
     projectTitle?: string;
   }>;
+  subtotal?: number;
+  gstAmount?: number;
   totalPaid: number;
   promoCode?: string;
   timestamp: string;
@@ -701,7 +703,13 @@ export const TicketPass: React.FC<TicketPassProps> = ({
             </span>
           </div>
           <div className="font-mono text-[11px] text-center md:text-right">
-            Amount Paid: <span className="text-[#f2c14e] font-bold">₹{record.totalPaid}</span> ({record.paymentMode === 'upi' ? 'UPI UTR' : 'Razorpay Ref'}: <span className="text-white">{record.paymentId}</span>)
+            Amount Paid: <span className="text-[#f2c14e] font-bold">₹{record.totalPaid}</span>
+            {record.gstAmount ? (
+              <span className="text-[#a79f8b] text-[10px] ml-1">
+                (Base: ₹{record.subtotal || (record.totalPaid - record.gstAmount)} + 5% GST: ₹{record.gstAmount})
+              </span>
+            ) : null}
+            {' '}({record.paymentMode === 'upi' ? 'UPI UTR' : 'Razorpay Ref'}: <span className="text-white">{record.paymentId}</span>)
           </div>
         </div>
       </div>

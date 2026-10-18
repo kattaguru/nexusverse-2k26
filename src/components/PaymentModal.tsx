@@ -42,6 +42,8 @@ interface PaymentModalProps {
   isOpen: boolean;
   onClose: () => void;
   amount: number;
+  subtotal?: number;
+  gstAmount?: number;
   attendeeName: string;
   email: string;
   phone: string;
@@ -59,6 +61,8 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
   isOpen,
   onClose,
   amount,
+  subtotal,
+  gstAmount,
   attendeeName,
   email,
   phone,
@@ -395,6 +399,8 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
         department: dept,
         rollNumber: roll,
         yearOfStudy: year,
+        baseFee: String(subtotal ?? (amount - (gstAmount || 0))),
+        gstAmount: String(gstAmount ?? 0),
         totalPaid: String(amount)
       },
       onSuccess: (paymentId) => {
@@ -489,15 +495,20 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
         <div className="px-4 py-3 sm:px-5 sm:py-3.5 bg-[#090b10] border-b border-[#1f283b] flex items-center justify-between shrink-0">
           <div>
             <span className="text-[10px] uppercase font-bold tracking-wider text-[#7ea0c4] block">Registration Amount</span>
-            <div className="flex items-baseline gap-1.5">
+            <div className="flex items-baseline gap-1.5 flex-wrap">
               <span className="text-2xl sm:text-3xl font-mono font-extrabold text-[#f2c14e]">
                 ₹{amount}
               </span>
               <span className="text-xs text-[#a79f8b] font-mono">INR</span>
-              <span className="text-[10px] px-2 py-0.5 rounded-full bg-[#4cc38a]/15 text-[#4cc38a] font-semibold border border-[#4cc38a]/30 ml-1.5">
-                Zero Convenience Fee
+              <span className="text-[10px] px-2 py-0.5 rounded-full bg-[#f2c14e]/15 text-[#f2c14e] font-semibold border border-[#f2c14e]/30">
+                Incl. 5% GST (₹5/₹100)
               </span>
             </div>
+            {subtotal !== undefined && gstAmount !== undefined && (
+              <div className="text-[11px] text-[#8ea8c9] font-mono mt-0.5">
+                Base Fee: ₹{subtotal} + 5% GST: ₹{gstAmount}
+              </div>
+            )}
           </div>
           <div className="text-right text-xs text-[#a79f8b]">
             <span className="block text-[#f3ecd9] font-semibold truncate max-w-[170px] sm:max-w-[220px]">{attendeeName}</span>
@@ -580,7 +591,7 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
                     </span>
                   </div>
                   <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-[#4cc38a]/15 text-[#4cc38a] border border-[#4cc38a]/30">
-                    Amount: ₹{amount}
+                    Amount: ₹{amount}{gstAmount ? ` (Incl. ₹${gstAmount} GST)` : ''}
                   </span>
                 </div>
 

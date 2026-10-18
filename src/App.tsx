@@ -793,11 +793,15 @@ export default function App() {
       subtotal += SPOT_EVENT.feeNonMember; // ₹100
     }
 
-    const total = subtotal;
-    return { subtotal, total };
+    // 3. GST: 5% (₹5 for every ₹100 of base registration fee)
+    const gstPercent = SYMPOSIUM_CONFIG.gstPercent || 5;
+    const gstAmount = Math.round((subtotal * gstPercent) / 100);
+    const total = subtotal + gstAmount;
+
+    return { subtotal, gstAmount, gstPercent, total };
   };
 
-  const { subtotal, total } = calculateTotal();
+  const { subtotal, gstAmount, gstPercent, total } = calculateTotal();
 
   // Validate form
   const validateForm = () => {
@@ -984,6 +988,8 @@ export default function App() {
       ieeeId: isIeeeMember ? ieeeId.trim() : undefined,
       eventIds: combinedEventIds,
       teamDetails: formattedTeamDetails,
+      subtotal,
+      gstAmount,
       totalPaid: total,
       promoCode: undefined,
       timestamp: new Date().toISOString()
@@ -2350,13 +2356,26 @@ export default function App() {
                       )}
                     </div>
 
-                      {/* Cost Breakdown */}
+                      {/* Cost Breakdown with GST */}
                       <div className="space-y-2 pt-2 border-t border-[#2e2b22] text-xs">
+                        <div className="flex justify-between items-center text-[#a79f8b]">
+                          <span>Registration Subtotal</span>
+                          <span className="font-mono text-[#f3ecd9] font-medium">₹{subtotal}</span>
+                        </div>
+                        <div className="flex justify-between items-center text-[#a79f8b]">
+                          <span className="flex items-center gap-1.5">
+                            <span>GST ({gstPercent}% · ₹5 per ₹100)</span>
+                            <span className="text-[10px] px-1.5 py-0.2 rounded bg-[#f2c14e]/10 text-[#f2c14e] border border-[#f2c14e]/30 font-mono">
+                              Govt. Tax
+                            </span>
+                          </span>
+                          <span className="font-mono text-[#f2c14e] font-semibold">+₹{gstAmount}</span>
+                        </div>
                         <div className="flex justify-between items-baseline pt-2 border-t border-[#2e2b22] font-bold text-sm text-[#ffffff]">
                           <span>Total Payable</span>
                           <div className="text-right">
                             <span className="font-mono tabular-nums text-2xl text-[#f2c14e]">₹{total}</span>
-                            <span className="text-[10px] text-[#a79f8b] font-normal block">Razorpay Protected</span>
+                            <span className="text-[10px] text-[#a79f8b] font-normal block">Razorpay & UPI · Incl. 5% GST</span>
                           </div>
                         </div>
                       </div>
@@ -2436,7 +2455,7 @@ export default function App() {
                       <div className="flex items-baseline gap-1.5">
                         <span className="text-xl font-mono font-extrabold text-[#f2c14e]">₹{total}</span>
                         <span className="text-[10px] text-[#4cc38a] font-medium truncate">
-                          {selectedEvents.length > 0 && includeSpotEvents ? 'Tech + Spot' : includeSpotEvents ? 'Spot Pass' : 'Tech Event'}
+                          Incl. 5% GST (Base: ₹{subtotal})
                         </span>
                       </div>
                     </div>
@@ -2483,6 +2502,8 @@ export default function App() {
         isOpen={isPaymentOpen}
         onClose={() => setIsPaymentOpen(false)}
         amount={total}
+        subtotal={subtotal}
+        gstAmount={gstAmount}
         attendeeName={name}
         email={email}
         phone={phone}

@@ -305,7 +305,7 @@ export const UpiConfirmationView: React.FC<UpiConfirmationViewProps> = ({
               <CheckCircle2 className="w-4 h-4" />
               <span>UPI Transfer</span>
             </span>
-            <span className="text-[#a79f8b]">Amount: ₹{record.totalPaid}</span>
+            <span className="text-[#a79f8b]">Amount: ₹{record.totalPaid}{record.gstAmount ? ` (Incl. ₹${record.gstAmount} GST)` : ''}</span>
           </div>
 
           <div className="p-3.5 rounded-xl bg-[#0a0a0d] border border-[#2e2b22] space-y-1">

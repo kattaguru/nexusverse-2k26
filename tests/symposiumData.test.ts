@@ -9,6 +9,7 @@ describe('Symposium Data & Configuration Unit Tests', () => {
     assert.equal(SYMPOSIUM_CONFIG.institution, 'N.B.K.R. Institute of Science & Technology');
     assert.equal(SYMPOSIUM_CONFIG.date, '29 October 2026');
     assert.equal(SYMPOSIUM_CONFIG.totalPrizePool, 'Exciting Cash Prizes & Awards (Revealing Soon!)');
+    assert.equal(SYMPOSIUM_CONFIG.gstPercent, 5, 'Symposium GST must be 5% (₹5 for every ₹100)');
   });
 
   it('should include cash prizes for all events without exposing numeric amounts', () => {

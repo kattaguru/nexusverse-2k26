@@ -892,7 +892,9 @@ export const AdminModal: React.FC<AdminModalProps> = ({
       'IEEE Member',
       'IEEE Member ID',
       'Registered Event',
-      'Amount Paid (INR)',
+      'Base Fee (INR)',
+      'GST 5% (INR)',
+      'Total Paid (INR)',
       'Payment ID',
       'Team Name',
       'Project Title',
@@ -950,6 +952,8 @@ export const AdminModal: React.FC<AdminModalProps> = ({
         `"${r.isIeeeMember ? 'YES' : 'NO'}"`,
         `"${r.ieeeId || ''}"`,
         `"${eventName}"`,
+        r.subtotal || (r.totalPaid ? Math.round(r.totalPaid / 1.05) : 0),
+        r.gstAmount || (r.totalPaid ? Math.round(r.totalPaid - Math.round(r.totalPaid / 1.05)) : 0),
         r.totalPaid,
         `"${r.paymentId}"`,
         `"${team?.teamName || ''}"`,
@@ -1953,9 +1957,16 @@ export const AdminModal: React.FC<AdminModalProps> = ({
                               </div>
 
                               <div className="flex flex-wrap items-center gap-2 self-end sm:self-center shrink-0">
-                                <span className="font-mono font-bold text-sm text-[#f2c14e] mr-1">
-                                  ₹{record.totalPaid}
-                                </span>
+                                <div className="text-right mr-1">
+                                  <span className="font-mono font-bold text-sm text-[#f2c14e] block">
+                                    ₹{record.totalPaid}
+                                  </span>
+                                  {record.gstAmount ? (
+                                    <span className="text-[10px] text-[#a79f8b] font-mono block">
+                                      (GST: ₹{record.gstAmount})
+                                    </span>
+                                  ) : null}
+                                </div>
 
                                 {/* Payment Verification Button: Manual for UPI, Automatic for Razorpay */}
                                 {record.paymentMode === 'upi' ? (

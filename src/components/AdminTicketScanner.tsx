@@ -41,7 +41,7 @@ import {
   FileCheck
 } from 'lucide-react';
 import { RegistrationRecord } from './TicketPass';
-import { EVENTS, SPOT_EVENT, ALL_EVENTS } from '../data/symposiumData';
+import { EVENTS, SPOT_EVENT, ALL_EVENTS, SYMPOSIUM_CONFIG } from '../data/symposiumData';
 
 interface AdminTicketScannerProps {
   records: RegistrationRecord[];
@@ -428,14 +428,20 @@ export const AdminTicketScanner: React.FC<AdminTicketScannerProps> = ({
     if (!activeRecord) return;
     if ((activeRecord.eventIds || []).includes('spot')) return;
 
-    if (!confirm(`Add Spot Events Pass (₹100) to ${activeRecord.name}'s registration?`)) return;
+    const spotBase = 100;
+    const spotGst = Math.round((spotBase * (SYMPOSIUM_CONFIG.gstPercent || 5)) / 100);
+    const spotTotal = spotBase + spotGst;
+
+    if (!confirm(`Add Spot Events Pass (₹${spotTotal} incl. 5% GST) to ${activeRecord.name}'s registration?`)) return;
 
     const updatedEventIds = [...(activeRecord.eventIds || []), 'spot'];
     const updatedAttended = [...(activeRecord.attendedEvents || []), 'spot'];
     const updated: RegistrationRecord = {
       ...activeRecord,
       eventIds: updatedEventIds,
-      totalPaid: (activeRecord.totalPaid || 0) + 100,
+      subtotal: (activeRecord.subtotal || (activeRecord.totalPaid ? Math.round(activeRecord.totalPaid / 1.05) : 0)) + spotBase,
+      gstAmount: (activeRecord.gstAmount || (activeRecord.totalPaid ? activeRecord.totalPaid - Math.round(activeRecord.totalPaid / 1.05) : 0)) + spotGst,
+      totalPaid: (activeRecord.totalPaid || 0) + spotTotal,
       attendedEvents: updatedAttended
     };
 
@@ -1267,9 +1273,16 @@ export const AdminTicketScanner: React.FC<AdminTicketScannerProps> = ({
               <div className={`p-4 rounded-xl border space-y-2 ${isLight ? 'bg-[#f8f5ee] border-[#d8d0ba]' : 'bg-[#131318] border-[#2e2b22]'}`}>
                 <div className="flex items-center justify-between text-xs">
                   <span className={`${isLight ? 'text-[#6b6250]' : 'text-[#a79f8b]'}`}>Payment Details:</span>
-                  <span className={`font-mono text-sm font-bold ${isLight ? 'text-[#705600]' : 'text-white'}`}>
-                    ₹{activeRecord.totalPaid} Total
-                  </span>
+                  <div className="text-right">
+                    <span className={`font-mono text-sm font-bold block ${isLight ? 'text-[#705600]' : 'text-white'}`}>
+                      ₹{activeRecord.totalPaid} Total
+                    </span>
+                    {activeRecord.gstAmount ? (
+                      <span className={`text-[10px] font-mono block ${isLight ? 'text-[#8a7f6a]' : 'text-[#a79f8b]'}`}>
+                        (Base: ₹{activeRecord.subtotal || (activeRecord.totalPaid - activeRecord.gstAmount)} + 5% GST: ₹{activeRecord.gstAmount})
+                      </span>
+                    ) : null}
+                  </div>
                 </div>
                 <div className={`flex flex-wrap items-center justify-between gap-2 text-xs pt-1 border-t ${isLight ? 'border-[#e4ded0]' : 'border-[#2e2b22]'}`}>
                   <div className="flex items-center gap-2">

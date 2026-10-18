@@ -45,6 +45,44 @@ describe('Razorpay Utilities & Payment Calculation Unit Tests', () => {
     assert.equal(finalAfterPromo, 315);
   });
 
+  it('should accurately calculate 5% GST (₹5 for every ₹100) on all registration tiers', () => {
+    const calcGstAndTotal = (baseSubtotal: number, gstRate = 5) => {
+      const gstAmount = Math.round((baseSubtotal * gstRate) / 100);
+      const total = baseSubtotal + gstAmount;
+      return { baseSubtotal, gstAmount, total };
+    };
+
+    // Tier 1: Spot Events Pass (₹100 base) -> ₹5 GST, Total ₹105
+    const spot = calcGstAndTotal(100);
+    assert.equal(spot.gstAmount, 5, '₹100 should incur exactly ₹5 GST (₹5 per ₹100)');
+    assert.equal(spot.total, 105, 'Total should be ₹105');
+
+    // Tier 2: Non-IEEE Member Single Tech Event (₹200 base) -> ₹10 GST, Total ₹210
+    const nonIeeeSingle = calcGstAndTotal(200);
+    assert.equal(nonIeeeSingle.gstAmount, 10, '₹200 should incur ₹10 GST');
+    assert.equal(nonIeeeSingle.total, 210, 'Total should be ₹210');
+
+    // Tier 3: Non-IEEE Tech Event + Spot Pass (₹300 base) -> ₹15 GST, Total ₹315
+    const techPlusSpot = calcGstAndTotal(300);
+    assert.equal(techPlusSpot.gstAmount, 15, '₹300 should incur ₹15 GST');
+    assert.equal(techPlusSpot.total, 315, 'Total should be ₹315');
+
+    // Tier 4: Two-member team @ ₹200 each (₹400 base) -> ₹20 GST, Total ₹420
+    const teamTwo = calcGstAndTotal(400);
+    assert.equal(teamTwo.gstAmount, 20, '₹400 should incur ₹20 GST');
+    assert.equal(teamTwo.total, 420, 'Total should be ₹420');
+
+    // Tier 5: IEEE Member Single Tech Event (₹150 base) -> ₹8 GST (rounded per CGST Section 170), Total ₹158
+    const ieeeSingle = calcGstAndTotal(150);
+    assert.equal(ieeeSingle.gstAmount, 8, '₹150 should incur ₹8 GST rounded');
+    assert.equal(ieeeSingle.total, 158, 'Total should be ₹158');
+
+    // Tier 6: IEEE Member Tech + Spot Pass (₹250 base) -> ₹13 GST, Total ₹263
+    const ieeePlusSpot = calcGstAndTotal(250);
+    assert.equal(ieeePlusSpot.gstAmount, 13, '₹250 should incur ₹13 GST rounded');
+    assert.equal(ieeePlusSpot.total, 263, 'Total should be ₹263');
+  });
+
   it('should format standard NPCI Direct UPI payment URI correctly with custom UPI ID', () => {
     const upiVpa = '9441759500@ptyes';
     const payeeName = 'NexusVerse 2K26';

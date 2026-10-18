@@ -33,7 +33,7 @@ export const SYMPOSIUM_CONFIG = {
   time: "9:00 AM IST",
   email: "nexusverse@nbkrist.org",
   totalPrizePool: "Exciting Cash Prizes & Awards (Revealing Soon!)",
-  gstPercent: 0,
+  gstPercent: 5, // 5% GST (₹5 for every ₹100 base registration fee)
   promoCodes: {
     "IEEE10": 10,
     "NEXUS20": 20,
