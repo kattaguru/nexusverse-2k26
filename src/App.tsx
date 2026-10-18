@@ -10,6 +10,7 @@ import { UpiConfirmationView } from './components/UpiConfirmationView';
 import { PassLookupModal } from './components/PassLookupModal';
 import { AdminModal } from './components/AdminModal';
 import { ParticipantSpaceModal } from './components/ParticipantSpaceModal';
+import { PreRegistrationEventsShowcase } from './components/PreRegistrationEventsShowcase';
 import { 
   ParticipantUser, 
   getStoredParticipant, 
@@ -1175,7 +1176,8 @@ export default function App() {
 
                 {/* AUTHENTICATION GATE: Required before registration */}
                 {!currentUser ? (
-                  <div className="bg-gradient-to-br from-[#121218] via-[#171724] to-[#0e0e14] border-2 border-[#d4a935]/70 rounded-3xl p-6 sm:p-10 shadow-2xl relative overflow-hidden space-y-6">
+                  <div className="space-y-8">
+                    <div className="bg-gradient-to-br from-[#121218] via-[#171724] to-[#0e0e14] border-2 border-[#d4a935]/70 rounded-3xl p-6 sm:p-10 shadow-2xl relative overflow-hidden space-y-6">
                     <div className="max-w-2xl mx-auto text-center space-y-3">
                       <div className="inline-flex items-center gap-2 px-3.5 py-1 rounded-full bg-[#1f1b0e] border border-[#d4a935]/50 text-[#f2c14e] text-xs font-bold uppercase tracking-wider">
                         <Sparkles className="w-3.5 h-3.5" />
@@ -1268,6 +1270,30 @@ export default function App() {
                       </div>
                     </div>
                   </div>
+
+                  {/* PRE-REGISTRATION EVENTS SHOWCASE: All 5 Technical Events + Spot Arena */}
+                  <PreRegistrationEventsShowcase
+                    onInspectEvent={(event) => setInspectEvent(event)}
+                    onSelectEventAndRegister={(eventId) => {
+                      setSelectedEvents([eventId]);
+                      setParticipantSpaceInitialMode('signup');
+                      setIsParticipantSpaceOpen(true);
+                    }}
+                    onSelectSpotAndRegister={() => {
+                      setIncludeSpotEvents(true);
+                      setParticipantSpaceInitialMode('signup');
+                      setIsParticipantSpaceOpen(true);
+                    }}
+                    onOpenGoogleSignIn={() => {
+                      setParticipantSpaceInitialMode('signin');
+                      setIsParticipantSpaceOpen(true);
+                    }}
+                    onOpenCreateSpace={() => {
+                      setParticipantSpaceInitialMode('signup');
+                      setIsParticipantSpaceOpen(true);
+                    }}
+                  />
+                </div>
                 ) : (
                   <form onSubmit={handleRegisterSubmit} noValidate className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
                     {/* Active Space User Banner */}
