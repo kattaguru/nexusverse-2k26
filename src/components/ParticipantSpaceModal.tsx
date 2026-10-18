@@ -97,6 +97,7 @@ export const ParticipantSpaceModal: React.FC<ParticipantSpaceModalProps> = ({
   const [successMsg, setSuccessMsg] = useState('');
   const [googleSimEmail, setGoogleSimEmail] = useState('');
   const [googleSimName, setGoogleSimName] = useState('');
+  const [googlePromptOpen, setGooglePromptOpen] = useState(false);
 
   // Dashboard detail states
   const [copiedRegId, setCopiedRegId] = useState<string | null>(null);
