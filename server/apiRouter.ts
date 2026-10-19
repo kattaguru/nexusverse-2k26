@@ -5,6 +5,12 @@ import { createClient } from '@supabase/supabase-js';
 import { readDatabase, writeDatabase, ParticipantUser } from './db.js';
 import { sendTicketConfirmationEmail, isEmailConfigured, EmailTicketPayload } from './emailService.js';
 import { serverCache } from './memoryCache.js';
+import { 
+  globalRateLimiter, 
+  registrationRateLimiter, 
+  paymentRateLimiter, 
+  authRateLimiter 
+} from './rateLimiter.js';
 
 const NEXUS_AUTH_SALT = 'nexusverse_2k26_secure_participant_salt';
 function hashPassword(password: string): string {
@@ -58,6 +64,9 @@ function syncToSupabaseAsync(syncFn: (client: any) => Promise<any>): void {
 }
 
 export const apiRouter = Router();
+
+// Global sliding-window rate limiter: protects all endpoints from DDoS & burst flooding
+apiRouter.use(globalRateLimiter.middleware());
 
 // 1. Health check
 apiRouter.get('/health', (_req: Request, res: Response) => {
@@ -119,8 +128,8 @@ apiRouter.get('/registrations/:regId', (req: Request, res: Response) => {
   }
 });
 
-// 3. Create new registration
-apiRouter.post('/registrations', async (req: Request, res: Response) => {
+// 3. Create new registration (rate limited to prevent ticket spam)
+apiRouter.post('/registrations', registrationRateLimiter.middleware(), async (req: Request, res: Response) => {
   try {
     const record = req.body;
     if (!record || !record.name || !record.roll) {
@@ -313,6 +322,7 @@ apiRouter.delete('/registrations/:regId', (req: Request, res: Response) => {
 // 6. Get portal settings (open/closed status, banner)
 apiRouter.get('/settings', (_req: Request, res: Response) => {
   try {
+    res.setHeader('Cache-Control', 'public, max-age=10, stale-while-revalidate=60');
     const cached = serverCache.get<any>('api:settings');
     if (cached) {
       res.setHeader('X-Cache', 'HIT');
@@ -503,6 +513,7 @@ apiRouter.post('/admin/change-password', async (req: Request, res: Response) => 
 // 8. Get photos
 apiRouter.get('/photos', (_req: Request, res: Response) => {
   try {
+    res.setHeader('Cache-Control', 'public, max-age=60, stale-while-revalidate=300');
     const cached = serverCache.get<{ count: number; data: any[] }>('api:photos:all');
     if (cached) {
       res.setHeader('X-Cache', 'HIT');
@@ -633,6 +644,7 @@ function getActiveRazorpayKeys() {
 
 // 11. Razorpay & Direct UPI: Get Public Configuration
 apiRouter.get('/razorpay/config', (_req: Request, res: Response) => {
+  res.setHeader('Cache-Control', 'public, max-age=30, stale-while-revalidate=120');
   const cached = serverCache.get<any>('api:razorpay:config');
   if (cached) {
     res.setHeader('X-Cache', 'HIT');
@@ -740,8 +752,8 @@ apiRouter.post('/razorpay/save-keys', (req: Request, res: Response) => {
   }
 });
 
-// 14. Razorpay: Create Order
-apiRouter.post('/razorpay/create-order', async (req: Request, res: Response) => {
+// 14. Razorpay: Create Order (rate limited to prevent flood attacks)
+apiRouter.post('/razorpay/create-order', paymentRateLimiter.middleware(), async (req: Request, res: Response) => {
   try {
     const { amount, currency = 'INR', receipt } = req.body;
     const { keyId, keySecret } = getActiveRazorpayKeys();
@@ -1103,7 +1115,7 @@ apiRouter.post('/email/test', async (req: Request, res: Response) => {
 });
 
 // 20. Participant Auth: Register
-apiRouter.post('/auth/register', async (req: Request, res: Response) => {
+apiRouter.post('/auth/register', authRateLimiter.middleware(), async (req: Request, res: Response) => {
   try {
     const { name, email, username, password, phone, college, roll, branch, year, isIeeeMember, ieeeId } = req.body;
     if (!name || !name.trim()) {
@@ -1186,7 +1198,7 @@ apiRouter.post('/auth/register', async (req: Request, res: Response) => {
 });
 
 // 21. Participant Auth: Login (Email or Username + Password)
-apiRouter.post('/auth/login', (req: Request, res: Response) => {
+apiRouter.post('/auth/login', authRateLimiter.middleware(), (req: Request, res: Response) => {
   try {
     const { identifier, password } = req.body;
     if (!identifier || !identifier.trim()) {
@@ -1228,7 +1240,7 @@ apiRouter.post('/auth/login', (req: Request, res: Response) => {
 });
 
 // 22. Participant Auth: Google Login / OAuth Callback
-apiRouter.post('/auth/google', async (req: Request, res: Response) => {
+apiRouter.post('/auth/google', authRateLimiter.middleware(), async (req: Request, res: Response) => {
   try {
     const { email, name, avatarUrl, roll, college, phone } = req.body;
     if (!email || !email.includes('@')) {

@@ -1161,6 +1161,72 @@ html.light .event-modal-container p,
   color: #4b4437 !important;
 }
 
+/* ==============================================================================
+   HIGH-PERFORMANCE DEVICE & MOBILE OPTIMIZATIONS
+   ============================================================================== */
 
+/* 1. Prevent 300ms tap delay & remove tap highlights on mobile touchscreens */
+a, button, input, select, textarea, [role="button"] {
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+}
 
+/* 2. Prevent iOS Safari auto-zoom on form inputs */
+@media screen and (max-width: 640px) {
+  input[type="text"],
+  input[type="email"],
+  input[type="tel"],
+  input[type="password"],
+  input[type="number"],
+  select,
+  textarea {
+    font-size: 16px !important;
+  }
+}
 
+/* 3. Smooth touch scrolling on mobile and safe-area notch insets */
+body {
+  -webkit-overflow-scrolling: touch;
+  padding-top: env(safe-area-inset-top, 0);
+  padding-bottom: env(safe-area-inset-bottom, 0);
+  padding-left: env(safe-area-inset-left, 0);
+  padding-right: env(safe-area-inset-right, 0);
+}
+
+/* 4. Small device breakpoint (< 380px) text wrapping & padding protection */
+@media screen and (max-width: 380px) {
+  .px-4 {
+    padding-left: 0.75rem !important;
+    padding-right: 0.75rem !important;
+  }
+  h1, h2, h3, h4 {
+    word-break: break-word;
+  }
+}
+
+/* 5. GPU hardware acceleration for smooth 60fps animations */
+.gpu-accelerated {
+  will-change: transform, opacity;
+  transform: translateZ(0);
+  backface-visibility: hidden;
+}
+
+/* 6. Content visibility optimization: defers paint of off-screen heavy sections on phones */
+@media (max-width: 768px) {
+  #gallery-section,
+  #timeline-section,
+  #faq-section {
+    content-visibility: auto;
+    contain-intrinsic-size: 0 450px;
+  }
+}
+
+/* 7. Reduced motion for low-battery or accessibility preferences */
+@media (prefers-reduced-motion: reduce) {
+  *, ::before, ::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}

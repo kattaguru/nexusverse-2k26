@@ -305,5 +305,12 @@ describe('NexusVerse 2K26 Backend API Endpoints Unit Tests', () => {
     const data = await res.json();
     assert.equal(data.success, false);
   });
+
+  it('Global Rate Limiter should attach standard X-RateLimit headers to responses', async () => {
+    const res = await fetch(`${BASE_URL}/api/health`);
+    assert.equal(res.status, 200);
+    assert.ok(res.headers.get('x-ratelimit-limit'), 'Should attach X-RateLimit-Limit header');
+    assert.ok(res.headers.get('x-ratelimit-remaining'), 'Should attach X-RateLimit-Remaining header');
+  });
 });
 

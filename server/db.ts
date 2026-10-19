@@ -177,22 +177,53 @@ export function readDatabase(): DatabaseSchema {
   }
 }
 
-export function writeDatabase(data: DatabaseSchema): boolean {
+let writeTimeout: any = null;
+let isWriting = false;
+
+function flushToDisk(data: DatabaseSchema): void {
+  if (isWriting) return;
+  isWriting = true;
   try {
-    memoryDb = data;
+    const targetFile = getActiveDbPath();
+    const tempFile = `${targetFile}.tmp.${Date.now()}`;
+    const payload = JSON.stringify(data, null, 2);
+
     if (IS_VERCEL) {
       try {
-        fs.writeFileSync(VERCEL_TMP_FILE, JSON.stringify(data, null, 2), 'utf-8');
+        fs.writeFileSync(tempFile, payload, 'utf-8');
+        fs.renameSync(tempFile, targetFile);
       } catch (writeErr) {
-        console.warn('Vercel /tmp write notice:', writeErr);
+        // Vercel serverless ephemeral filesystem notice
       }
+    } else {
+      ensureDbExists();
+      fs.writeFileSync(tempFile, payload, 'utf-8');
+      fs.renameSync(tempFile, targetFile);
+    }
+  } catch (err) {
+    console.warn('Error flushing database to disk, in-memory state preserved:', err);
+  } finally {
+    isWriting = false;
+  }
+}
+
+export function writeDatabase(data: DatabaseSchema, immediate: boolean = false): boolean {
+  try {
+    memoryDb = data;
+    // For test suites or explicit immediate requests, flush synchronously
+    if (immediate || process.env.NODE_ENV === 'test') {
+      flushToDisk(data);
       return true;
     }
-    ensureDbExists();
-    fs.writeFileSync(DB_FILE, JSON.stringify(data, null, 2), 'utf-8');
+    // High-concurrency debounced write to coalesce hundreds of simultaneous writes safely
+    if (writeTimeout) clearTimeout(writeTimeout);
+    writeTimeout = setTimeout(() => {
+      flushToDisk(data);
+    }, 50);
+    if (writeTimeout && writeTimeout.unref) writeTimeout.unref();
     return true;
   } catch (err) {
-    console.warn('Error writing database file, falling back to memory state:', err);
+    console.warn('Error scheduling database write:', err);
     return true;
   }
 }
