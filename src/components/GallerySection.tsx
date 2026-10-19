@@ -107,15 +107,8 @@ export const GallerySection: React.FC<GallerySectionProps> = ({ onOpenAdmin, isA
   const [isMarqueePaused, setIsMarqueePaused] = useState<boolean>(false);
   const [marqueeSpeed, setMarqueeSpeed] = useState<'slow' | 'normal' | 'fast'>('normal');
   const [viewMode, setViewMode] = useState<'marquee' | 'grid'>('marquee');
-  const [isAdminState, setIsAdminState] = useState<boolean>(() => {
-    try {
-      return sessionStorage.getItem('nexusverse_admin_auth') === 'true';
-    } catch (e) {
-      return false;
-    }
-  });
-
-  const isAdmin = Boolean(propIsAdmin || isAdminState);
+  // Admin mode controls are only active when explicitly embedded inside admin portal
+  const isAdmin = Boolean(propIsAdmin);
 
   const loadPhotos = async () => {
     try {
@@ -169,25 +162,10 @@ export const GallerySection: React.FC<GallerySectionProps> = ({ onOpenAdmin, isA
       loadPhotos();
     };
 
-    // Listen to admin authentication state changes
-    const handleAuthChanged = (e: any) => {
-      if (e?.detail?.isAuthenticated !== undefined) {
-        setIsAdminState(Boolean(e.detail.isAuthenticated));
-      } else {
-        try {
-          setIsAdminState(sessionStorage.getItem('nexusverse_admin_auth') === 'true');
-        } catch (err) {}
-      }
-    };
-
     window.addEventListener('nexusverse_photos_updated', handlePhotosUpdated);
-    window.addEventListener('nexusverse_admin_auth_changed', handleAuthChanged);
-    window.addEventListener('storage', handleAuthChanged);
 
     return () => {
       window.removeEventListener('nexusverse_photos_updated', handlePhotosUpdated);
-      window.removeEventListener('nexusverse_admin_auth_changed', handleAuthChanged);
-      window.removeEventListener('storage', handleAuthChanged);
     };
   }, []);
 

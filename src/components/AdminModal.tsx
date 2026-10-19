@@ -486,24 +486,20 @@ export const AdminModal: React.FC<AdminModalProps> = ({
   const photoUploadRef = useRef<HTMLInputElement>(null);
   const jsonImportRef = useRef<HTMLInputElement>(null);
 
-  // Load auth state & gallery photos on open
+  // Security: Always purge persistent auth on entry/mount so that entering the site or refreshing always prompts for password in admin mode
   useEffect(() => {
     if (isOpen || isFullPage) {
       try {
         localStorage.removeItem('nexusverse_admin_pwd');
-        const auth = sessionStorage.getItem('nexusverse_admin_auth');
-        if (auth === 'true') {
-          setIsAuthenticated(true);
-        }
+        sessionStorage.removeItem('nexusverse_admin_auth');
+        sessionStorage.removeItem('nexusverse_admin_timestamp');
       } catch (e) {}
+
+      setIsAuthenticated(false);
 
       const handleAuthEvent = (e: any) => {
         if (e?.detail?.isAuthenticated !== undefined) {
           setIsAuthenticated(Boolean(e.detail.isAuthenticated));
-        } else {
-          try {
-            setIsAuthenticated(sessionStorage.getItem('nexusverse_admin_auth') === 'true');
-          } catch (err) {}
         }
       };
       window.addEventListener('nexusverse_admin_auth_changed', handleAuthEvent);
@@ -620,10 +616,12 @@ export const AdminModal: React.FC<AdminModalProps> = ({
     if (authGranted) {
       setIsAuthenticated(true);
       setPasswordError('');
+      setPasswordInput('');
       setLoginAttempts(0);
       try {
-        sessionStorage.setItem('nexusverse_admin_auth', 'true');
-        sessionStorage.setItem('nexusverse_admin_timestamp', String(Date.now()));
+        localStorage.removeItem('nexusverse_admin_pwd');
+        sessionStorage.removeItem('nexusverse_admin_auth');
+        sessionStorage.removeItem('nexusverse_admin_timestamp');
         window.dispatchEvent(new CustomEvent('nexusverse_admin_auth_changed', { detail: { isAuthenticated: true } }));
       } catch (e) {}
       setIsVerifyingLogin(false);
