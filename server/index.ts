@@ -52,8 +52,14 @@ app.get('/register', (_req, res) => {
   res.sendFile(path.resolve(distPath, 'register.html'));
 });
 
-app.get(['/admin', '/admin.html'], (_req, res) => {
+// Secure executive portal (nbkristieee.in/nexusadmin)
+app.get(['/nexusadmin', '/nexusadmin.html'], (_req, res) => {
   res.sendFile(path.resolve(distPath, 'register.html'));
+});
+
+// Legacy /admin access blocked & redirected to home
+app.get(['/admin', '/admin.html'], (_req, res) => {
+  res.redirect(301, '/');
 });
 
 // Direct Ticket Pass verification shortcuts (e.g. /pass/NV26-101)

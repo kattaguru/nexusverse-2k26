@@ -96,8 +96,8 @@ Open [http://localhost:3000](http://localhost:3000) in your browser.
 
 ## 🔐 Administrative Access
 
-Access the executive administrative portal at `/admin`:
-- **URL**: `http://localhost:3000/admin`
+Access the executive administrative portal at `/nexusadmin`:
+- **URL**: `http://localhost:3000/nexusadmin` (Production: `nbkristieee.in/nexusadmin`)
 - Manage registrations, export CSV/Excel, toggle portal status, and configure payment credentials.
 
 ---

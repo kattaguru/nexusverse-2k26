@@ -2,17 +2,29 @@
   "framework": "vite",
   "buildCommand": "vite build",
   "outputDirectory": "dist",
+  "redirects": [
+    {
+      "source": "/admin",
+      "destination": "/",
+      "permanent": true
+    },
+    {
+      "source": "/admin.html",
+      "destination": "/",
+      "permanent": true
+    }
+  ],
   "rewrites": [
     {
       "source": "/api/(.*)",
       "destination": "/api"
     },
     {
-      "source": "/admin",
+      "source": "/nexusadmin",
       "destination": "/register.html"
     },
     {
-      "source": "/admin.html",
+      "source": "/nexusadmin.html",
       "destination": "/register.html"
     },
     {

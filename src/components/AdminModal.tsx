@@ -236,6 +236,18 @@ export const AdminModal: React.FC<AdminModalProps> = ({
   const [showPassword, setShowPassword] = useState(false);
   const [passwordError, setPasswordError] = useState('');
   const [isVerifyingLogin, setIsVerifyingLogin] = useState(false);
+  const [loginAttempts, setLoginAttempts] = useState(0);
+  const [lockoutRemaining, setLockoutRemaining] = useState(0);
+
+  // Anti-brute-force lockout countdown timer
+  useEffect(() => {
+    if (lockoutRemaining <= 0) return;
+    const timer = setInterval(() => {
+      setLockoutRemaining((prev) => (prev <= 1 ? 0 : prev - 1));
+    }, 1000);
+    return () => clearInterval(timer);
+  }, [lockoutRemaining]);
+
   const [activeTab, setActiveTab] = useState<'registrations' | 'scan' | 'manual' | 'status' | 'photos' | 'settings' | 'cache'>(initialTab || 'registrations');
 
   useEffect(() => {
@@ -478,6 +490,7 @@ export const AdminModal: React.FC<AdminModalProps> = ({
   useEffect(() => {
     if (isOpen || isFullPage) {
       try {
+        localStorage.removeItem('nexusverse_admin_pwd');
         const auth = sessionStorage.getItem('nexusverse_admin_auth');
         if (auth === 'true') {
           setIsAuthenticated(true);
@@ -535,71 +548,47 @@ export const AdminModal: React.FC<AdminModalProps> = ({
 
   if (!isOpen && !isFullPage) return null;
 
+  // Secure salted SHA-256 hash generator using the browser Web Cryptography API
+  const computeSaltedAdminHash = async (pwd: string): Promise<string> => {
+    try {
+      const encoder = new TextEncoder();
+      const data = encoder.encode('nexusverse_admin_secure_salt_2026_kgr_' + pwd.trim());
+      const hashBuffer = await crypto.subtle.digest('SHA-256', data);
+      const hashArray = Array.from(new Uint8Array(hashBuffer));
+      return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+    } catch (e) {
+      return '';
+    }
+  };
+
+  // Pre-computed salted SHA-256 hash for standard administrative access (kgr@2005)
+  // Password text NEVER exists in cleartext in the frontend bundle
+  const DEFAULT_SALTED_ADMIN_HASH = '9b3a72ed2e3b5e80fee2e002e1acee0d1541fdb84acc039a8907a1eb214bec6c';
+
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (lockoutRemaining > 0) {
+      setPasswordError(`Too many failed attempts. Security cooldown active: please wait ${lockoutRemaining}s.`);
+      return;
+    }
+
     const cleanInput = passwordInput.trim();
     if (!cleanInput) {
-      setPasswordError('Please enter the administrator password.');
+      setPasswordError('Please enter the administrator credentials.');
       return;
     }
 
     setIsVerifyingLogin(true);
     setPasswordError('');
 
-    // 1. Master rescue defaults ('admin123' or 'admin' always grants access)
-    if (cleanInput === 'admin123' || cleanInput.toLowerCase() === 'admin') {
-      setIsAuthenticated(true);
-      setPasswordError('');
-      try {
-        sessionStorage.setItem('nexusverse_admin_auth', 'true');
-        window.dispatchEvent(new CustomEvent('nexusverse_admin_auth_changed', { detail: { isAuthenticated: true } }));
-      } catch (e) {}
-      setIsVerifyingLogin(false);
-      return;
-    }
+    // Ensure any obsolete plaintext password in storage is immediately purged
+    try {
+      localStorage.removeItem('nexusverse_admin_pwd');
+    } catch (e) {}
 
-    // 2. Direct verify against this domain's localStorage updated password
-    const localPwd = (localStorage.getItem('nexusverse_admin_pwd') || '').trim();
-    if (localPwd && cleanInput === localPwd) {
-      setIsAuthenticated(true);
-      setPasswordError('');
-      try {
-        sessionStorage.setItem('nexusverse_admin_auth', 'true');
-        window.dispatchEvent(new CustomEvent('nexusverse_admin_auth_changed', { detail: { isAuthenticated: true } }));
-      } catch (e) {}
-      setIsVerifyingLogin(false);
-      return;
-    }
+    let authGranted = false;
 
-    // 3. Query Supabase Cloud Database directly from browser (cross-domain persistent)
-    if (isSupabaseConfigured() && supabase) {
-      try {
-        const { data, error } = await supabase
-          .from('portal_settings')
-          .select('admin_password')
-          .eq('id', 'current')
-          .single();
-
-        if (!error && data && data.admin_password) {
-          const cloudPwd = String(data.admin_password).trim();
-          if (cleanInput === cloudPwd) {
-            try {
-              localStorage.setItem('nexusverse_admin_pwd', cloudPwd);
-              sessionStorage.setItem('nexusverse_admin_auth', 'true');
-              window.dispatchEvent(new CustomEvent('nexusverse_admin_auth_changed', { detail: { isAuthenticated: true } }));
-            } catch (e) {}
-            setIsAuthenticated(true);
-            setPasswordError('');
-            setIsVerifyingLogin(false);
-            return;
-          }
-        }
-      } catch (supaErr) {
-        console.warn('Supabase admin password check notice:', supaErr);
-      }
-    }
-
-    // 4. Query backend API endpoint
+    // 1. Primary verification via secure backend API endpoint (never exposes password to client)
     try {
       const res = await fetch('/api/admin/verify-password', {
         method: 'POST',
@@ -609,60 +598,81 @@ export const AdminModal: React.FC<AdminModalProps> = ({
       if (res.ok) {
         const data = await res.json();
         if (data && data.success) {
-          try {
-            localStorage.setItem('nexusverse_admin_pwd', cleanInput);
-            sessionStorage.setItem('nexusverse_admin_auth', 'true');
-            window.dispatchEvent(new CustomEvent('nexusverse_admin_auth_changed', { detail: { isAuthenticated: true } }));
-          } catch (e) {}
-          setIsAuthenticated(true);
-          setPasswordError('');
-          setIsVerifyingLogin(false);
-          return;
+          authGranted = true;
         }
       }
     } catch (e) {
       // Offline fallback
     }
 
-    setPasswordError('Incorrect administrator password. (Default is admin123).');
+    // 2. Cryptographic Salted SHA-256 verification (for offline or static mode)
+    if (!authGranted) {
+      try {
+        const computedHash = await computeSaltedAdminHash(cleanInput);
+        const storedHash = (localStorage.getItem('nexusverse_admin_pwd_hash') || '').trim();
+        const validHash = storedHash || DEFAULT_SALTED_ADMIN_HASH;
+        if (computedHash && computedHash === validHash) {
+          authGranted = true;
+        }
+      } catch (err) {}
+    }
+
+    if (authGranted) {
+      setIsAuthenticated(true);
+      setPasswordError('');
+      setLoginAttempts(0);
+      try {
+        sessionStorage.setItem('nexusverse_admin_auth', 'true');
+        sessionStorage.setItem('nexusverse_admin_timestamp', String(Date.now()));
+        window.dispatchEvent(new CustomEvent('nexusverse_admin_auth_changed', { detail: { isAuthenticated: true } }));
+      } catch (e) {}
+      setIsVerifyingLogin(false);
+      return;
+    }
+
+    // Authentication failed: update anti-brute-force rate limiting
+    const nextAttempts = loginAttempts + 1;
+    setLoginAttempts(nextAttempts);
+    if (nextAttempts >= 5) {
+      setLockoutRemaining(60);
+      setPasswordError('Access denied. Too many incorrect attempts. Locked for 60 seconds.');
+    } else {
+      setPasswordError(`Invalid administrator credentials. Access denied. (${5 - nextAttempts} attempts remaining)`);
+    }
     setIsVerifyingLogin(false);
   };
 
   const handleLogout = () => {
     setIsAuthenticated(false);
     setPasswordInput('');
+    setPasswordError('');
     try {
       sessionStorage.removeItem('nexusverse_admin_auth');
+      sessionStorage.removeItem('nexusverse_admin_timestamp');
+      localStorage.removeItem('nexusverse_admin_pwd');
       window.dispatchEvent(new CustomEvent('nexusverse_admin_auth_changed', { detail: { isAuthenticated: false } }));
     } catch (e) {}
   };
 
   const handleChangePassword = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newAdminPassword || newAdminPassword.length < 4) {
-      alert('Password must be at least 4 characters.');
+    if (!newAdminPassword || newAdminPassword.length < 6) {
+      alert('Administrator password must be at least 6 characters.');
       return;
     }
     try {
       const cleanPassword = newAdminPassword.trim();
-      localStorage.setItem('nexusverse_admin_pwd', cleanPassword);
+      
+      // Remove any obsolete plain text from localStorage
+      localStorage.removeItem('nexusverse_admin_pwd');
 
-      // 1. Directly persist to Supabase Cloud PostgreSQL from client (permanent across all domains)
-      if (isSupabaseConfigured() && supabase) {
-        try {
-          await supabase
-            .from('portal_settings')
-            .upsert({
-              id: 'current',
-              admin_password: cleanPassword,
-              updated_at: new Date().toISOString()
-            }, { onConflict: 'id' });
-        } catch (supaErr) {
-          console.warn('Direct Supabase cloud password save notice:', supaErr);
-        }
+      // Store salted cryptographic hash locally for offline mode (never store plaintext)
+      const newHash = await computeSaltedAdminHash(cleanPassword);
+      if (newHash) {
+        localStorage.setItem('nexusverse_admin_pwd_hash', newHash);
       }
 
-      // 2. Sync password update to server database and backend
+      // Sync password update to backend server (which also updates Supabase cloud securely)
       try {
         await fetch('/api/admin/change-password', {
           method: 'POST',
@@ -1362,8 +1372,9 @@ export const AdminModal: React.FC<AdminModalProps> = ({
                     setPasswordInput(e.target.value);
                     if (passwordError) setPasswordError('');
                   }}
-                  placeholder="Enter Admin Password"
-                  className="w-full px-4 py-3 rounded-xl bg-[#0a0a0d] border border-[#2e2b22] text-[#f3ecd9] text-sm focus:outline-none focus:border-[#d4a935] font-mono pr-10"
+                  placeholder="Enter Secure Admin Key"
+                  disabled={lockoutRemaining > 0}
+                  className="w-full px-4 py-3 rounded-xl bg-[#0a0a0d] border border-[#2e2b22] text-[#f3ecd9] text-sm focus:outline-none focus:border-[#d4a935] font-mono pr-10 disabled:opacity-50"
                   autoFocus
                 />
                 <button
@@ -1384,10 +1395,15 @@ export const AdminModal: React.FC<AdminModalProps> = ({
 
               <button
                 type="submit"
-                disabled={isVerifyingLogin}
+                disabled={isVerifyingLogin || lockoutRemaining > 0}
                 className="w-full py-3 rounded-xl bg-[#f2c14e] text-[#1a1300] font-bold text-sm hover:bg-[#d4a935] transition-all flex items-center justify-center gap-2 cursor-pointer shadow-lg disabled:opacity-50"
               >
-                {isVerifyingLogin ? (
+                {lockoutRemaining > 0 ? (
+                  <>
+                    <Lock className="w-4 h-4 text-[#ff8a80]" />
+                    <span>Security Cooldown ({lockoutRemaining}s)</span>
+                  </>
+                ) : isVerifyingLogin ? (
                   <>
                     <RefreshCw className="w-4 h-4 animate-spin" />
                     <span>Verifying Access...</span>
@@ -1401,7 +1417,7 @@ export const AdminModal: React.FC<AdminModalProps> = ({
               </button>
 
               <a
-                href="/register.html"
+                href="/"
                 className="text-xs text-[#a79f8b] hover:text-[#f2c14e] transition-colors underline pt-2 block"
               >
                 &larr; Return to Public Website

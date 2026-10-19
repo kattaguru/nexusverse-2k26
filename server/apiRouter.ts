@@ -14,6 +14,12 @@ function sanitizeUser(user: ParticipantUser) {
   const { passwordHash, ...safe } = user;
   return safe;
 }
+function sanitizeSettings(settings: any) {
+  if (!settings) return {};
+  const { adminPassword, ...safeSettings } = settings;
+  return safeSettings;
+}
+const adminVerifyRateLimit = new Map<string, { count: number; lockedUntil: number }>();
 function findUserRegistrations(email?: string, roll?: string, phone?: string) {
   const db = readDatabase();
   const cleanEmail = (email || '').toLowerCase().trim();
@@ -312,16 +318,17 @@ apiRouter.get('/settings', (_req: Request, res: Response) => {
       res.setHeader('X-Cache', 'HIT');
       return res.json({
         success: true,
-        data: cached
+        data: sanitizeSettings(cached)
       });
     }
 
     const db = readDatabase();
-    serverCache.set('api:settings', db.settings, 60000);
+    const safeData = sanitizeSettings(db.settings);
+    serverCache.set('api:settings', safeData, 60000);
     res.setHeader('X-Cache', 'MISS');
     res.json({
       success: true,
-      data: db.settings
+      data: safeData
     });
   } catch (err: any) {
     res.status(500).json({ success: false, error: err.message });
@@ -396,7 +403,7 @@ apiRouter.post('/settings', (req: Request, res: Response) => {
     res.json({
       success: true,
       message: 'Portal settings updated.',
-      data: db.settings
+      data: sanitizeSettings(db.settings)
     });
   } catch (err: any) {
     res.status(500).json({ success: false, error: err.message });
@@ -406,10 +413,22 @@ apiRouter.post('/settings', (req: Request, res: Response) => {
 // Admin Authentication Endpoints
 apiRouter.post('/admin/verify-password', async (req: Request, res: Response) => {
   try {
+    const rawIp = (req.headers['x-forwarded-for'] as string || req.ip || req.socket.remoteAddress || 'unknown');
+    const ip = rawIp.split(',')[0].trim();
+    const now = Date.now();
+    const tracker = adminVerifyRateLimit.get(ip) || { count: 0, lockedUntil: 0 };
+
+    if (tracker.lockedUntil > now) {
+      const waitSec = Math.ceil((tracker.lockedUntil - now) / 1000);
+      return res.status(429).json({ success: false, error: `Too many failed attempts. Security cooldown active: please wait ${waitSec}s.` });
+    }
+
     const { password } = req.body;
     if (!password) {
       return res.status(400).json({ success: false, error: 'Password is required' });
     }
+
+    let isMatch = false;
 
     // 1. Check Supabase cloud first
     if (supabaseServer) {
@@ -421,15 +440,29 @@ apiRouter.post('/admin/verify-password', async (req: Request, res: Response) => 
           .single();
 
         if (!error && data && data.admin_password) {
-          return res.json({ success: password.trim() === data.admin_password.trim() });
+          isMatch = (password.trim() === String(data.admin_password).trim());
         }
       } catch (e) {}
     }
 
     // 2. Fallback to server db / env
-    const db = readDatabase();
-    const correctPwd = db.settings.adminPassword || process.env.ADMIN_PASSWORD || 'admin123';
-    return res.json({ success: password.trim() === correctPwd.trim() });
+    if (!isMatch) {
+      const db = readDatabase();
+      const correctPwd = db.settings.adminPassword || process.env.ADMIN_PASSWORD || 'kgr@2005';
+      isMatch = (password.trim() === correctPwd.trim());
+    }
+
+    if (isMatch) {
+      adminVerifyRateLimit.delete(ip);
+      return res.json({ success: true });
+    } else {
+      tracker.count += 1;
+      if (tracker.count >= 5) {
+        tracker.lockedUntil = now + 60000; // 1 minute lockout
+      }
+      adminVerifyRateLimit.set(ip, tracker);
+      return res.status(401).json({ success: false, error: 'Invalid administrator credentials.' });
+    }
   } catch (err: any) {
     res.status(500).json({ success: false, error: err.message });
   }
@@ -438,8 +471,8 @@ apiRouter.post('/admin/verify-password', async (req: Request, res: Response) => 
 apiRouter.post('/admin/change-password', async (req: Request, res: Response) => {
   try {
     const { newPassword } = req.body;
-    if (!newPassword || newPassword.length < 4) {
-      return res.status(400).json({ success: false, error: 'Password must be at least 4 characters.' });
+    if (!newPassword || newPassword.length < 6) {
+      return res.status(400).json({ success: false, error: 'Administrator password must be at least 6 characters.' });
     }
 
     // 1. Update in Supabase
@@ -459,6 +492,7 @@ apiRouter.post('/admin/change-password', async (req: Request, res: Response) => 
     const db = readDatabase();
     db.settings.adminPassword = newPassword.trim();
     writeDatabase(db);
+    serverCache.delete('api:settings');
 
     res.json({ success: true, message: 'Administrative password updated successfully.' });
   } catch (err: any) {

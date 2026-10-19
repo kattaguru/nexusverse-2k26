@@ -13,10 +13,14 @@ function adminRoutePlugin() {
   return {
     name: 'nexusverse-admin-route-plugin',
     configureServer(server: any) {
-      server.middlewares.use((req: any, _res: any, next: any) => {
+      server.middlewares.use((req: any, res: any, next: any) => {
         if (!req.url) return next();
         const pathname = req.url.split('?')[0].toLowerCase().replace(/\/+$/, '');
         if (pathname === '/admin' || pathname === '/admin.html') {
+          res.writeHead(302, { Location: '/' });
+          res.end();
+          return;
+        } else if (pathname === '/nexusadmin' || pathname === '/nexusadmin.html') {
           const query = req.url.includes('?') ? req.url.slice(req.url.indexOf('?')) : '';
           req.url = '/register.html' + query;
         } else if (pathname.startsWith('/pass/') || pathname.startsWith('/verify/')) {

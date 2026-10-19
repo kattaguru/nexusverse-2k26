@@ -1,9 +1,30 @@
-import { describe, it } from 'node:test';
+import { describe, it, before, after } from 'node:test';
 import assert from 'node:assert/strict';
+import express from 'express';
+import { apiRouter } from '../server/apiRouter.js';
 
-const BASE_URL = process.env.API_BASE_URL || 'http://localhost:5000';
+let BASE_URL = process.env.API_BASE_URL || 'http://localhost:5000';
+let server: any = null;
 
 describe('NexusVerse 2K26 Backend API Endpoints Unit Tests', () => {
+  before(() => {
+    return new Promise<void>((resolve) => {
+      const app = express();
+      app.use(express.json());
+      app.use('/api', apiRouter);
+      server = app.listen(0, () => {
+        const addr = server.address();
+        BASE_URL = `http://localhost:${typeof addr === 'object' && addr ? addr.port : 5000}`;
+        resolve();
+      });
+    });
+  });
+
+  after(() => {
+    if (server && server.close) {
+      server.close();
+    }
+  });
   it('GET /api/health should respond with ok status', async () => {
     try {
       const res = await fetch(`${BASE_URL}/api/health`);
@@ -253,6 +274,36 @@ describe('NexusVerse 2K26 Backend API Endpoints Unit Tests', () => {
       if (err.code === 'ECONNREFUSED') return;
       throw err;
     }
+  });
+
+  it('GET /api/settings should NEVER expose adminPassword in response', async () => {
+    const res = await fetch(`${BASE_URL}/api/settings`);
+    assert.equal(res.status, 200);
+    const data = await res.json();
+    assert.equal(data.success, true);
+    assert.equal(data.data.adminPassword, undefined, 'adminPassword must not be returned');
+  });
+
+  it('POST /api/admin/verify-password should accept standard password kgr@2005', async () => {
+    const res = await fetch(`${BASE_URL}/api/admin/verify-password`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ password: 'kgr@2005' })
+    });
+    assert.equal(res.status, 200);
+    const data = await res.json();
+    assert.equal(data.success, true);
+  });
+
+  it('POST /api/admin/verify-password should reject obsolete admin123 password', async () => {
+    const res = await fetch(`${BASE_URL}/api/admin/verify-password`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ password: 'admin123' })
+    });
+    assert.equal(res.status, 401);
+    const data = await res.json();
+    assert.equal(data.success, false);
   });
 });
 

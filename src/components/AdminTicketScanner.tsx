@@ -38,7 +38,8 @@ import {
   ChevronRight,
   ExternalLink,
   MessageCircle,
-  FileCheck
+  FileCheck,
+  Plus
 } from 'lucide-react';
 import { RegistrationRecord } from './TicketPass';
 import { EVENTS, SPOT_EVENT, ALL_EVENTS, SYMPOSIUM_CONFIG } from '../data/symposiumData';

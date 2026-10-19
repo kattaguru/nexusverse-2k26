@@ -58,4 +58,9 @@ describe('Server Database Module Unit Tests', () => {
     const finalDb = readDatabase();
     assert.equal(finalDb.registrations.length, originalRegCount);
   });
+
+  it('should have standard administrator password kgr@2005 configured', () => {
+    const db = readDatabase();
+    assert.equal(db.settings.adminPassword, 'kgr@2005', 'Admin password should match standard kgr@2005');
+  });
 });

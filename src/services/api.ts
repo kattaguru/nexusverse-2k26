@@ -213,7 +213,7 @@ export async function fetchSettingsApi(): Promise<PortalSettingsData> {
     try {
       const { data, error } = await supabase
         .from('portal_settings')
-        .select('*')
+        .select('id, is_reg_closed, closed_message, total_slots_limit, ieee_slots_limit, non_ieee_slots_limit')
         .eq('id', 'current')
         .single();
 

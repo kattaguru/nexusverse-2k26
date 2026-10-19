@@ -466,17 +466,26 @@ export default function App() {
     if (el) el.scrollIntoView({ behavior: 'smooth' });
   };
 
-  // Dedicated /admin Route Detection (Only opens when visiting /admin)
+  // Dedicated Secure /nexusadmin Route Detection (Only opens when visiting /nexusadmin)
   const [isAdminRoute, setIsAdminRoute] = useState(() => {
     if (typeof window === 'undefined') return false;
     const p = window.location.pathname.toLowerCase().replace(/\/+$/, '');
-    return p.endsWith('/admin') || p.endsWith('/admin.html') || p.includes('/admin') || window.location.search.includes('admin') || window.location.hash.includes('admin');
+    // If someone visits the legacy /admin route, immediately bounce to home
+    if (p === '/admin' || p === '/admin.html' || p.endsWith('/admin') || p.endsWith('/admin.html')) {
+      window.location.replace('/');
+      return false;
+    }
+    return p.endsWith('/nexusadmin') || p.endsWith('/nexusadmin.html') || window.location.search.includes('nexusadmin') || window.location.hash.includes('nexusadmin');
   });
 
   useEffect(() => {
     const handleLocationChange = () => {
       const p = window.location.pathname.toLowerCase().replace(/\/+$/, '');
-      setIsAdminRoute(p.endsWith('/admin') || p.endsWith('/admin.html') || p.includes('/admin') || window.location.search.includes('admin') || window.location.hash.includes('admin'));
+      if (p === '/admin' || p === '/admin.html' || p.endsWith('/admin') || p.endsWith('/admin.html')) {
+        window.location.replace('/');
+        return;
+      }
+      setIsAdminRoute(p.endsWith('/nexusadmin') || p.endsWith('/nexusadmin.html') || window.location.search.includes('nexusadmin') || window.location.hash.includes('nexusadmin'));
     };
 
     window.addEventListener('popstate', handleLocationChange);
@@ -1250,7 +1259,7 @@ export default function App() {
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
-  // Dedicated Full-Page Admin Portal: ONLY opens when user navigates to /admin or /admin.html
+  // Dedicated Full-Page Admin Portal: ONLY opens when user navigates to /nexusadmin or /nexusadmin.html
   if (isAdminRoute) {
     return (
       <AdminModal
@@ -1259,7 +1268,7 @@ export default function App() {
         theme={theme}
         onToggleTheme={handleToggleTheme}
         onClose={() => {
-          window.location.href = '/register.html';
+          window.location.href = '/';
         }}
         savedRecords={savedRecords}
         onUpdateRecord={handleUpdateRecord}
