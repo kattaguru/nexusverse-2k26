@@ -45,14 +45,32 @@ function getTransporter() {
   });
 }
 
+function escapeHtml(str: any = ''): string {
+  return String(str ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
 /**
  * Generate beautifully styled NexusVerse 2K26 Email Template
  */
 function generateTicketEmailHtml(payload: EmailTicketPayload, passUrl: string): string {
+  const safeName = escapeHtml(payload.name);
+  const safeRoll = escapeHtml(payload.roll);
+  const safeRegId = escapeHtml(payload.regId);
+  const safeDept = escapeHtml(payload.dept);
+  const safeYear = escapeHtml(payload.year);
+  const safeCollege = escapeHtml(payload.college);
+  const safePaymentId = escapeHtml(payload.paymentId);
+  const safePassUrl = escapeHtml(passUrl);
+
   const eventBadges = payload.eventIds
     .map(
       (ev) =>
-        `<span style="display:inline-block;padding:4px 10px;margin:3px;background-color:#1f1b0e;border:1px solid #d4a935;color:#f2c14e;border-radius:6px;font-size:12px;font-weight:600;text-transform:uppercase;">${ev}</span>`
+        `<span style="display:inline-block;padding:4px 10px;margin:3px;background-color:#1f1b0e;border:1px solid #d4a935;color:#f2c14e;border-radius:6px;font-size:12px;font-weight:600;text-transform:uppercase;">${escapeHtml(ev)}</span>`
     )
     .join(' ');
 
@@ -93,7 +111,7 @@ function generateTicketEmailHtml(payload: EmailTicketPayload, passUrl: string): 
                 ✓ Payment Received & Delegate Pass Confirmed
               </div>
               <h2 style="margin:16px 0 4px 0;font-size:20px;color:#ffffff;font-weight:700;">
-                Greetings, ${payload.name}!
+                Greetings, ${safeName}!
               </h2>
               <p style="margin:0;font-size:13px;color:#a79f8b;line-height:1.5;">
                 Your registration for NexusVerse 2K26 has been successfully verified. Your official electronic delegate pass details are below.
@@ -108,7 +126,7 @@ function generateTicketEmailHtml(payload: EmailTicketPayload, passUrl: string): 
                 <tr>
                   <td style="padding-bottom:12px;border-bottom:1px solid #282833;">
                     <span style="font-size:11px;text-transform:uppercase;color:#a79f8b;display:block;">Registration ID</span>
-                    <strong style="font-size:20px;color:#f2c14e;font-family:monospace;letter-spacing:1px;">${payload.regId}</strong>
+                    <strong style="font-size:20px;color:#f2c14e;font-family:monospace;letter-spacing:1px;">${safeRegId}</strong>
                   </td>
                   <td align="right" style="padding-bottom:12px;border-bottom:1px solid #282833;">
                     <span style="font-size:11px;text-transform:uppercase;color:#a79f8b;display:block;">Amount Paid (Incl. 5% GST)</span>
@@ -122,13 +140,13 @@ function generateTicketEmailHtml(payload: EmailTicketPayload, passUrl: string): 
                     <table width="100%" style="font-size:13px;line-height:1.6;">
                       <tr>
                         <td style="color:#a79f8b;width:120px;">Roll Number:</td>
-                        <td style="color:#ffffff;font-weight:600;">${payload.roll}</td>
+                        <td style="color:#ffffff;font-weight:600;">${safeRoll}</td>
                       </tr>
-                      ${payload.dept ? `<tr><td style="color:#a79f8b;">Department:</td><td style="color:#ffffff;">${payload.dept} (${payload.year || 'Student'})</td></tr>` : ''}
-                      ${payload.college ? `<tr><td style="color:#a79f8b;">College:</td><td style="color:#ffffff;">${payload.college}</td></tr>` : ''}
+                      ${payload.dept ? `<tr><td style="color:#a79f8b;">Department:</td><td style="color:#ffffff;">${safeDept} (${safeYear || 'Student'})</td></tr>` : ''}
+                      ${payload.college ? `<tr><td style="color:#a79f8b;">College:</td><td style="color:#ffffff;">${safeCollege}</td></tr>` : ''}
                       <tr>
                         <td style="color:#a79f8b;">Payment Ref:</td>
-                        <td style="color:#ffffff;font-family:monospace;font-size:11px;">${payload.paymentId}</td>
+                        <td style="color:#ffffff;font-family:monospace;font-size:11px;">${safePaymentId}</td>
                       </tr>
                     </table>
                   </td>

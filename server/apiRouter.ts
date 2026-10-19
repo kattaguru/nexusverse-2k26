@@ -25,6 +25,35 @@ function sanitizeSettings(settings: any) {
   const { adminPassword, ...safeSettings } = settings;
   return safeSettings;
 }
+
+function isAdminAuthorized(req: Request): boolean {
+  const db = readDatabase();
+  const currentAdminPwd = (db.settings.adminPassword || process.env.ADMIN_PASSWORD || 'kgr@2005').trim();
+
+  // 1. Check custom admin header
+  const adminKey = req.headers['x-admin-key'] || req.headers['x-admin-password'];
+  if (typeof adminKey === 'string' && adminKey.trim() === currentAdminPwd) {
+    return true;
+  }
+
+  // 2. Check Authorization Bearer header
+  const authHeader = req.headers['authorization'];
+  if (typeof authHeader === 'string' && authHeader.startsWith('Bearer ')) {
+    const token = authHeader.slice(7).trim();
+    if (token === currentAdminPwd) {
+      return true;
+    }
+  }
+
+  // 3. Check body currentPassword or adminPassword
+  const bodyPwd = req.body?.currentPassword || req.body?.adminPassword;
+  if (typeof bodyPwd === 'string' && bodyPwd.trim() === currentAdminPwd) {
+    return true;
+  }
+
+  return false;
+}
+
 const adminVerifyRateLimit = new Map<string, { count: number; lockedUntil: number }>();
 function findUserRegistrations(email?: string, roll?: string, phone?: string) {
   const db = readDatabase();
@@ -480,6 +509,10 @@ apiRouter.post('/admin/verify-password', async (req: Request, res: Response) => 
 
 apiRouter.post('/admin/change-password', async (req: Request, res: Response) => {
   try {
+    if (!isAdminAuthorized(req)) {
+      return res.status(401).json({ success: false, error: 'Unauthorized: Current administrative credentials required to change password.' });
+    }
+
     const { newPassword } = req.body;
     if (!newPassword || newPassword.length < 6) {
       return res.status(400).json({ success: false, error: 'Administrator password must be at least 6 characters.' });
@@ -721,6 +754,10 @@ apiRouter.post('/razorpay/test-connection', async (req: Request, res: Response) 
 // 13. Razorpay & Direct UPI: Save Keys & Payment Mode into Admin Settings
 apiRouter.post('/razorpay/save-keys', (req: Request, res: Response) => {
   try {
+    if (!isAdminAuthorized(req)) {
+      return res.status(401).json({ success: false, error: 'Unauthorized: Administrative credentials required to update payment gateway keys.' });
+    }
+
     const { keyId, keySecret, razorpayMeLink, razorpayMeName, upiVpa, upiPayeeName, paymentMode } = req.body;
     const db = readDatabase();
 

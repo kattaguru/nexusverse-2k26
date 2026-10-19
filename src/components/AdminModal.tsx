@@ -238,6 +238,7 @@ export const AdminModal: React.FC<AdminModalProps> = ({
   const [isVerifyingLogin, setIsVerifyingLogin] = useState(false);
   const [loginAttempts, setLoginAttempts] = useState(0);
   const [lockoutRemaining, setLockoutRemaining] = useState(0);
+  const activeAdminKeyRef = useRef<string>('');
 
   // Anti-brute-force lockout countdown timer
   useEffect(() => {
@@ -615,6 +616,7 @@ export const AdminModal: React.FC<AdminModalProps> = ({
 
     if (authGranted) {
       setIsAuthenticated(true);
+      activeAdminKeyRef.current = cleanInput;
       setPasswordError('');
       setPasswordInput('');
       setLoginAttempts(0);
@@ -642,6 +644,7 @@ export const AdminModal: React.FC<AdminModalProps> = ({
 
   const handleLogout = () => {
     setIsAuthenticated(false);
+    activeAdminKeyRef.current = '';
     setPasswordInput('');
     setPasswordError('');
     try {
@@ -674,11 +677,18 @@ export const AdminModal: React.FC<AdminModalProps> = ({
       try {
         await fetch('/api/admin/change-password', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ newPassword: cleanPassword })
+          headers: { 
+            'Content-Type': 'application/json',
+            'X-Admin-Key': activeAdminKeyRef.current || 'kgr@2005'
+          },
+          body: JSON.stringify({ 
+            newPassword: cleanPassword,
+            currentPassword: activeAdminKeyRef.current || 'kgr@2005'
+          })
         });
       } catch (apiErr) {}
 
+      activeAdminKeyRef.current = cleanPassword;
       setPwdChangeSuccess(true);
       setNewAdminPassword('');
       setTimeout(() => setPwdChangeSuccess(false), 4000);
@@ -710,7 +720,10 @@ export const AdminModal: React.FC<AdminModalProps> = ({
     try {
       const res = await fetch('/api/razorpay/save-keys', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 
+          'Content-Type': 'application/json',
+          'X-Admin-Key': activeAdminKeyRef.current || 'kgr@2005'
+        },
         body: JSON.stringify({ 
           keyId: rzpKeyId, 
           keySecret: rzpKeySecret,
@@ -718,7 +731,8 @@ export const AdminModal: React.FC<AdminModalProps> = ({
           razorpayMeName: rzpMeName,
           upiVpa: rzpUpiVpa,
           upiPayeeName: upiPayeeName,
-          paymentMode: paymentMode
+          paymentMode: paymentMode,
+          currentPassword: activeAdminKeyRef.current || 'kgr@2005'
         })
       });
       const data = await res.json();
