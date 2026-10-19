@@ -87,6 +87,40 @@ describe('NexusVerse 2K26 Security & Attack Vector Defensive Tests', () => {
       assert.equal((Object.prototype as any).isAdminPwned, undefined, 'Object.prototype must not be polluted');
       assert.equal((Object.prototype as any).isConstructorPwned, undefined, 'Constructor prototype must not be polluted');
     });
+
+    it('should allow multiple participants sharing the same campus Wi-Fi IP to register independently with unique device IDs', async () => {
+      const sharedCampusIp = '203.0.113.88'; // Simulated college campus NAT IP
+      const createdIds: string[] = [];
+
+      for (let i = 0; i < 5; i++) {
+        const testId = `CAMPUS-WIFI-${Date.now()}-${i}`;
+        const res = await fetch(`${BASE_URL}/api/registrations`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-Forwarded-For': sharedCampusIp,
+            'X-Device-Id': `campus-device-${i}`
+          },
+          body: JSON.stringify({
+            regId: testId,
+            name: `Campus Attendee ${i}`,
+            roll: `22CS10${i}`,
+            email: `attendee${i}@college.edu`,
+            phone: `987654321${i}`,
+            college: 'NBKRIST',
+            selectedEvents: ['ctf']
+          })
+        });
+
+        assert.ok(res.status === 200 || res.status === 201, `Student ${i} on campus Wi-Fi should register cleanly`);
+        createdIds.push(testId);
+      }
+
+      // Cleanup
+      for (const id of createdIds) {
+        await fetch(`${BASE_URL}/api/registrations/${id}`, { method: 'DELETE' });
+      }
+    });
   });
 
   // 3. Stored Cross-Site Scripting (XSS) Sanitization

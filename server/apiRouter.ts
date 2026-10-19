@@ -454,8 +454,10 @@ apiRouter.post('/admin/verify-password', async (req: Request, res: Response) => 
   try {
     const rawIp = (req.headers['x-forwarded-for'] as string || req.ip || req.socket.remoteAddress || 'unknown');
     const ip = rawIp.split(',')[0].trim();
+    const deviceId = (req.headers['x-device-id'] as string) || '';
+    const lockKey = deviceId ? `${ip}:${deviceId}` : ip;
     const now = Date.now();
-    const tracker = adminVerifyRateLimit.get(ip) || { count: 0, lockedUntil: 0 };
+    const tracker = adminVerifyRateLimit.get(lockKey) || { count: 0, lockedUntil: 0 };
 
     if (tracker.lockedUntil > now) {
       const waitSec = Math.ceil((tracker.lockedUntil - now) / 1000);
@@ -492,14 +494,14 @@ apiRouter.post('/admin/verify-password', async (req: Request, res: Response) => 
     }
 
     if (isMatch) {
-      adminVerifyRateLimit.delete(ip);
+      adminVerifyRateLimit.delete(lockKey);
       return res.json({ success: true });
     } else {
       tracker.count += 1;
       if (tracker.count >= 5) {
         tracker.lockedUntil = now + 60000; // 1 minute lockout
       }
-      adminVerifyRateLimit.set(ip, tracker);
+      adminVerifyRateLimit.set(lockKey, tracker);
       return res.status(401).json({ success: false, error: 'Invalid administrator credentials.' });
     }
   } catch (err: any) {

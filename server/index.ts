@@ -1,6 +1,7 @@
 import express from 'express';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import os from 'os';
 import dotenv from 'dotenv';
 import { apiRouter } from './apiRouter.js';
 
@@ -83,10 +84,32 @@ app.get('*', (req, res, next) => {
   res.sendFile(path.resolve(distPath, 'index.html'));
 });
 
-app.listen(PORT, () => {
+function getCampusNetworkIps(): string[] {
+  const interfaces = os.networkInterfaces();
+  const ips: string[] = [];
+  for (const name of Object.keys(interfaces)) {
+    for (const iface of interfaces[name] || []) {
+      if (iface.family === 'IPv4' && !iface.internal) {
+        ips.push(iface.address);
+      }
+    }
+  }
+  return ips;
+}
+
+const campusIps = getCampusNetworkIps();
+
+app.listen(Number(PORT), '0.0.0.0', () => {
   console.log(`=======================================================`);
-  console.log(`🚀 NexusVerse 2K26 Backend Server running on port ${PORT}`);
-  console.log(`🔗 API Base: http://localhost:${PORT}/api`);
-  console.log(`💾 Database: server/data/database.json`);
+  console.log(`🚀 NexusVerse 2K26 Campus Backend Server Active`);
+  console.log(`🏠 Local Host:         http://localhost:${PORT}`);
+  if (campusIps.length > 0) {
+    campusIps.forEach(ip => {
+      console.log(`📶 Campus Wi-Fi / LAN: http://${ip}:${PORT}`);
+    });
+    console.log(`📱 All participants on same Wi-Fi can open: http://${campusIps[0]}:${PORT}`);
+  }
+  console.log(`🔗 API Base:           http://localhost:${PORT}/api`);
+  console.log(`💾 Database:           server/data/database.json`);
   console.log(`=======================================================`);
 });
