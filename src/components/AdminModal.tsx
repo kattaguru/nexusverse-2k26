@@ -105,6 +105,7 @@ interface AdminModalProps {
   rightLogo: string;
   onUpdateLeftLogo: (url: string) => void;
   onUpdateRightLogo: (url: string) => void;
+  onRefreshRecords?: () => Promise<void>;
   initialTab?: 'registrations' | 'scan' | 'manual' | 'status' | 'photos' | 'settings' | 'cache';
   isFullPage?: boolean;
   theme?: 'dark' | 'light';
@@ -191,6 +192,7 @@ export const AdminModal: React.FC<AdminModalProps> = ({
   onDeleteRecord,
   onAddManualRecord,
   onViewPass,
+  onRefreshRecords,
   isRegClosed,
   onToggleRegClosed,
   closedMessage,
@@ -259,7 +261,40 @@ export const AdminModal: React.FC<AdminModalProps> = ({
   const [loginAttempts, setLoginAttempts] = useState(0);
   const [lockoutRemaining, setLockoutRemaining] = useState(0);
   const [isPurgingTests, setIsPurgingTests] = useState(false);
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const isRefreshingRef = useRef(false);
   const activeAdminKeyRef = useRef<string>('');
+
+  const handleManualRefresh = async () => {
+    if (isRefreshingRef.current) return;
+    isRefreshingRef.current = true;
+    setIsRefreshing(true);
+    try {
+      if (onRefreshRecords) {
+        await onRefreshRecords();
+      }
+    } finally {
+      setTimeout(() => {
+        isRefreshingRef.current = false;
+        setIsRefreshing(false);
+      }, 400);
+    }
+  };
+
+  // Continuous auto-refresh every 3 seconds while in admin portal
+  useEffect(() => {
+    if (!isOpen || !isAuthenticated) return;
+
+    const interval = setInterval(() => {
+      if (typeof document !== 'undefined' && document.hidden) return;
+      if (isRefreshingRef.current) return;
+      if (onRefreshRecords) {
+        onRefreshRecords();
+      }
+    }, 3000);
+
+    return () => clearInterval(interval);
+  }, [isOpen, isAuthenticated, onRefreshRecords]);
 
   // Anti-brute-force lockout countdown timer
   useEffect(() => {
@@ -1365,6 +1400,19 @@ export const AdminModal: React.FC<AdminModalProps> = ({
           </div>
 
           <div className="flex items-center gap-2">
+            {/* Live 3s Auto-Refresh Status & Manual Trigger */}
+            {isAuthenticated && (
+              <button
+                type="button"
+                onClick={handleManualRefresh}
+                className="admin-header-btn px-2.5 py-1.5 text-xs font-semibold rounded-lg border border-[#2e2b22] text-[#4cc38a] hover:bg-[#142617] hover:border-[#4cc38a]/40 transition-all flex items-center gap-1.5 cursor-pointer shadow-sm"
+                title="Auto-refreshing every 3 seconds. Click to refresh instantly."
+              >
+                <RefreshCw className={`w-3.5 h-3.5 text-[#4cc38a] ${isRefreshing ? 'animate-spin' : ''}`} />
+                <span className="hidden sm:inline">Live 3s</span>
+              </button>
+            )}
+
             {/* Dark / Light Theme Toggle Button */}
             <button
               type="button"

@@ -671,6 +671,47 @@ export default function App() {
     return () => { mounted = false; };
   }, []);
 
+  // Dedicated background refresh handler for admin portal
+  const refreshAllAdminData = async () => {
+    try {
+      const records = await fetchRegistrationsApi();
+      if (Array.isArray(records)) {
+        setSavedRecords(prev => {
+          if (prev.length !== records.length || JSON.stringify(prev) !== JSON.stringify(records)) {
+            return records;
+          }
+          return prev;
+        });
+      }
+      const settings = await fetchSettingsApi();
+      if (settings) {
+        if (typeof settings.isRegClosed === 'boolean') setIsRegClosed(settings.isRegClosed);
+        if (settings.closedMessage) setClosedMessage(settings.closedMessage);
+        if (typeof settings.totalSlotsLimit === 'number') setTotalSlotsLimit(settings.totalSlotsLimit);
+        if (typeof settings.ieeeSlotsLimit === 'number') setIeeeSlotsLimit(settings.ieeeSlotsLimit);
+        if (typeof settings.nonIeeeSlotsLimit === 'number') setNonIeeeSlotsLimit(settings.nonIeeeSlotsLimit);
+      }
+    } catch (e) {}
+  };
+
+  // Continuous auto-refresh every 3 seconds while in admin portal
+  useEffect(() => {
+    if (!isAdminRoute && !isAdminOpen) return;
+
+    let isPolling = false;
+    const interval = setInterval(async () => {
+      if (isPolling || (typeof document !== 'undefined' && document.hidden)) return;
+      isPolling = true;
+      try {
+        await refreshAllAdminData();
+      } finally {
+        isPolling = false;
+      }
+    }, 3000);
+
+    return () => clearInterval(interval);
+  }, [isAdminRoute, isAdminOpen]);
+
   // Save registration record helper (synced to backend API + local cache)
   const saveRegistration = async (record: RegistrationRecord) => {
     const saved = await saveRegistrationApi(record);
@@ -1271,6 +1312,7 @@ export default function App() {
           window.location.href = '/';
         }}
         savedRecords={savedRecords}
+        onRefreshRecords={refreshAllAdminData}
         onUpdateRecord={handleUpdateRecord}
         onDeleteRecord={handleDeleteRecord}
         onAddManualRecord={(rec) => saveRegistration(rec)}
@@ -2908,6 +2950,7 @@ export default function App() {
         onToggleTheme={handleToggleTheme}
         onClose={() => setIsAdminOpen(false)}
         savedRecords={savedRecords}
+        onRefreshRecords={refreshAllAdminData}
         onUpdateRecord={handleUpdateRecord}
         onDeleteRecord={handleDeleteRecord}
         onAddManualRecord={(rec) => saveRegistration(rec)}
