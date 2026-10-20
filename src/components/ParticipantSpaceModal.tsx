@@ -1115,13 +1115,38 @@ export const ParticipantSpaceModal: React.FC<ParticipantSpaceModalProps> = ({
 
                           <div className="flex items-center gap-2">
                             <a
+                              href={`https://api.whatsapp.com/send?text=${encodeURIComponent(
+                                `🎟️ *NEXUSVERSE 2K26 - OFFICIAL ENTRY PASS*\n` +
+                                `━━━━━━━━━━━━━━━━━━━━\n` +
+                                `👤 *Delegate:* ${rec.name}\n` +
+                                `🆔 *Pass ID:* ${rec.regId}\n` +
+                                `🎓 *Roll No:* ${rec.roll || 'N/A'}\n` +
+                                `🏛️ *College:* ${rec.college || 'NBKRIST'}\n` +
+                                `📚 *Branch:* ${rec.dept || ''} (${rec.year || ''} Year, Sec ${rec.section || 'A'})\n` +
+                                `🎯 *Event(s):* ${eventObjects.map(e => e?.name).join(', ') || rec.eventIds.join(', ')}\n` +
+                                `🍽️ *Food Token:* 1 Delegate Meal Included\n` +
+                                `📍 *Venue:* N.B.K.R. Institute of Science & Technology, Vidyanagar\n\n` +
+                                `🔗 *View Live Ticket & QR Pass:*\n` +
+                                `${typeof window !== 'undefined' ? window.location.origin : 'https://www.nbkristieee.in'}/register.html?passId=${encodeURIComponent(rec.regId)}`
+                              )}`}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="px-3 py-1.5 rounded-lg bg-[#25d366]/20 border border-[#25d366]/60 text-[#25d366] hover:bg-[#25d366] hover:text-[#052e16] font-semibold text-xs flex items-center gap-1.5 transition-colors cursor-pointer"
+                              title="Share this ticket to WhatsApp"
+                            >
+                              <MessageCircle className="w-3.5 h-3.5 fill-current" />
+                              <span>Share Pass</span>
+                            </a>
+
+                            <a
                               href={SYMPOSIUM_CONFIG.whatsappGroup?.url || 'https://chat.whatsapp.com/GEpv2i56odNEV0LpLizzaO'}
                               target="_blank"
                               rel="noopener noreferrer"
-                              className="px-3 py-1.5 rounded-lg bg-[#092215] border border-[#25d366]/40 text-[#25d366] hover:bg-[#25d366] hover:text-[#052e16] font-semibold text-xs flex items-center gap-1.5 transition-colors cursor-pointer"
+                              className="px-3 py-1.5 rounded-lg bg-[#092215] border border-[#25d366]/40 text-[#a7f3d0] hover:bg-[#25d366] hover:text-[#052e16] font-semibold text-xs flex items-center gap-1.5 transition-colors cursor-pointer"
+                              title="Join official community group"
                             >
-                              <MessageCircle className="w-3.5 h-3.5 fill-current" />
-                              <span>WhatsApp</span>
+                              <MessageCircle className="w-3.5 h-3.5" />
+                              <span className="hidden sm:inline">Group</span>
                             </a>
 
                             <button

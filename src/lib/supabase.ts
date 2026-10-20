@@ -70,6 +70,9 @@ export function mapDbToRegistrationRecord(row: any): RegistrationRecord {
     attendedEvents: Array.isArray(row.attended_events) ? row.attended_events : (row.attendedEvents || row.team_details?._attendedEvents || []),
     kitIssued: Boolean(row.kit_issued ?? row.kitIssued ?? row.team_details?._kitIssued),
     checkInNotes: row.check_in_notes || row.checkInNotes || row.team_details?._checkInNotes,
+    lunchCollected: Boolean(row.lunch_collected ?? row.lunchCollected ?? row.team_details?._lunchCollected),
+    lunchCollectedTime: row.lunch_collected_time || row.lunchCollectedTime || row.team_details?._lunchCollectedTime,
+    lunchCollectedBy: row.lunch_collected_by || row.lunchCollectedBy || row.team_details?._lunchCollectedBy,
   };
 }
 
@@ -89,7 +92,10 @@ export function mapRegistrationRecordToDb(record: RegistrationRecord): Record<st
     ...(record.checkedInBy ? { _checkedInBy: record.checkedInBy } : {}),
     ...(record.attendedEvents ? { _attendedEvents: record.attendedEvents } : {}),
     ...(record.kitIssued !== undefined ? { _kitIssued: record.kitIssued } : {}),
-    ...(record.checkInNotes ? { _checkInNotes: record.checkInNotes } : {})
+    ...(record.checkInNotes ? { _checkInNotes: record.checkInNotes } : {}),
+    ...(record.lunchCollected !== undefined ? { _lunchCollected: record.lunchCollected } : {}),
+    ...(record.lunchCollectedTime ? { _lunchCollectedTime: record.lunchCollectedTime } : {}),
+    ...(record.lunchCollectedBy ? { _lunchCollectedBy: record.lunchCollectedBy } : {})
   };
   return {
     reg_id: record.regId,

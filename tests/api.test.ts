@@ -281,7 +281,10 @@ describe('NexusVerse 2K26 Backend API Endpoints Unit Tests', () => {
           checkedInBy: 'Front Desk Lead',
           attendedEvents: ['hackathon', 'spot-pass'],
           kitIssued: true,
-          checkInNotes: 'Badge and kit handed over at front desk'
+          checkInNotes: 'Badge and kit handed over at front desk',
+          lunchCollected: true,
+          lunchCollectedTime: new Date().toISOString(),
+          lunchCollectedBy: 'Catering Counter'
         })
       });
       assert.equal(checkInRes.status, 200);
@@ -289,6 +292,8 @@ describe('NexusVerse 2K26 Backend API Endpoints Unit Tests', () => {
       assert.equal(checkInData.success, true);
       assert.equal(checkInData.data.checkedIn, true);
       assert.equal(checkInData.data.kitIssued, true);
+      assert.equal(checkInData.data.lunchCollected, true);
+      assert.equal(checkInData.data.lunchCollectedBy, 'Catering Counter');
       assert.deepEqual(checkInData.data.attendedEvents, ['hackathon', 'spot-pass']);
       assert.equal(checkInData.data.checkInNotes, 'Badge and kit handed over at front desk');
 

@@ -39,7 +39,9 @@ import {
   ExternalLink,
   MessageCircle,
   FileCheck,
-  Plus
+  Plus,
+  Utensils,
+  ShieldAlert
 } from 'lucide-react';
 import { RegistrationRecord } from './TicketPass';
 import { EVENTS, SPOT_EVENT, ALL_EVENTS, SYMPOSIUM_CONFIG } from '../data/symposiumData';
@@ -66,6 +68,15 @@ export const AdminTicketScanner: React.FC<AdminTicketScannerProps> = ({
   const [soundEnabled, setSoundEnabled] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [copiedId, setCopiedId] = useState(false);
+
+  // Desk mode: 'checkin' for entry reception desk; 'lunch' for catering counter meal check
+  const [scannerMode, setScannerMode] = useState<'checkin' | 'lunch'>('checkin');
+  const [lunchAlert, setLunchAlert] = useState<{
+    type: 'duplicate' | 'success' | 'info';
+    message: string;
+    delegateName?: string;
+    delegateRoll?: string;
+  } | null>(null);
 
   // Active delegate loaded
   const [activeRecord, setActiveRecord] = useState<RegistrationRecord | null>(null);
@@ -109,6 +120,27 @@ export const AdminTicketScanner: React.FC<AdminTicketScannerProps> = ({
     } catch (e) {
       // Audio fallback
     }
+  };
+
+  // Warning buzzer synthesizer for duplicate meal claim
+  const playBuzzer = () => {
+    if (!soundEnabled) return;
+    try {
+      const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
+      if (!AudioCtx) return;
+      const ctx = new AudioCtx();
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = 'sawtooth';
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.frequency.setValueAtTime(180, ctx.currentTime);
+      osc.frequency.setValueAtTime(140, ctx.currentTime + 0.15);
+      gain.gain.setValueAtTime(0.4, ctx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.4);
+      osc.start();
+      osc.stop(ctx.currentTime + 0.4);
+    } catch (e) {}
   };
 
   // Sync activeRecord if records array updates
@@ -257,19 +289,77 @@ export const AdminTicketScanner: React.FC<AdminTicketScannerProps> = ({
     const matched = findRecord(targetId);
 
     if (matched) {
-      // Trigger scan flash & audio
+      // Trigger scan flash
       setScanFlash(true);
       setTimeout(() => setScanFlash(false), 400);
-      playBeep(true);
-      try {
-        navigator.vibrate?.([80, 40, 80]);
-      } catch (e) {}
+
+      // Handle based on current desk station mode
+      if (scannerMode === 'lunch') {
+        if (matched.lunchCollected) {
+          // DUPLICATE MEAL CLAIM DETECTED! PREVENT DISPUTE
+          playBuzzer();
+          try {
+            navigator.vibrate?.([200, 100, 200, 100, 200]);
+          } catch (e) {}
+          const claimTime = matched.lunchCollectedTime ? new Date(matched.lunchCollectedTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'Earlier Today';
+          setLunchAlert({
+            type: 'duplicate',
+            message: `DUPLICATE MEAL CLAIM! Lunch token was already claimed for ${matched.name} (${matched.roll || matched.regId}) at ${claimTime} by ${matched.lunchCollectedBy || 'Catering Counter'}. Duplicate meal rejected.`,
+            delegateName: matched.name,
+            delegateRoll: matched.roll
+          });
+        } else {
+          // VALID CLAIM - IMMEDIATELY ISSUE 1 MEAL BOX & PERSIST
+          playBeep(true);
+          try {
+            navigator.vibrate?.([80, 40, 80]);
+            confetti({
+              particleCount: 50,
+              spread: 60,
+              origin: { y: 0.6 },
+              colors: ['#22c55e', '#f59e0b', '#ffffff']
+            });
+          } catch (e) {}
+          const now = new Date().toISOString();
+          const updated: RegistrationRecord = {
+            ...matched,
+            lunchCollected: true,
+            lunchCollectedTime: now,
+            lunchCollectedBy: 'Catering Counter'
+          };
+          onUpdateRecord(updated);
+          setLunchAlert({
+            type: 'success',
+            message: `1 MEAL BOX DISPENSED ✓: Lunch token successfully verified and marked redeemed for ${matched.name} (${matched.roll || matched.regId}).`,
+            delegateName: matched.name,
+            delegateRoll: matched.roll
+          });
+        }
+      } else {
+        // Standard check-in desk mode
+        playBeep(true);
+        try {
+          navigator.vibrate?.([80, 40, 80]);
+        } catch (e) {}
+
+        if (matched.lunchCollected) {
+          setLunchAlert({
+            type: 'info',
+            message: `Food Note: Delegate has already collected lunch at ${new Date(matched.lunchCollectedTime || '').toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}.`,
+            delegateName: matched.name,
+            delegateRoll: matched.roll
+          });
+        } else {
+          setLunchAlert(null);
+        }
+      }
 
       setActiveRecord(matched);
       setNotesInput(matched.checkInNotes || '');
     } else {
       playBeep(false);
       setCameraError(`No registration found matching scanned QR: "${targetId}".`);
+      setLunchAlert(null);
     }
   };
 
@@ -411,6 +501,37 @@ export const AdminTicketScanner: React.FC<AdminTicketScannerProps> = ({
     setActiveRecord(updated);
   };
 
+  // Toggle Food / Lunch Token (Anti-Dispute Check)
+  const handleToggleLunch = () => {
+    if (!activeRecord) return;
+    const isNowCollected = !activeRecord.lunchCollected;
+    const now = new Date().toISOString();
+    const updated: RegistrationRecord = {
+      ...activeRecord,
+      lunchCollected: isNowCollected,
+      lunchCollectedTime: isNowCollected ? now : undefined,
+      lunchCollectedBy: isNowCollected ? 'Admin Desk' : undefined
+    };
+    onUpdateRecord(updated);
+    setActiveRecord(updated);
+    if (isNowCollected) {
+      playBeep(true);
+      setLunchAlert({
+        type: 'success',
+        message: `1 Meal Box Dispensed ✓: Lunch token marked as collected for ${activeRecord.name}.`,
+        delegateName: activeRecord.name,
+        delegateRoll: activeRecord.roll
+      });
+    } else {
+      setLunchAlert({
+        type: 'info',
+        message: `Lunch token reset to uncollected for ${activeRecord.name}.`,
+        delegateName: activeRecord.name,
+        delegateRoll: activeRecord.roll
+      });
+    }
+  };
+
   // Verify Payment on Spot (for UPI)
   const handleVerifyPayment = () => {
     if (!activeRecord) return;
@@ -491,6 +612,8 @@ export const AdminTicketScanner: React.FC<AdminTicketScannerProps> = ({
   const techAttendedCount = records.filter(r => r.attendedEvents?.some(id => id !== 'spot')).length;
   const spotAttendedCount = records.filter(r => r.attendedEvents?.includes('spot')).length;
   const kitsIssuedCount = records.filter(r => r.kitIssued).length;
+  const lunchCollectedCount = records.filter(r => r.lunchCollected).length;
+  const lunchPercent = totalDelegates > 0 ? Math.round((lunchCollectedCount / totalDelegates) * 100) : 0;
 
   // Recent checked in delegates (last 8)
   const recentCheckedIn = records
@@ -566,8 +689,65 @@ export const AdminTicketScanner: React.FC<AdminTicketScannerProps> = ({
           </div>
         </div>
 
+        {/* Desk Station Mode Switcher */}
+        <div className={`mt-4 pt-4 border-t flex flex-wrap items-center justify-between gap-3 ${
+          isLight ? 'border-[#c0d6ea]' : 'border-[#234259]/60'
+        }`}>
+          <div className="flex flex-wrap items-center gap-2.5">
+            <span className={`text-xs font-bold uppercase tracking-wider ${isLight ? 'text-[#3e556e]' : 'text-[#9fc7e8]'}`}>
+              Scanner Desk Mode:
+            </span>
+            <div className={`inline-flex rounded-xl p-1 border shadow-inner ${
+              isLight ? 'bg-white border-[#c0d6ea]' : 'bg-[#09111c] border-[#1b3447]'
+            }`}>
+              <button
+                type="button"
+                onClick={() => {
+                  setScannerMode('checkin');
+                  setLunchAlert(null);
+                }}
+                className={`px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer ${
+                  scannerMode === 'checkin'
+                    ? 'bg-gradient-to-r from-[#0088d4] to-[#026aa6] text-white shadow'
+                    : isLight ? 'text-[#3e556e] hover:text-[#1c1811]' : 'text-[#9fc7e8] hover:text-white'
+                }`}
+              >
+                <QrCode className="w-3.5 h-3.5" />
+                <span>Entry & Check-In Desk</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setScannerMode('lunch');
+                  setLunchAlert(null);
+                }}
+                className={`px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer ${
+                  scannerMode === 'lunch'
+                    ? 'bg-gradient-to-r from-[#d97706] to-[#b45309] text-white shadow'
+                    : isLight ? 'text-[#3e556e] hover:text-[#1c1811]' : 'text-[#9fc7e8] hover:text-white'
+                }`}
+              >
+                <Utensils className="w-3.5 h-3.5" />
+                <span>Food & Catering Counter (Lunch Token Check)</span>
+              </button>
+            </div>
+          </div>
+
+          <div className={`text-xs ${isLight ? 'text-[#6b6250]' : 'text-[#a79f8b]'}`}>
+            {scannerMode === 'lunch' ? (
+              <span className="text-[#f59e0b] font-semibold flex items-center gap-1.5 bg-[#f59e0b]/10 border border-[#f59e0b]/30 px-2.5 py-1 rounded-lg">
+                <Utensils className="w-3.5 h-3.5" />
+                <span>Catering Anti-Dispute Verification Active · Automatically prevents duplicate meal claims</span>
+              </span>
+            ) : (
+              <span>Registration Desk Active · Badge dispatch & technical track participation</span>
+            )}
+          </div>
+        </div>
+
         {/* Live Attendance Metric Cards */}
-        <div className={`grid grid-cols-2 sm:grid-cols-4 gap-3 pt-5 border-t mt-4 ${
+        <div className={`grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 pt-4 border-t mt-4 ${
           isLight ? 'border-[#c0d6ea]' : 'border-[#234259]/60'
         }`}>
           <div className={`p-3 rounded-xl border space-y-1 ${
@@ -622,8 +802,73 @@ export const AdminTicketScanner: React.FC<AdminTicketScannerProps> = ({
             </div>
             <span className="text-[10px] text-[#4cc38a] font-semibold block truncate">Badges & Delegate Kits</span>
           </div>
+
+          {/* 5th KPI Card: Lunch Tokens Redeemed */}
+          <div className={`p-3 rounded-xl border space-y-1 ${
+            isLight ? 'bg-white border-[#c8d9e8] shadow-sm' : 'bg-[#09111c] border-[#1b3447]'
+          }`}>
+            <span className={`text-[11px] font-medium flex items-center gap-1 block ${isLight ? 'text-[#425d78]' : 'text-[#9fc7e8]'}`}>
+              <Utensils className="w-3.5 h-3.5 text-[#f59e0b]" />
+              <span>Lunch Tokens Redeemed</span>
+            </span>
+            <div className="flex items-baseline gap-2">
+              <span className="text-xl sm:text-2xl font-bold font-mono text-[#f59e0b]">{lunchCollectedCount}</span>
+              <span className={`text-xs ${isLight ? 'text-[#6b6250]' : 'text-[#a79f8b]'}`}>/ {totalDelegates}</span>
+              <span className="text-[10px] font-bold font-mono text-[#f59e0b] bg-[#f59e0b]/15 px-1.5 py-0.5 rounded ml-auto">
+                {lunchPercent}%
+              </span>
+            </div>
+            {/* Mini Progress Bar */}
+            <div className={`w-full h-1.5 rounded-full overflow-hidden mt-1 ${isLight ? 'bg-[#d8e7f5]' : 'bg-[#1b2b3a]'}`}>
+              <div 
+                className="bg-gradient-to-r from-[#d97706] to-[#f59e0b] h-full transition-all duration-500 rounded-full" 
+                style={{ width: `${lunchPercent}%` }}
+              />
+            </div>
+          </div>
         </div>
       </div>
+
+      {/* Lunch / Catering Dispute Notification Alert */}
+      {lunchAlert && (
+        <div className={`p-4 rounded-2xl border text-sm flex items-start justify-between gap-3 shadow-xl animate-in fade-in slide-in-from-top-2 duration-300 ${
+          lunchAlert.type === 'duplicate'
+            ? 'bg-[#3b1219] border-[#ef4444] text-[#ff8a80]'
+            : lunchAlert.type === 'success'
+              ? 'bg-[#0f2e1b] border-[#22c55e] text-[#86efac]'
+              : 'bg-[#1a2333] border-[#3b82f6] text-[#93c5fd]'
+        }`}>
+          <div className="flex items-start gap-3">
+            {lunchAlert.type === 'duplicate' ? (
+              <ShieldAlert className="w-5 h-5 text-[#ef4444] shrink-0 mt-0.5 animate-bounce" />
+            ) : lunchAlert.type === 'success' ? (
+              <CheckCircle2 className="w-5 h-5 text-[#22c55e] shrink-0 mt-0.5" />
+            ) : (
+              <AlertCircle className="w-5 h-5 text-[#3b82f6] shrink-0 mt-0.5" />
+            )}
+            <div>
+              <span className="font-bold block text-sm tracking-wide">
+                {lunchAlert.type === 'duplicate' 
+                  ? '⚠️ CATERING DISPUTE ALERT: DUPLICATE MEAL CLAIM DETECTED' 
+                  : lunchAlert.type === 'success' 
+                    ? 'MEAL TOKEN VERIFIED & DISPENSED ✓' 
+                    : 'CATERING / FOOD TOKEN STATUS'}
+              </span>
+              <p className="text-xs mt-0.5 opacity-90 leading-relaxed font-medium">
+                {lunchAlert.message}
+              </p>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={() => setLunchAlert(null)}
+            className="p-1 rounded-lg hover:bg-white/10 text-current cursor-pointer"
+            title="Dismiss alert"
+          >
+            <XCircle className="w-4 h-4" />
+          </button>
+        </div>
+      )}
 
       {/* Main Two-Column Layout: Scanner & Search vs Loaded Delegate Detail */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
@@ -960,6 +1205,18 @@ export const AdminTicketScanner: React.FC<AdminTicketScannerProps> = ({
                         Standard Delegate
                       </span>
                     )}
+
+                    {activeRecord.lunchCollected ? (
+                      <span className="text-xs font-bold px-2 py-0.5 rounded bg-[#4cc38a]/20 text-[#4cc38a] border border-[#4cc38a]/40 flex items-center gap-1 font-mono">
+                        <Utensils className="w-3 h-3 text-[#4cc38a]" />
+                        <span>Lunch Redeemed ✓</span>
+                      </span>
+                    ) : (
+                      <span className="text-xs font-bold px-2 py-0.5 rounded bg-[#f59e0b]/20 text-[#f59e0b] border border-[#f59e0b]/40 flex items-center gap-1 font-mono">
+                        <Utensils className="w-3 h-3 text-[#f59e0b]" />
+                        <span>Lunch Available</span>
+                      </span>
+                    )}
                   </div>
 
                   <h3 className={`font-serif-title text-2xl font-bold mt-1 ${isLight ? 'text-[#1c1811]' : 'text-white'}`}>
@@ -1090,6 +1347,60 @@ export const AdminTicketScanner: React.FC<AdminTicketScannerProps> = ({
                   <span className={`text-[11px] font-semibold ${activeRecord.kitIssued ? 'text-[#4cc38a]' : (isLight ? 'text-[#6b6250]' : 'text-[#a79f8b]')}`}>
                     {activeRecord.kitIssued ? 'Kit Handed Over' : 'Pending Kit'}
                   </span>
+                </div>
+
+                {/* Food / Lunch Token Check & Anti-Dispute Verification */}
+                <div className={`mt-3 pt-3 border-t ${isLight ? 'border-[#d8d0ba]' : 'border-white/10'} space-y-2.5`}>
+                  <div className="flex items-center justify-between text-xs">
+                    <label className="flex items-center gap-2.5 cursor-pointer select-none">
+                      <input
+                        type="checkbox"
+                        checked={Boolean(activeRecord.lunchCollected)}
+                        onChange={handleToggleLunch}
+                        className="w-4 h-4 rounded text-[#f59e0b] accent-[#f59e0b] cursor-pointer"
+                      />
+                      <span className={`font-semibold flex items-center gap-1.5 ${isLight ? 'text-[#1c1811]' : 'text-white'}`}>
+                        <Utensils className="w-3.5 h-3.5 text-[#f59e0b]" />
+                        <span>Food / Lunch Token Check (1 Meal Tray)</span>
+                      </span>
+                    </label>
+                    <span className={`text-[11px] font-bold px-2 py-0.5 rounded border uppercase ${
+                      activeRecord.lunchCollected 
+                        ? 'bg-[#4cc38a]/15 text-[#4cc38a] border-[#4cc38a]/40' 
+                        : (isLight ? 'bg-[#fef3c7] text-[#b45309] border-[#f59e0b]/40' : 'bg-[#291b00] text-[#f2c14e] border-[#d4a935]/40')
+                    }`}>
+                      {activeRecord.lunchCollected ? 'Lunch Collected ✓' : 'Token Available'}
+                    </span>
+                  </div>
+
+                  {/* Lunch timestamp / dispute prevention audit trail */}
+                  {activeRecord.lunchCollected ? (
+                    <div className="p-2.5 rounded-xl bg-[#142318] border border-[#4cc38a]/40 text-[11px] text-[#a7f3d0] flex items-center justify-between">
+                      <div className="flex items-center gap-1.5">
+                        <CheckCircle2 className="w-4 h-4 text-[#4cc38a] shrink-0" />
+                        <span>
+                          Meal redeemed on <strong>{new Date(activeRecord.lunchCollectedTime || '').toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</strong> by <em>{activeRecord.lunchCollectedBy || 'Catering Desk'}</em>
+                        </span>
+                      </div>
+                      <span className="text-[10px] text-[#4cc38a] font-mono font-bold bg-[#4cc38a]/20 px-2 py-0.5 rounded">
+                        1 MEAL DISPENSED
+                      </span>
+                    </div>
+                  ) : (
+                    <div className="flex items-center justify-between p-2.5 rounded-xl bg-amber-500/10 border border-amber-500/20 text-xs">
+                      <span className="text-amber-300 text-[11px]">
+                        Delegate has not redeemed lunch yet. 1 meal token available.
+                      </span>
+                      <button
+                        type="button"
+                        onClick={handleToggleLunch}
+                        className="px-3 py-1 rounded-lg bg-gradient-to-r from-[#f59e0b] to-[#d97706] text-white font-bold text-[11px] hover:opacity-90 transition-all cursor-pointer flex items-center gap-1 shadow"
+                      >
+                        <Utensils className="w-3 h-3" />
+                        <span>Dispense Meal</span>
+                      </button>
+                    </div>
+                  )}
                 </div>
               </div>
 
@@ -1387,14 +1698,22 @@ export const AdminTicketScanner: React.FC<AdminTicketScannerProps> = ({
               <div className={`w-16 h-16 rounded-2xl border flex items-center justify-center mx-auto shadow-inner ${
                 isLight ? 'bg-[#f8f5ee] border-[#d8d0ba] text-[#705600]' : 'bg-[#14141c] border-[#2e2b22] text-[#d4a935]'
               }`}>
-                <QrCode className="w-8 h-8 opacity-60" />
+                {scannerMode === 'lunch' ? (
+                  <Utensils className="w-8 h-8 text-[#f59e0b]" />
+                ) : (
+                  <QrCode className="w-8 h-8 opacity-60" />
+                )}
               </div>
               <div className="max-w-md mx-auto space-y-1">
                 <h4 className={`font-serif-title text-xl font-bold ${isLight ? 'text-[#1c1811]' : 'text-white'}`}>
-                  Waiting for Ticket QR Scan...
+                  {scannerMode === 'lunch'
+                    ? 'Waiting for Food / Lunch Token Scan...'
+                    : 'Waiting for Ticket QR Scan...'}
                 </h4>
                 <p className={`text-xs leading-relaxed ${isLight ? 'text-[#6b6250]' : 'text-[#a79f8b]'}`}>
-                  Point the camera at any participant's entry ticket QR code, upload a pass image, or type their name, roll number, or phone into the manual search box.
+                  {scannerMode === 'lunch'
+                    ? 'Point the camera at delegate badge QR code. System will automatically verify token, dispense 1 meal box, and immediately alert if duplicate claim is detected.'
+                    : "Point the camera at any participant's entry ticket QR code, upload a pass image, or type their name, roll number, or phone into the manual search box."}
                 </p>
               </div>
 

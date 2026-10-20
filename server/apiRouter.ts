@@ -333,7 +333,10 @@ apiRouter.put('/registrations/:regId', (req: Request, res: Response) => {
         ...(updatedRecord.checkedInBy ? { _checkedInBy: updatedRecord.checkedInBy } : {}),
         ...(updatedRecord.attendedEvents ? { _attendedEvents: updatedRecord.attendedEvents } : {}),
         ...(updatedRecord.kitIssued !== undefined ? { _kitIssued: updatedRecord.kitIssued } : {}),
-        ...(updatedRecord.checkInNotes ? { _checkInNotes: updatedRecord.checkInNotes } : {})
+        ...(updatedRecord.checkInNotes ? { _checkInNotes: updatedRecord.checkInNotes } : {}),
+        ...(updatedRecord.lunchCollected !== undefined ? { _lunchCollected: updatedRecord.lunchCollected } : {}),
+        ...(updatedRecord.lunchCollectedTime ? { _lunchCollectedTime: updatedRecord.lunchCollectedTime } : {}),
+        ...(updatedRecord.lunchCollectedBy ? { _lunchCollectedBy: updatedRecord.lunchCollectedBy } : {})
       },
       total_paid: Number(updatedRecord.totalPaid || 0),
       promo_code: updatedRecord.promoCode || '',

@@ -76,6 +76,35 @@ export const UpiConfirmationView: React.FC<UpiConfirmationViewProps> = ({
     .map(id => events.find(e => e.id === id))
     .filter(Boolean) as SymposiumEvent[];
 
+  const origin = typeof window !== 'undefined' && window.location.origin 
+    ? window.location.origin 
+    : 'https://www.nbkristieee.in';
+  const passVerificationUrl = `${origin}/register.html?passId=${encodeURIComponent(record.regId)}`;
+
+  const getWhatsAppShareUrl = () => {
+    const eventNames = eventObjects.map(e => e.name).join(', ') || record.eventIds.join(', ');
+    const shareText = 
+`🎟️ *NEXUSVERSE 2K26 - UPI REGISTRATION RECEIPT & PASS*
+━━━━━━━━━━━━━━━━━━━━
+👤 *Delegate:* ${record.name}
+🆔 *Pass ID:* ${record.regId}
+🎓 *Roll No:* ${record.roll || 'N/A'}
+🏛️ *College:* ${record.college || 'NBKRIST'}
+📚 *Branch:* ${record.dept || ''} (${record.year || ''} Year, Sec ${record.section || 'A'})
+🎯 *Event(s):* ${eventNames}
+💳 *UTR / Ref:* ${record.paymentId} (₹${record.totalPaid})
+🍽️ *Food Token:* 1 Delegate Meal Included
+📍 *Venue:* N.B.K.R. Institute of Science & Technology, Vidyanagar
+📅 *Date:* 29th October 2026
+
+🔗 *View Live Ticket & QR Pass:*
+${passVerificationUrl}
+
+_(Show this pass or QR code at the registration desk for badge, kit, and food token collection)_`;
+
+    return `https://api.whatsapp.com/send?text=${encodeURIComponent(shareText)}`;
+  };
+
   return (
     <div className="py-8 sm:py-14 px-3 sm:px-6 lg:px-8 max-w-4xl mx-auto space-y-6 sm:space-y-8 animate-in fade-in duration-300">
       {/* Top Header Card */}
@@ -411,6 +440,17 @@ export const UpiConfirmationView: React.FC<UpiConfirmationViewProps> = ({
           </div>
 
           <div className="flex flex-wrap items-center gap-2.5">
+            <a
+              href={getWhatsAppShareUrl()}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="px-4 py-2 rounded-xl text-xs font-bold bg-[#25d366] text-[#052e16] hover:bg-[#20ba5a] transition-all flex items-center gap-1.5 cursor-pointer shadow-md shadow-[#25d366]/20"
+            >
+              <MessageCircle className="w-3.5 h-3.5 fill-current" />
+              <span>Share Pass to WhatsApp</span>
+              <ExternalLink className="w-3 h-3" />
+            </a>
+
             <button
               type="button"
               onClick={onViewPass}

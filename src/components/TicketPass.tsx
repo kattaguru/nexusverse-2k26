@@ -77,6 +77,9 @@ export interface RegistrationRecord {
   attendedEvents?: string[];
   kitIssued?: boolean;
   checkInNotes?: string;
+  lunchCollected?: boolean;
+  lunchCollectedTime?: string;
+  lunchCollectedBy?: string;
 }
 
 interface TicketPassProps {
@@ -159,6 +162,34 @@ export const TicketPass: React.FC<TicketPassProps> = ({
   const hasTech = registeredEvents.some(e => e.id !== 'spot');
   const hasSpot = registeredEvents.some(e => e.id === 'spot') || record.eventIds.includes('spot');
 
+  // Generate WhatsApp Direct Share link for Participant Ticket
+  const getWhatsAppShareUrl = () => {
+    const eventNames = record.eventIds
+      .map(id => allKnownEvents.find(e => e.id === id)?.name || id)
+      .join(', ');
+
+    const shareText = 
+`🎟️ *NEXUSVERSE 2K26 - OFFICIAL ENTRY PASS*
+━━━━━━━━━━━━━━━━━━━━
+👤 *Delegate:* ${record.name}
+🆔 *Pass ID:* ${record.regId}
+🎓 *Roll No:* ${record.roll || 'N/A'}
+🏛️ *College:* ${record.college || 'NBKRIST'}
+📚 *Branch:* ${record.dept || ''} (${record.year || ''} Year, Sec ${record.section || 'A'})
+🎯 *Event(s):* ${eventNames}
+💳 *Status:* ${record.isVerified || record.paymentMode === 'razorpay' ? 'Confirmed & Verified ✅' : 'Registered ⏳'} (₹${record.totalPaid})
+🍽️ *Food Token:* 1 Delegate Meal Included
+📍 *Venue:* N.B.K.R. Institute of Science & Technology, Vidyanagar
+📅 *Date:* 29th October 2026
+
+🔗 *View Live Ticket & QR Pass:*
+${passVerificationUrl}
+
+_(Show this pass or QR code at the registration desk for badge, kit, and food token collection)_`;
+
+    return `https://api.whatsapp.com/send?text=${encodeURIComponent(shareText)}`;
+  };
+
   // Generate and download .ics calendar invite
   const handleAddToCalendar = () => {
     const eventTitle = `NexusVerse 2K26 - National Tech Symposium`;
@@ -207,18 +238,32 @@ export const TicketPass: React.FC<TicketPassProps> = ({
           Your registration has been confirmed. Below is your official authenticated QR Delegate Pass for <strong>NexusVerse 2K26</strong>.
         </p>
 
-        {/* Pass ID Pill & Copy Action */}
-        <div className="inline-flex items-center gap-3 px-5 py-2.5 rounded-2xl bg-[#14141b] border-2 border-[#d4a935]/40 text-[#f2c14e] shadow-lg">
-          <span className="text-[11px] uppercase tracking-wider text-[#a79f8b] font-semibold">Pass ID:</span>
-          <span className="font-mono text-lg sm:text-xl font-black text-[#f2c14e] tracking-wider">{record.regId}</span>
-          <button
-            type="button"
-            onClick={copyRegId}
-            className="p-1.5 text-[#a79f8b] hover:text-[#f3ecd9] bg-white/5 rounded-lg border border-white/10 hover:border-[#d4a935]/50 transition-colors cursor-pointer"
-            title="Copy Registration Pass ID"
+        {/* Pass ID Pill & Actions */}
+        <div className="flex flex-wrap items-center justify-center gap-2.5">
+          <div className="inline-flex items-center gap-3 px-5 py-2.5 rounded-2xl bg-[#14141b] border-2 border-[#d4a935]/40 text-[#f2c14e] shadow-lg">
+            <span className="text-[11px] uppercase tracking-wider text-[#a79f8b] font-semibold">Pass ID:</span>
+            <span className="font-mono text-lg sm:text-xl font-black text-[#f2c14e] tracking-wider">{record.regId}</span>
+            <button
+              type="button"
+              onClick={copyRegId}
+              className="p-1.5 text-[#a79f8b] hover:text-[#f3ecd9] bg-white/5 rounded-lg border border-white/10 hover:border-[#d4a935]/50 transition-colors cursor-pointer"
+              title="Copy Registration Pass ID"
+            >
+              {copied ? <Check className="w-4 h-4 text-[#4cc38a]" /> : <Copy className="w-4 h-4" />}
+            </button>
+          </div>
+
+          <a
+            href={getWhatsAppShareUrl()}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center gap-2 px-4 py-2.5 rounded-2xl bg-gradient-to-r from-[#25d366] to-[#128c7e] text-white font-bold text-xs hover:opacity-95 active:scale-95 transition-all shadow-lg shadow-[#25d366]/20 cursor-pointer"
+            title="Share or backup this ticket directly to WhatsApp"
           >
-            {copied ? <Check className="w-4 h-4 text-[#4cc38a]" /> : <Copy className="w-4 h-4" />}
-          </button>
+            <MessageCircle className="w-4 h-4 fill-current" />
+            <span>Send Ticket to WhatsApp</span>
+            <ExternalLink className="w-3.5 h-3.5 opacity-80" />
+          </a>
         </div>
       </div>
 
@@ -662,6 +707,17 @@ export const TicketPass: React.FC<TicketPassProps> = ({
               {/* Direct Link Preview & Copy Link Button */}
               <div className="pt-2 border-t border-[#2e2b22] space-y-2">
                 <a
+                  href={getWhatsAppShareUrl()}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="w-full py-2.5 px-3 rounded-xl bg-gradient-to-r from-[#25d366] to-[#128c7e] text-white hover:brightness-105 font-bold text-xs flex items-center justify-center gap-2 transition-all cursor-pointer shadow-md shadow-[#25d366]/20 no-print"
+                >
+                  <MessageCircle className="w-4 h-4 fill-current" />
+                  <span>Share Pass on WhatsApp</span>
+                  <ExternalLink className="w-3 h-3 opacity-80" />
+                </a>
+
+                <a
                   href={passVerificationUrl}
                   target="_blank"
                   rel="noopener noreferrer"
@@ -691,6 +747,12 @@ export const TicketPass: React.FC<TicketPassProps> = ({
                   <span>Entry Status:</span>
                   <strong className="text-[#4cc38a]">AUTHORIZED ✓</strong>
                 </div>
+                <div className="flex items-center justify-between">
+                  <span>Food / Lunch Token:</span>
+                  <strong className={record.lunchCollected ? 'text-[#4cc38a]' : 'text-[#f2c14e]'}>
+                    {record.lunchCollected ? 'COLLECTED ✓' : '1 MEAL INCLUDED'}
+                  </strong>
+                </div>
               </div>
             </div>
           </div>
@@ -719,14 +781,24 @@ export const TicketPass: React.FC<TicketPassProps> = ({
       {/* ==================== ACTION BUTTONS (NO-PRINT) ==================== */}
       <div className="flex flex-wrap items-center justify-center gap-3 pt-2 no-print">
         <a
+          href={getWhatsAppShareUrl()}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-6 py-2.5 rounded-xl bg-gradient-to-r from-[#25d366] to-[#1ebe5d] text-[#052e16] font-extrabold text-sm hover:brightness-105 active:scale-95 transition-all shadow-lg shadow-[#25d366]/25 cursor-pointer"
+        >
+          <MessageCircle className="w-4 h-4 fill-current" />
+          <span>Share Ticket on WhatsApp</span>
+          <ExternalLink className="w-3.5 h-3.5 opacity-80" />
+        </a>
+
+        <a
           href={waGroupUrl}
           target="_blank"
           rel="noopener noreferrer"
-          className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-6 py-2.5 rounded-xl bg-[#25d366] text-[#052e16] font-bold text-sm hover:bg-[#20ba5a] active:scale-95 transition-all shadow-md shadow-[#25d366]/20 cursor-pointer"
+          className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl bg-[#0d2a1a] border border-[#25d366]/60 text-[#25d366] font-semibold text-sm hover:bg-[#25d366] hover:text-[#052e16] transition-all cursor-pointer"
         >
-          <MessageCircle className="w-4 h-4 fill-current" />
+          <MessageCircle className="w-4 h-4" />
           <span>Join WhatsApp Group</span>
-          <ExternalLink className="w-4 h-4" />
         </a>
 
         <button
