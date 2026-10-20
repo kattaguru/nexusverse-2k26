@@ -4,11 +4,29 @@ import express from 'express';
 import { apiRouter } from '../server/apiRouter.js';
 import { readDatabase } from '../server/db.js';
 
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
+
 let BASE_URL = 'http://localhost:5000';
 let server: any = null;
+const testDbPath = path.resolve(os.tmpdir(), `test-db-security-${Date.now()}.json`);
 
 describe('NexusVerse 2K26 Security & Attack Vector Defensive Tests', () => {
   before(() => {
+    process.env.NODE_ENV = 'test';
+    process.env.TEST_DB_FILE = testDbPath;
+    fs.writeFileSync(testDbPath, JSON.stringify({
+      registrations: [],
+      settings: {
+        isRegClosed: false,
+        closedMessage: 'Registration is closed.',
+        adminPassword: 'kgr@2005'
+      },
+      photos: [],
+      users: []
+    }));
+
     return new Promise<void>((resolve) => {
       const app = express();
       // Attach same security headers middleware as server/index.ts
@@ -34,6 +52,9 @@ describe('NexusVerse 2K26 Security & Attack Vector Defensive Tests', () => {
     if (server && server.close) {
       server.close();
     }
+    try {
+      if (fs.existsSync(testDbPath)) fs.unlinkSync(testDbPath);
+    } catch (e) {}
   });
 
   // 1. SQL Injection Protection Tests
@@ -83,6 +104,11 @@ describe('NexusVerse 2K26 Security & Attack Vector Defensive Tests', () => {
         })
       });
 
+      const data = await res.json();
+      if (data?.data?.regId) {
+        await fetch(`${BASE_URL}/api/registrations/${data.data.regId}`, { method: 'DELETE' });
+      }
+
       // Verify global Object prototype was not tainted
       assert.equal((Object.prototype as any).isAdminPwned, undefined, 'Object.prototype must not be polluted');
       assert.equal((Object.prototype as any).isConstructorPwned, undefined, 'Constructor prototype must not be polluted');
@@ -125,7 +151,7 @@ describe('NexusVerse 2K26 Security & Attack Vector Defensive Tests', () => {
 
   // 3. Stored Cross-Site Scripting (XSS) Sanitization
   describe('3. Cross-Site Scripting (XSS) & HTML Injection Defense', () => {
-    it('should accept participant data containing script tags without executing or crashing server', async () => {
+    it('should sanitize participant data containing script tags before storing without executing', async () => {
       const testRegId = `TEST-XSS-${Date.now()}`;
       const xssName = '<script>alert("XSS")</script>Dr. John';
       const xssRoll = '<img src=x onerror=alert(1)>22CS001';
@@ -145,13 +171,13 @@ describe('NexusVerse 2K26 Security & Attack Vector Defensive Tests', () => {
       });
 
       assert.ok(res.status === 200 || res.status === 201, `Status should be 200 or 201, got ${res.status}`);
-      const data = await res.json();
 
-      // Verify the record stored matches literal text
+      // Verify the record stored is properly sanitized without literal script/img tags
       const fetchRes = await fetch(`${BASE_URL}/api/registrations/${testRegId}`);
       assert.equal(fetchRes.status, 200);
       const fetchData = await fetchRes.json();
-      assert.equal(fetchData.data.name, xssName);
+      assert.equal(fetchData.data.name, 'Dr. John');
+      assert.equal(fetchData.data.roll, '22CS001');
 
       // Clean up
       await fetch(`${BASE_URL}/api/registrations/${testRegId}`, { method: 'DELETE' });

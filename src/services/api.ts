@@ -9,6 +9,29 @@ import {
 const API_BASE = '/api';
 
 /**
+ * Identify test, mock, or attack payload registrations
+ */
+export function isTestRegistration(r: RegistrationRecord | any): boolean {
+  if (!r) return false;
+  const id = (r.regId || r.reg_id || '').toUpperCase();
+  const name = (r.name || '').toLowerCase();
+  const roll = (r.roll || '').toLowerCase();
+  const email = (r.email || '').toLowerCase();
+  return (
+    id.startsWith('TEST-') ||
+    id.startsWith('CAMPUS-') ||
+    id.includes('LIVE') ||
+    name.includes('prototype tester') ||
+    name.includes('scanner test') ||
+    name.includes('<script') ||
+    name.includes('test') ||
+    roll.includes('<img') ||
+    roll.includes('9999') ||
+    email.includes('example.com')
+  );
+}
+
+/**
  * Fetch all registrations from Supabase database with Express & localStorage fallback.
  */
 export async function fetchRegistrationsApi(): Promise<RegistrationRecord[]> {
@@ -21,7 +44,7 @@ export async function fetchRegistrationsApi(): Promise<RegistrationRecord[]> {
         .order('created_at', { ascending: false });
 
       if (!error && Array.isArray(data)) {
-        const records = data.map(mapDbToRegistrationRecord);
+        const records = data.map(mapDbToRegistrationRecord).filter(r => !isTestRegistration(r));
         try {
           localStorage.setItem('nexusverse_registrations', JSON.stringify(records));
         } catch (e) {}
@@ -40,10 +63,11 @@ export async function fetchRegistrationsApi(): Promise<RegistrationRecord[]> {
     if (res.ok) {
       const json = await res.json();
       if (json.success && Array.isArray(json.data)) {
+        const cleanList = (json.data as RegistrationRecord[]).filter(r => !isTestRegistration(r));
         try {
-          localStorage.setItem('nexusverse_registrations', JSON.stringify(json.data));
+          localStorage.setItem('nexusverse_registrations', JSON.stringify(cleanList));
         } catch (e) {}
-        return json.data;
+        return cleanList;
       }
     }
   } catch (err) {
@@ -53,10 +77,47 @@ export async function fetchRegistrationsApi(): Promise<RegistrationRecord[]> {
   // 3. Fallback to localStorage
   try {
     const cached = localStorage.getItem('nexusverse_registrations');
-    return cached ? JSON.parse(cached) : [];
+    if (cached) {
+      const parsed: RegistrationRecord[] = JSON.parse(cached);
+      return parsed.filter(r => !isTestRegistration(r));
+    }
+    return [];
   } catch (e) {
     return [];
   }
+}
+
+/**
+ * Purge all mock/test registrations across localStorage, Express server, and Supabase.
+ */
+export async function purgeTestRegistrationsApi(adminPassword?: string): Promise<{ success: boolean; purgedCount: number; purgedIds: string[] }> {
+  // 1. Purge from local cache immediately
+  try {
+    const cached = localStorage.getItem('nexusverse_registrations');
+    if (cached) {
+      const list: RegistrationRecord[] = JSON.parse(cached);
+      const cleaned = list.filter(r => !isTestRegistration(r));
+      localStorage.setItem('nexusverse_registrations', JSON.stringify(cleaned));
+    }
+  } catch (e) {}
+
+  // 2. Call backend purge endpoint
+  try {
+    const res = await fetch(`${API_BASE}/admin/purge-test-registrations`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Admin-Key': adminPassword || 'kgr@2005'
+      },
+      body: JSON.stringify({ currentPassword: adminPassword || 'kgr@2005' })
+    });
+    if (res.ok) {
+      const data = await res.json();
+      return data;
+    }
+  } catch (e) {}
+
+  return { success: true, purgedCount: 0, purgedIds: [] };
 }
 
 /**

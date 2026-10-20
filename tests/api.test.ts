@@ -3,11 +3,32 @@ import assert from 'node:assert/strict';
 import express from 'express';
 import { apiRouter } from '../server/apiRouter.js';
 
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
+
 let BASE_URL = process.env.API_BASE_URL || 'http://localhost:5000';
 let server: any = null;
+const testDbPath = path.resolve(os.tmpdir(), `test-db-api-${Date.now()}.json`);
 
 describe('NexusVerse 2K26 Backend API Endpoints Unit Tests', () => {
   before(() => {
+    process.env.NODE_ENV = 'test';
+    process.env.TEST_DB_FILE = testDbPath;
+    fs.writeFileSync(testDbPath, JSON.stringify({
+      registrations: [],
+      settings: {
+        isRegClosed: false,
+        closedMessage: 'Registration is closed.',
+        adminPassword: 'kgr@2005',
+        paymentMode: 'upi',
+        razorpayMeLink: 'https://razorpay.me/@veluriprasanth',
+        razorpayMeName: 'VELURI PRASANTH'
+      },
+      photos: [],
+      users: []
+    }));
+
     return new Promise<void>((resolve) => {
       const app = express();
       app.use(express.json());
@@ -24,6 +45,9 @@ describe('NexusVerse 2K26 Backend API Endpoints Unit Tests', () => {
     if (server && server.close) {
       server.close();
     }
+    try {
+      if (fs.existsSync(testDbPath)) fs.unlinkSync(testDbPath);
+    } catch (e) {}
   });
   it('GET /api/health should respond with ok status', async () => {
     try {

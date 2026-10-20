@@ -128,10 +128,17 @@ const VERCEL_TMP_FILE = path.resolve('/tmp', 'database.json');
 let memoryDb: DatabaseSchema | null = null;
 
 function getActiveDbPath(): string {
+  if (process.env.TEST_DB_FILE) {
+    return process.env.TEST_DB_FILE;
+  }
   if (IS_VERCEL && fs.existsSync(VERCEL_TMP_FILE)) {
     return VERCEL_TMP_FILE;
   }
   return DB_FILE;
+}
+
+export function resetMemoryDb(): void {
+  memoryDb = null;
 }
 
 function ensureDbExists() {

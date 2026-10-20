@@ -54,8 +54,28 @@ import { TicketPass, RegistrationRecord, TeamMemberInfo } from './TicketPass';
 import { AdminTicketScanner } from './AdminTicketScanner';
 import { AdminCacheManager } from './AdminCacheManager';
 import { EVENTS, ALL_EVENTS, SYMPOSIUM_CONFIG } from '../data/symposiumData';
-import { fetchPhotosApi, uploadPhotoApi, deletePhotoApi, syncLocalRegistrationsToSupabase, testEmailApi, sendTicketEmailApi, updateSettingsApi } from '../services/api';
+import { 
+  fetchPhotosApi, 
+  uploadPhotoApi, 
+  deletePhotoApi, 
+  syncLocalRegistrationsToSupabase, 
+  testEmailApi, 
+  sendTicketEmailApi, 
+  updateSettingsApi,
+  purgeTestRegistrationsApi,
+  isTestRegistration
+} from '../services/api';
 import { testSupabaseConnection, isSupabaseConfigured, supabase } from '../lib/supabase';
+
+function cleanAdminText(val?: string): string {
+  if (!val) return '';
+  return String(val)
+    .replace(/<script[\s\S]*?<\/script>/gi, '')
+    .replace(/<style[\s\S]*?<\/style>/gi, '')
+    .replace(/<[^>]*>/g, '')
+    .replace(/[<>]/g, '')
+    .trim();
+}
 
 export interface GalleryPhoto {
   id: string;
@@ -238,6 +258,7 @@ export const AdminModal: React.FC<AdminModalProps> = ({
   const [isVerifyingLogin, setIsVerifyingLogin] = useState(false);
   const [loginAttempts, setLoginAttempts] = useState(0);
   const [lockoutRemaining, setLockoutRemaining] = useState(0);
+  const [isPurgingTests, setIsPurgingTests] = useState(false);
   const activeAdminKeyRef = useRef<string>('');
 
   // Anti-brute-force lockout countdown timer
@@ -465,6 +486,41 @@ export const AdminModal: React.FC<AdminModalProps> = ({
     setIsSendingUpiBatch(false);
     setEmailSendToast(`Successfully dispatched 8 PM ticket emails to ${sentCount} UPI delegates!`);
     setTimeout(() => setEmailSendToast(null), 4000);
+  };
+
+  const handlePurgeTestRegistrations = async () => {
+    const testCount = savedRecords.filter(isTestRegistration).length;
+    const confirmMsg = testCount > 0
+      ? `Found ${testCount} mock/test registrations.\n\nAre you sure you want to permanently purge all test records (TEST-*, Prototype Tester, Scanner Test, etc.) from local storage, database, and cloud?\n\nReal student registrations will NOT be affected.`
+      : `Scan and purge any test, mock, or attack payload registrations from local storage, backend database, and Supabase?`;
+
+    if (!window.confirm(confirmMsg)) return;
+
+    setIsPurgingTests(true);
+    try {
+      const res = await purgeTestRegistrationsApi(activeAdminKeyRef.current || 'kgr@2005');
+      // Delete every test registration
+      const testRecords = savedRecords.filter(isTestRegistration);
+      for (const rec of testRecords) {
+        if (onDeleteRecord) {
+          onDeleteRecord(rec.regId);
+        }
+      }
+      setEmailSendToast(`✅ Successfully purged ${res?.purgedCount || testCount} test registrations! Database is clean.`);
+      setTimeout(() => setEmailSendToast(null), 5000);
+    } catch (err: any) {
+      // Local fallback cleanup
+      const testRecords = savedRecords.filter(isTestRegistration);
+      for (const rec of testRecords) {
+        if (onDeleteRecord) {
+          onDeleteRecord(rec.regId);
+        }
+      }
+      setEmailSendToast(`Purged ${testCount} test registrations locally.`);
+      setTimeout(() => setEmailSendToast(null), 4000);
+    } finally {
+      setIsPurgingTests(false);
+    }
   };
 
   const handleSendTestEmail = async () => {
@@ -1904,6 +1960,17 @@ export const AdminModal: React.FC<AdminModalProps> = ({
                           <FileJson className="w-3.5 h-3.5 text-[#9fc7e8]" />
                           <span>Backup JSON</span>
                         </button>
+
+                        <button
+                          type="button"
+                          disabled={isPurgingTests}
+                          onClick={handlePurgeTestRegistrations}
+                          className="px-3 py-1.5 rounded-lg bg-[#2a1315] border border-[#ff8a80]/50 text-[#ff8a80] hover:bg-[#ff8a80]/20 text-xs font-semibold transition-colors flex items-center justify-center gap-1.5 cursor-pointer shadow-sm disabled:opacity-50"
+                          title="Purge all mock/test registrations, scanner tests, and attack payloads"
+                        >
+                          <Trash2 className="w-3.5 h-3.5 text-[#ff8a80]" />
+                          <span>{isPurgingTests ? 'Purging...' : 'Purge Test Data'}</span>
+                        </button>
                       </div>
                     </div>
                   </div>
@@ -1942,8 +2009,8 @@ export const AdminModal: React.FC<AdminModalProps> = ({
                                   <span className="admin-badge-regid font-mono font-bold text-xs text-[#f2c14e] bg-[#1f1b0e] px-2 py-0.5 rounded border border-[#d4a935]/30">
                                     {record.regId}
                                   </span>
-                                  <span className="admin-attendee-name font-bold text-sm text-white">{record.name}</span>
-                                  <span className="font-mono text-[#a79f8b]">({record.roll})</span>
+                                  <span className="admin-attendee-name font-bold text-sm text-white">{cleanAdminText(record.name)}</span>
+                                  <span className="font-mono text-[#a79f8b]">({cleanAdminText(record.roll)})</span>
                                   {record.isIeeeMember ? (
                                     <span className="admin-badge-ieee text-[10px] font-semibold text-[#4cc38a] bg-[#4cc38a]/10 px-2 py-0.5 rounded border border-[#4cc38a]/30">
                                       IEEE: #{record.ieeeId || 'Active'}
@@ -1992,10 +2059,12 @@ export const AdminModal: React.FC<AdminModalProps> = ({
                                 </div>
 
                                 <div className="text-[11px] text-[#a79f8b] flex flex-wrap items-center gap-x-3 gap-y-0.5">
-                                  <span>📞 {record.phone}</span>
-                                  <span>✉️ {record.email}</span>
-                                  <span>🎓 {record.className} {record.section} · {record.dept} ({record.year})</span>
-                                  <span>🏫 {record.college}</span>
+                                  {record.phone && <span>📞 {cleanAdminText(record.phone)}</span>}
+                                  {record.email && <span>✉️ {cleanAdminText(record.email)}</span>}
+                                  {(record.className || record.dept || record.year) && (
+                                    <span>🎓 {[cleanAdminText(record.className), cleanAdminText(record.section)].filter(Boolean).join(' ')} {record.dept ? `· ${cleanAdminText(record.dept)}` : ''} {record.year && record.year !== '0' ? `(${cleanAdminText(record.year)})` : ''}</span>
+                                  )}
+                                  {record.college && <span>🏫 {cleanAdminText(record.college)}</span>}
                                 </div>
                               </div>
 

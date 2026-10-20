@@ -82,6 +82,7 @@ const supabaseServer = process.env.SUPABASE_URL && (process.env.SUPABASE_SECRET_
 
 // Resilient, non-blocking helper for syncing to Supabase Cloud PostgreSQL with 2.5s maximum timeout
 function syncToSupabaseAsync(syncFn: (client: any) => Promise<any>): void {
+  if (process.env.NODE_ENV === 'test' || process.env.TEST_DB_FILE) return;
   if (!supabaseServer) return;
   Promise.race([
     syncFn(supabaseServer),
@@ -90,6 +91,18 @@ function syncToSupabaseAsync(syncFn: (client: any) => Promise<any>): void {
     // Non-fatal warning; local database handles 100% operational integrity
     console.warn('⚡ [Supabase Sync Notice]:', err?.message || err);
   });
+}
+
+function sanitizeInputString(val: any, maxLength = 200): string {
+  if (typeof val !== 'string') return '';
+  return val
+    .replace(/<script[\s\S]*?<\/script>/gi, '') // strip script tags and inner code
+    .replace(/<style[\s\S]*?<\/style>/gi, '')   // strip style tags and inner CSS
+    .replace(/<[^>]*>/g, '')                   // strip remaining HTML/XML tags
+    .replace(/[<>]/g, '')                      // strip dangling angle brackets
+    .replace(/[\x00-\x1F\x7F]/g, '')           // strip control characters
+    .trim()
+    .slice(0, maxLength);
 }
 
 export const apiRouter = Router();
@@ -163,6 +176,23 @@ apiRouter.post('/registrations', registrationRateLimiter.middleware(), async (re
     const record = req.body;
     if (!record || !record.name || !record.roll) {
       return res.status(400).json({ success: false, error: 'Participant name and roll number are required.' });
+    }
+
+    // Sanitize participant inputs to neutralize XSS and script tags
+    record.name = sanitizeInputString(record.name, 100);
+    record.roll = sanitizeInputString(record.roll, 30).toUpperCase();
+    if (record.college) record.college = sanitizeInputString(record.college, 150);
+    if (record.email) record.email = sanitizeInputString(record.email, 100).toLowerCase();
+    if (record.phone) record.phone = sanitizeInputString(record.phone, 25);
+    if (record.className) record.className = sanitizeInputString(record.className, 50);
+    if (record.section) record.section = sanitizeInputString(record.section, 20);
+    if (record.dept) record.dept = sanitizeInputString(record.dept, 50);
+    if (record.year) record.year = sanitizeInputString(record.year, 30);
+    if (record.ieeeId) record.ieeeId = sanitizeInputString(record.ieeeId, 50);
+    if (record.promoCode) record.promoCode = sanitizeInputString(record.promoCode, 30);
+
+    if (!record.name || !record.roll) {
+      return res.status(400).json({ success: false, error: 'Valid participant name and roll number are required.' });
     }
 
     const db = readDatabase();
@@ -342,6 +372,57 @@ apiRouter.delete('/registrations/:regId', (req: Request, res: Response) => {
     res.json({
       success: true,
       message: `Registration ${regId} deleted successfully.`
+    });
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// 5b. Purge all test registrations (Admin Only)
+apiRouter.post('/admin/purge-test-registrations', (req: Request, res: Response) => {
+  try {
+    const isAdmin = isAdminAuthorized(req);
+    if (!isAdmin) {
+      return res.status(401).json({ success: false, error: 'Unauthorized: Admin authentication required.' });
+    }
+
+    const db = readDatabase();
+    const isTestRecord = (r: any) => {
+      const regId = (r.regId || '').toUpperCase();
+      const name = (r.name || '').toLowerCase();
+      const roll = (r.roll || '').toLowerCase();
+      const email = (r.email || '').toLowerCase();
+      return (
+        regId.startsWith('TEST-') ||
+        regId.startsWith('CAMPUS-') ||
+        regId.includes('LIVE') ||
+        name.includes('prototype tester') ||
+        name.includes('scanner test') ||
+        name.includes('test') ||
+        name.includes('<') ||
+        roll.includes('<') ||
+        roll.includes('9999') ||
+        email.includes('example.com')
+      );
+    };
+
+    const purgedIds = db.registrations.filter(isTestRecord).map((r: any) => r.regId);
+    db.registrations = db.registrations.filter((r: any) => !isTestRecord(r));
+
+    writeDatabase(db);
+    serverCache.delete('api:registrations:all');
+
+    // Sync deletions to Supabase Cloud PostgreSQL
+    for (const id of purgedIds) {
+      syncToSupabaseAsync((client) => client.from('registrations').delete().eq('reg_id', id));
+    }
+
+    res.json({
+      success: true,
+      purgedCount: purgedIds.length,
+      purgedIds,
+      remainingCount: db.registrations.length,
+      message: `Successfully purged ${purgedIds.length} test records.`
     });
   } catch (err: any) {
     res.status(500).json({ success: false, error: err.message });

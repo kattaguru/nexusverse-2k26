@@ -1,73 +1,6 @@
 {
   "registrations": [
     {
-      "regId": "TEST-CHECKIN-1792312964044",
-      "name": "Scanner Test Participant",
-      "roll": "22CS999",
-      "email": "scanner.test@example.com",
-      "phone": "9876543210",
-      "college": "NBKRIST",
-      "branch": "CSE",
-      "isIeee": true,
-      "track1Event": "hackathon",
-      "track2Event": "spot-pass",
-      "amount": 250,
-      "paymentStatus": "verified",
-      "timestamp": "2026-10-18T08:42:44.067Z"
-    },
-    {
-      "regId": "NV26-LIVE-NR3F",
-      "paymentId": "pay_live_test_999",
-      "name": "Nexus Live Tester",
-      "email": "tester_1792109458775@nbkrist.org",
-      "phone": "9491501919",
-      "college": "N.B.K.R. Institute of Science & Technology",
-      "roll": "23KB1A0999",
-      "dept": "CSE",
-      "year": "3rd Year",
-      "eventIds": [
-        "ctf"
-      ],
-      "teamDetails": {
-        "ctf": {
-          "teamName": "CyberWarriors",
-          "members": [
-            "Nexus Live Tester",
-            "Cyber Mate"
-          ]
-        }
-      },
-      "totalPaid": 200,
-      "isIeeeMember": false,
-      "timestamp": "2026-10-16T00:10:59.068Z"
-    },
-    {
-      "regId": "NV26-LIVE-SMXP",
-      "paymentId": "pay_live_test_999",
-      "name": "Nexus Live Tester",
-      "email": "tester_1792109432731@nbkrist.org",
-      "phone": "9491501919",
-      "college": "N.B.K.R. Institute of Science & Technology",
-      "roll": "23KB1A0999",
-      "dept": "CSE",
-      "year": "3rd Year",
-      "eventIds": [
-        "ctf"
-      ],
-      "teamDetails": {
-        "ctf": {
-          "teamName": "CyberWarriors",
-          "members": [
-            "Nexus Live Tester",
-            "Cyber Mate"
-          ]
-        }
-      },
-      "totalPaid": 200,
-      "isIeeeMember": false,
-      "timestamp": "2026-10-16T00:10:33.480Z"
-    },
-    {
       "regId": "NV26-D3PJ9O",
       "paymentId": "pay_rzp_sandbox_1792026652146",
       "name": "Guravaiah Katta",
@@ -272,52 +205,6 @@
   ],
   "users": [
     {
-      "id": "usr_d394062cc6f8",
-      "name": "Nexus Live Tester",
-      "email": "tester_1792109432731@nbkrist.org",
-      "username": "user_1792109432731",
-      "passwordHash": "2f5fa3032a52f385ca551121920f5239fcec0834955b8e136828e3b409ea2e03",
-      "phone": "9988776655",
-      "college": "N.B.K.R. Institute of Science & Technology",
-      "roll": "23KB1A0999",
-      "branch": "Cybersecurity",
-      "year": "3rd Year",
-      "isIeeeMember": true,
-      "ieeeId": "IEEE998822",
-      "authProvider": "local",
-      "createdAt": "2026-10-16T00:10:32.749Z",
-      "updatedAt": "2026-10-16T00:10:33.895Z"
-    },
-    {
-      "id": "usr_b861c8462548",
-      "name": "Nexus Live Tester",
-      "email": "tester_1792109458775@nbkrist.org",
-      "username": "user_1792109458775",
-      "passwordHash": "2f5fa3032a52f385ca551121920f5239fcec0834955b8e136828e3b409ea2e03",
-      "phone": "9988776655",
-      "college": "N.B.K.R. Institute of Science & Technology",
-      "roll": "23KB1A0999",
-      "branch": "Cybersecurity",
-      "year": "3rd Year",
-      "isIeeeMember": true,
-      "ieeeId": "IEEE998822",
-      "authProvider": "local",
-      "createdAt": "2026-10-16T00:10:58.789Z",
-      "updatedAt": "2026-10-16T00:10:59.228Z"
-    },
-    {
-      "id": "usr_5b9d4158ba26",
-      "name": "Test Student",
-      "email": "teststudent@gmail.com",
-      "username": "teststudent",
-      "avatarUrl": "",
-      "phone": "",
-      "college": "N.B.K.R. Institute of Science & Technology",
-      "roll": "",
-      "authProvider": "google",
-      "createdAt": "2026-10-17T04:50:26.552Z"
-    },
-    {
       "id": "usr_14f66d736fdc",
       "name": "Guravaiah Katta",
       "email": "kattaguravaiah39@gmail.com",
@@ -342,18 +229,6 @@
       "authProvider": "google",
       "createdAt": "2026-10-17T07:48:30.244Z",
       "updatedAt": "2026-10-17T08:30:23.146Z"
-    },
-    {
-      "id": "usr_3b824ae2be43",
-      "name": "test",
-      "email": "test@example.com",
-      "username": "test",
-      "avatarUrl": "",
-      "phone": "",
-      "college": "N.B.K.R. Institute of Science & Technology",
-      "roll": "",
-      "authProvider": "google",
-      "createdAt": "2026-10-17T07:51:01.651Z"
     }
   ]
 }
