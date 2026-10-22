@@ -103,6 +103,19 @@ export const AdminTicketScanner: React.FC<AdminTicketScannerProps> = ({
     delegateRoll?: string;
   } | null>(null);
 
+  // Local reactive records to ensure immediate instant update reflection
+  const [localRecords, setLocalRecords] = useState<RegistrationRecord[]>(records);
+  useEffect(() => {
+    setLocalRecords(records);
+  }, [records]);
+
+  // Synchronous local state committer that immediately reflects in UI and findRecord before network roundtrip
+  const commitRecordUpdate = (updated: RegistrationRecord) => {
+    setLocalRecords(prev => prev.map(r => r.regId === updated.regId ? updated : r));
+    setActiveRecord(updated);
+    onUpdateRecord(updated);
+  };
+
   // Strict 1-Time QR Scan Result Popup Modal
   const [scanResultModal, setScanResultModal] = useState<{
     type: 'already_scanned' | 'not_registered' | 'success';
@@ -126,12 +139,23 @@ export const AdminTicketScanner: React.FC<AdminTicketScannerProps> = ({
 
   const lastScanAttemptRef = useRef<{ payload: string; time: number } | null>(null);
 
-  // Keyboard shortcut: Press Escape or Enter to dismiss popup modal and resume scanning
+  // Auto-dismiss popup modal after 1.4 seconds to resume scanning snappy and automatically
+  useEffect(() => {
+    if (!scanResultModal) return;
+    const timer = setTimeout(() => {
+      setScanResultModal(null);
+      lastScanAttemptRef.current = null;
+    }, 1400);
+    return () => clearTimeout(timer);
+  }, [scanResultModal]);
+
+  // Keyboard shortcut: Press Escape, Enter, or Space to dismiss popup modal and resume scanning
   useEffect(() => {
     if (!scanResultModal) return;
     const onKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape' || e.key === 'Enter') {
+      if (e.key === 'Escape' || e.key === 'Enter' || e.key === ' ') {
         setScanResultModal(null);
+        lastScanAttemptRef.current = null;
       }
     };
     window.addEventListener('keydown', onKeyDown);
@@ -203,18 +227,18 @@ export const AdminTicketScanner: React.FC<AdminTicketScannerProps> = ({
     } catch (e) {}
   };
 
-  // Sync activeRecord if records array updates
+  // Sync activeRecord if localRecords array updates
   useEffect(() => {
     if (activeRecord) {
-      const fresh = records.find(r => r.regId === activeRecord.regId);
+      const fresh = localRecords.find(r => r.regId === activeRecord.regId);
       if (fresh) {
         setActiveRecord(fresh);
         setNotesInput(fresh.checkInNotes || '');
       }
     }
-  }, [records]);
+  }, [localRecords]);
 
-  // Start Camera
+  // Start Camera with hardware autofocus and high frame rate
   const startCamera = async () => {
     setCameraError('');
     stopCamera();
@@ -228,11 +252,22 @@ export const AdminTicketScanner: React.FC<AdminTicketScannerProps> = ({
       const stream = await navigator.mediaDevices.getUserMedia({
         video: {
           facingMode: { ideal: facingMode },
-          width: { ideal: 1280 },
-          height: { ideal: 720 }
+          width: { ideal: 1280, max: 1920 },
+          height: { ideal: 720, max: 1080 },
+          frameRate: { ideal: 30, min: 20 }
         },
         audio: false
       });
+
+      try {
+        const track = stream.getVideoTracks()[0];
+        const capabilities = (track as any).getCapabilities?.();
+        if (capabilities && capabilities.focusMode?.includes('continuous')) {
+          await (track as any).applyConstraints({
+            advanced: [{ focusMode: 'continuous' }]
+          });
+        }
+      } catch (focusErr) {}
 
       streamRef.current = stream;
       if (videoRef.current) {
@@ -290,51 +325,90 @@ export const AdminTicketScanner: React.FC<AdminTicketScannerProps> = ({
     };
   }, []);
 
-  // Continuous frame analysis
+  // Continuous ultra-fast frame analysis with native BarcodeDetector & downscaled jsQR
   const startScanLoop = () => {
+    // 1. Prepare native hardware-accelerated BarcodeDetector if supported by browser/GPU
+    let nativeDetector: any = null;
+    if (typeof window !== 'undefined' && 'BarcodeDetector' in window) {
+      try {
+        nativeDetector = new (window as any).BarcodeDetector({ formats: ['qr_code'] });
+      } catch {}
+    }
+
+    let isDecoding = false;
     let lastScanTime = 0;
 
-    const tick = (now: number) => {
+    const tick = async (now: number) => {
       const video = videoRef.current;
       if (!video || video.readyState < 2 || video.videoWidth === 0 || video.videoHeight === 0) {
         scanLoopRef.current = requestAnimationFrame(tick);
         return;
       }
 
-      // Throttle scanning to every 90ms for performance
-      if (now - lastScanTime > 90) {
+      // Check frame every 60ms for instantaneous QR acquisition without dropping camera preview fps
+      if (now - lastScanTime > 60 && !isDecoding) {
         lastScanTime = now;
 
-        // If modal popup is active, pause camera frame decoding
-        if (scanResultModalRef.current) {
+        // Prevent rapid duplicate scans within 800ms
+        const lastScanTimeMs = lastScanAttemptRef.current ? lastScanAttemptRef.current.time : 0;
+        if (Date.now() - lastScanTimeMs < 800) {
           scanLoopRef.current = requestAnimationFrame(tick);
           return;
         }
 
-        if (video.videoWidth === 0 || video.videoHeight === 0) {
-          scanLoopRef.current = requestAnimationFrame(tick);
-          return;
-        }
-
-        let canvas = canvasRef.current;
-        if (!canvas) {
-          canvas = document.createElement('canvas');
-          canvasRef.current = canvas;
-        }
-
-        canvas.width = video.videoWidth;
-        canvas.height = video.videoHeight;
-        const ctx = canvas.getContext('2d', { willReadFrequently: true });
-        if (ctx) {
-          ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-          const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-          const code = jsQR(imageData.data, imageData.width, imageData.height, {
-            inversionAttempts: 'dontInvert'
-          });
-
-          if (code && code.data) {
-            handleDecodePayload(code.data);
+        isDecoding = true;
+        try {
+          // A. Ultra-fast hardware BarcodeDetector (Zero CPU load, runs on GPU/NPU in ~1ms)
+          if (nativeDetector) {
+            try {
+              const barcodes = await nativeDetector.detect(video);
+              if (barcodes && barcodes.length > 0 && barcodes[0].rawValue) {
+                handleDecodePayload(barcodes[0].rawValue);
+                isDecoding = false;
+                scanLoopRef.current = requestAnimationFrame(tick);
+                return;
+              }
+            } catch (detectorErr) {
+              // Fall through to jsQR if detector encounters hardware frame lock
+            }
           }
+
+          // B. High-speed downscaled canvas decode with jsQR (max 480px downscale avoids 1080p lag)
+          let canvas = canvasRef.current;
+          if (!canvas) {
+            canvas = document.createElement('canvas');
+            canvasRef.current = canvas;
+          }
+
+          const maxDim = 480;
+          const vw = video.videoWidth;
+          const vh = video.videoHeight;
+          const scale = Math.min(1, maxDim / Math.max(vw, vh));
+          const targetW = Math.max(200, Math.round(vw * scale));
+          const targetH = Math.max(200, Math.round(vh * scale));
+
+          // Only resize canvas when video dimensions change to prevent graphics pipeline stalls
+          if (canvas.width !== targetW || canvas.height !== targetH) {
+            canvas.width = targetW;
+            canvas.height = targetH;
+          }
+
+          const ctx = canvas.getContext('2d', { willReadFrequently: true });
+          if (ctx) {
+            ctx.drawImage(video, 0, 0, targetW, targetH);
+            const imageData = ctx.getImageData(0, 0, targetW, targetH);
+            const code = jsQR(imageData.data, targetW, targetH, {
+              inversionAttempts: 'dontInvert'
+            });
+
+            if (code && code.data) {
+              handleDecodePayload(code.data);
+            }
+          }
+        } catch (e) {
+          // Frame read exception safeguard
+        } finally {
+          isDecoding = false;
         }
       }
 
@@ -349,9 +423,9 @@ export const AdminTicketScanner: React.FC<AdminTicketScannerProps> = ({
     if (!payload || !payload.trim()) return;
     const clean = payload.trim();
 
-    // Prevent duplicate rapid re-triggering of the same payload within 2.5s
+    // Prevent duplicate rapid re-triggering of the same payload within 800ms
     const nowMs = Date.now();
-    if (lastScanAttemptRef.current && lastScanAttemptRef.current.payload === clean && nowMs - lastScanAttemptRef.current.time < 2500) {
+    if (lastScanAttemptRef.current && lastScanAttemptRef.current.payload === clean && nowMs - lastScanAttemptRef.current.time < 800) {
       return;
     }
     lastScanAttemptRef.current = { payload: clean, time: nowMs };
@@ -386,7 +460,7 @@ export const AdminTicketScanner: React.FC<AdminTicketScannerProps> = ({
       targetId = targetId.replace(/-m\d+$/i, '');
     }
 
-    // Find record in records (also searches teammate rolls and names)
+    // Find record in local reactive records (also searches teammate rolls and names)
     const matched = findRecord(targetId) || (targetMemberRoll ? findRecord(targetMemberRoll) : undefined);
 
     if (matched) {
@@ -470,20 +544,38 @@ export const AdminTicketScanner: React.FC<AdminTicketScannerProps> = ({
           });
         }
 
+        // AUTO-ADVANCE FOR MULTI-MEMBER TEAMS:
+        // If scanning main QR without specific member param, and lead is already checked in,
+        // automatically advance to the next unscanned teammate!
+        if (targetMemberIndex === null && !targetMemberRoll && Boolean(currentTechStatus['lead'])) {
+          const nextUnscannedIdx = matchedTeammates.findIndex((_, idx) => !Boolean(currentTechStatus[`teammate_${idx}`]));
+          if (nextUnscannedIdx >= 0) {
+            scannedMemberKey = `teammate_${nextUnscannedIdx}`;
+            const tMember = matchedTeammates[nextUnscannedIdx];
+            scannedMemberName = tMember?.name || `Member ${nextUnscannedIdx + 2}`;
+            scannedMemberRoll = tMember?.roll || `M${nextUnscannedIdx + 2}`;
+            scannedMemberRole = `Member ${nextUnscannedIdx + 2}`;
+          }
+        }
+
         const isAlreadyScanned = Boolean(currentTechStatus[scannedMemberKey]);
         if (isAlreadyScanned) {
-          // DUPLICATE SCAN ATTEMPT DETECTED! STRICT 1-TIME ENFORCEMENT
+          // DUPLICATE SCAN ATTEMPT DETECTED!
           playBuzzer();
           try { navigator.vibrate?.([300, 150, 300, 150, 400]); } catch (e) {}
           const existingTime = currentTechTimes[scannedMemberKey]
             ? new Date(currentTechTimes[scannedMemberKey]).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })
             : (matched.checkInTime ? new Date(matched.checkInTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }) : 'Earlier Today');
 
+          const allScanned = (['lead', ...matchedTeammates.map((_, i) => `teammate_${i}`)].every(k => Boolean(currentTechStatus[k])));
+
           setScanResultModal({
             type: 'already_scanned',
             scanTrack: 'Technical Event',
-            title: 'ALREADY SCANNED! NO OTHER CHANCE.',
-            message: `This QR code has ALREADY been scanned and counted for Technical Events. Duplicate entry is strictly rejected! Each QR code can only be scanned and counted ONCE.`,
+            title: allScanned && matchedTotalMembers > 1 ? 'ALL TEAM MEMBERS ALREADY SCANNED!' : 'ALREADY SCANNED! NO OTHER CHANCE.',
+            message: allScanned && matchedTotalMembers > 1
+              ? `All ${matchedTotalMembers} delegates for team "${matched.name}" have ALREADY been verified and counted for Technical Events.`
+              : `This QR code has ALREADY been scanned and counted for ${scannedMemberName} (${scannedMemberRoll} · ${scannedMemberRole}) at ${existingTime}. Duplicate entry is strictly rejected! Each delegate can only be scanned and counted ONCE.`,
             delegateName: scannedMemberName,
             delegateRoll: scannedMemberRoll,
             delegateRole: scannedMemberRole,
@@ -491,6 +583,7 @@ export const AdminTicketScanner: React.FC<AdminTicketScannerProps> = ({
             scannedAt: existingTime,
             eventName: trackStats.techEventName
           });
+          setActiveRecord(matched);
         } else {
           // VALID 1-TIME SCAN FOR THIS INDIVIDUAL DELEGATE
           playBeep(true);
@@ -533,8 +626,7 @@ export const AdminTicketScanner: React.FC<AdminTicketScannerProps> = ({
             kitIssued: true
           };
 
-          onUpdateRecord(updated);
-          setActiveRecord(updated);
+          commitRecordUpdate(updated);
 
           setScanResultModal({
             type: 'success',
@@ -588,20 +680,35 @@ export const AdminTicketScanner: React.FC<AdminTicketScannerProps> = ({
           });
         }
 
+        // AUTO-ADVANCE FOR MULTI-MEMBER TEAMS:
+        if (targetMemberIndex === null && !targetMemberRoll && Boolean(currentSpotStatus['lead'])) {
+          const nextUnscannedIdx = matchedTeammates.findIndex((_, idx) => !Boolean(currentSpotStatus[`teammate_${idx}`]));
+          if (nextUnscannedIdx >= 0) {
+            scannedMemberKey = `teammate_${nextUnscannedIdx}`;
+            const tMember = matchedTeammates[nextUnscannedIdx];
+            scannedMemberName = tMember?.name || `Member ${nextUnscannedIdx + 2}`;
+            scannedMemberRoll = tMember?.roll || `M${nextUnscannedIdx + 2}`;
+            scannedMemberRole = `Member ${nextUnscannedIdx + 2}`;
+          }
+        }
+
         const isAlreadyScanned = Boolean(currentSpotStatus[scannedMemberKey]);
         if (isAlreadyScanned) {
-          // DUPLICATE SCAN ATTEMPT DETECTED! STRICT 1-TIME ENFORCEMENT
           playBuzzer();
           try { navigator.vibrate?.([300, 150, 300, 150, 400]); } catch (e) {}
           const existingTime = currentSpotTimes[scannedMemberKey]
             ? new Date(currentSpotTimes[scannedMemberKey]).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })
             : (matched.checkInTime ? new Date(matched.checkInTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }) : 'Earlier Today');
 
+          const allScanned = (['lead', ...matchedTeammates.map((_, i) => `teammate_${i}`)].every(k => Boolean(currentSpotStatus[k])));
+
           setScanResultModal({
             type: 'already_scanned',
             scanTrack: 'Spot Event',
-            title: 'ALREADY SCANNED! NO OTHER CHANCE.',
-            message: `This QR code has ALREADY been scanned and counted for Spot Events. Duplicate entry is strictly rejected! Each QR code can only be scanned and counted ONCE.`,
+            title: allScanned && matchedTotalMembers > 1 ? 'ALL TEAM MEMBERS ALREADY SCANNED!' : 'ALREADY SCANNED! NO OTHER CHANCE.',
+            message: allScanned && matchedTotalMembers > 1
+              ? `All ${matchedTotalMembers} delegates for team "${matched.name}" have ALREADY been verified and counted for Spot Events.`
+              : `This QR code has ALREADY been scanned and counted for ${scannedMemberName} (${scannedMemberRoll} · ${scannedMemberRole}) at ${existingTime}. Duplicate entry is strictly rejected! Each delegate can only be scanned and counted ONCE.`,
             delegateName: scannedMemberName,
             delegateRoll: scannedMemberRoll,
             delegateRole: scannedMemberRole,
@@ -609,8 +716,8 @@ export const AdminTicketScanner: React.FC<AdminTicketScannerProps> = ({
             scannedAt: existingTime,
             eventName: 'Spot Events Pass (Arena Activities)'
           });
+          setActiveRecord(matched);
         } else {
-          // VALID 1-TIME SCAN FOR THIS INDIVIDUAL DELEGATE
           playBeep(true);
           try {
             navigator.vibrate?.([80, 40, 80]);
@@ -626,7 +733,6 @@ export const AdminTicketScanner: React.FC<AdminTicketScannerProps> = ({
           currentSpotStatus[scannedMemberKey] = true;
           currentSpotTimes[scannedMemberKey] = now;
 
-          // Also ensure general reception checkIn is marked
           const currentCheckInStatus = { ...(matched.memberCheckInStatus || {}) };
           const currentCheckInTimes = { ...(matched.memberCheckInTimes || {}) };
           currentCheckInStatus[scannedMemberKey] = true;
@@ -649,8 +755,7 @@ export const AdminTicketScanner: React.FC<AdminTicketScannerProps> = ({
             kitIssued: true
           };
 
-          onUpdateRecord(updated);
-          setActiveRecord(updated);
+          commitRecordUpdate(updated);
 
           setScanResultModal({
             type: 'success',
@@ -679,16 +784,33 @@ export const AdminTicketScanner: React.FC<AdminTicketScannerProps> = ({
           matchedTeammates.forEach((_, i) => { currentMemberStatus[`teammate_${i}`] = true; });
         }
 
+        // AUTO-ADVANCE FOR MULTI-MEMBER TEAMS:
+        if (targetMemberIndex === null && !targetMemberRoll && Boolean(currentMemberStatus['lead'])) {
+          const nextUnscannedIdx = matchedTeammates.findIndex((_, idx) => !Boolean(currentMemberStatus[`teammate_${idx}`]));
+          if (nextUnscannedIdx >= 0) {
+            scannedMemberKey = `teammate_${nextUnscannedIdx}`;
+            const tMember = matchedTeammates[nextUnscannedIdx];
+            scannedMemberName = tMember?.name || `Member ${nextUnscannedIdx + 2}`;
+            scannedMemberRoll = tMember?.roll || `M${nextUnscannedIdx + 2}`;
+            scannedMemberRole = `Member ${nextUnscannedIdx + 2}`;
+          }
+        }
+
         const isAlreadyCollected = Boolean(currentMemberStatus[scannedMemberKey]);
         if (isAlreadyCollected) {
           playBuzzer();
           try { navigator.vibrate?.([300, 150, 300, 150, 400]); } catch (e) {}
           const claimTime = matched.lunchCollectedTime ? new Date(matched.lunchCollectedTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }) : 'Earlier Today';
+
+          const allCollected = (['lead', ...matchedTeammates.map((_, i) => `teammate_${i}`)].every(k => Boolean(currentMemberStatus[k])));
+
           setScanResultModal({
             type: 'already_scanned',
             scanTrack: 'Food Meal Token',
-            title: 'ALREADY SCANNED! NO OTHER CHANCE.',
-            message: `DUPLICATE MEAL CLAIM! Meal tray for ${scannedMemberName} (${scannedMemberRoll} · ${scannedMemberRole}) was already dispensed at ${claimTime}. Duplicate meal rejected!`,
+            title: allCollected && matchedTotalMembers > 1 ? 'ALL TEAM MEALS ALREADY DISPENSED!' : 'ALREADY SCANNED! NO OTHER CHANCE.',
+            message: allCollected && matchedTotalMembers > 1
+              ? `All ${matchedTotalMembers} meal trays for team "${matched.name}" have ALREADY been dispensed. Duplicate meal rejected!`
+              : `DUPLICATE MEAL CLAIM! Meal tray for ${scannedMemberName} (${scannedMemberRoll} · ${scannedMemberRole}) was already dispensed at ${claimTime}. Duplicate meal rejected!`,
             delegateName: scannedMemberName,
             delegateRoll: scannedMemberRoll,
             delegateRole: scannedMemberRole,
@@ -696,6 +818,7 @@ export const AdminTicketScanner: React.FC<AdminTicketScannerProps> = ({
             scannedAt: claimTime,
             eventName: 'Lunch Catering Token'
           });
+          setActiveRecord(matched);
         } else {
           playBeep(true);
           try {
@@ -720,8 +843,7 @@ export const AdminTicketScanner: React.FC<AdminTicketScannerProps> = ({
             lunchCollectedTime: now,
             lunchCollectedBy: 'Catering Counter'
           };
-          onUpdateRecord(updated);
-          setActiveRecord(updated);
+          commitRecordUpdate(updated);
 
           setScanResultModal({
             type: 'success',
@@ -740,7 +862,6 @@ export const AdminTicketScanner: React.FC<AdminTicketScannerProps> = ({
         }
       }
 
-      setActiveRecord(matched);
       setNotesInput(matched.checkInNotes || '');
     } else {
       playBeep(false);
@@ -831,10 +952,7 @@ export const AdminTicketScanner: React.FC<AdminTicketScannerProps> = ({
       checkInTime: targetRecord.checkInTime || (nextState ? now : undefined),
       attendedEvents: updatedAttended
     };
-    onUpdateRecord(updated);
-    if (activeRecord && activeRecord.regId === targetRecord.regId) {
-      setActiveRecord(updated);
-    }
+    commitRecordUpdate(updated);
 
     if (nextState) {
       setScanResultModal({
@@ -934,10 +1052,7 @@ export const AdminTicketScanner: React.FC<AdminTicketScannerProps> = ({
       checkInTime: targetRecord.checkInTime || (nextState ? now : undefined),
       attendedEvents: updatedAttended
     };
-    onUpdateRecord(updated);
-    if (activeRecord && activeRecord.regId === targetRecord.regId) {
-      setActiveRecord(updated);
-    }
+    commitRecordUpdate(updated);
 
     if (nextState) {
       setScanResultModal({
@@ -963,7 +1078,7 @@ export const AdminTicketScanner: React.FC<AdminTicketScannerProps> = ({
     if (!q) return undefined;
     const cleanId = q.replace(/-m\d+$/i, '');
 
-    return records.find(r => {
+    return localRecords.find(r => {
       const regIdMatch = r.regId ? (
         r.regId.toLowerCase() === q || 
         r.regId.toLowerCase() === cleanId ||
@@ -1066,11 +1181,7 @@ export const AdminTicketScanner: React.FC<AdminTicketScannerProps> = ({
       checkedInBy: anyCheckedIn ? (targetRecord.checkedInBy || 'Reception Desk') : undefined,
       kitIssued: anyCheckedIn ? true : targetRecord.kitIssued
     };
-
-    onUpdateRecord(updated);
-    if (activeRecord && activeRecord.regId === targetRecord.regId) {
-      setActiveRecord(updated);
-    }
+    commitRecordUpdate(updated);
   };
 
   // Check In All Members of a team at once
@@ -1101,10 +1212,7 @@ export const AdminTicketScanner: React.FC<AdminTicketScannerProps> = ({
       checkInNotes: notesInput.trim() || targetRecord.checkInNotes
     };
 
-    onUpdateRecord(updated);
-    if (activeRecord && activeRecord.regId === targetRecord.regId) {
-      setActiveRecord(updated);
-    }
+    commitRecordUpdate(updated);
     setJustCheckedIn(true);
     setTimeout(() => setJustCheckedIn(false), 3000);
 
@@ -1134,10 +1242,7 @@ export const AdminTicketScanner: React.FC<AdminTicketScannerProps> = ({
       kitIssued: false
     };
 
-    onUpdateRecord(updated);
-    if (activeRecord && activeRecord.regId === targetRecord.regId) {
-      setActiveRecord(updated);
-    }
+    commitRecordUpdate(updated);
   };
 
   // Check-In Action
@@ -1259,8 +1364,7 @@ export const AdminTicketScanner: React.FC<AdminTicketScannerProps> = ({
       checkInTime: updatedAttended.length > 0 && !activeRecord.checkInTime ? new Date().toISOString() : activeRecord.checkInTime
     };
 
-    onUpdateRecord(updated);
-    setActiveRecord(updated);
+    commitRecordUpdate(updated);
   };
 
   // Toggle Kit & Badge Issued
@@ -1270,8 +1374,7 @@ export const AdminTicketScanner: React.FC<AdminTicketScannerProps> = ({
       ...activeRecord,
       kitIssued: !activeRecord.kitIssued
     };
-    onUpdateRecord(updated);
-    setActiveRecord(updated);
+    commitRecordUpdate(updated);
   };
 
   // Toggle Individual Member Food / Lunch Token (Anti-Dispute Check)
@@ -1304,8 +1407,7 @@ export const AdminTicketScanner: React.FC<AdminTicketScannerProps> = ({
       lunchCollectedBy: nextState ? 'Admin Desk' : activeRecord.lunchCollectedBy
     };
 
-    onUpdateRecord(updated);
-    setActiveRecord(updated);
+    commitRecordUpdate(updated);
 
     // Get display name of member
     let memberName = activeRecord.name;
@@ -1357,8 +1459,7 @@ export const AdminTicketScanner: React.FC<AdminTicketScannerProps> = ({
       lunchCollectedBy: 'Admin Desk'
     };
 
-    onUpdateRecord(updated);
-    setActiveRecord(updated);
+    commitRecordUpdate(updated);
     playBeep(true);
     try {
       confetti({
@@ -1393,8 +1494,7 @@ export const AdminTicketScanner: React.FC<AdminTicketScannerProps> = ({
       lunchCollectedBy: undefined
     };
 
-    onUpdateRecord(updated);
-    setActiveRecord(updated);
+    commitRecordUpdate(updated);
     setLunchAlert({
       type: 'info',
       message: `Lunch tokens reset to 0 redeemed for team "${activeRecord.name}".`,
@@ -1421,8 +1521,7 @@ export const AdminTicketScanner: React.FC<AdminTicketScannerProps> = ({
       verifiedAt: new Date().toISOString(),
       verifiedBy: 'Desk Admin'
     };
-    onUpdateRecord(updated);
-    setActiveRecord(updated);
+    commitRecordUpdate(updated);
     if (updated.email) {
       sendTicketEmailApi(updated).catch(e => console.warn('Desk verify auto email notice:', e));
     }
@@ -1450,8 +1549,7 @@ export const AdminTicketScanner: React.FC<AdminTicketScannerProps> = ({
       attendedEvents: updatedAttended
     };
 
-    onUpdateRecord(updated);
-    setActiveRecord(updated);
+    commitRecordUpdate(updated);
   };
 
   // Save Desk Notes
@@ -1461,8 +1559,7 @@ export const AdminTicketScanner: React.FC<AdminTicketScannerProps> = ({
       ...activeRecord,
       checkInNotes: notesInput.trim()
     };
-    onUpdateRecord(updated);
-    setActiveRecord(updated);
+    commitRecordUpdate(updated);
     alert('Desk notes updated successfully.');
   };
 
@@ -1476,7 +1573,7 @@ export const AdminTicketScanner: React.FC<AdminTicketScannerProps> = ({
 
   // Search filter list
   const searchResults = searchQuery.trim().length > 1
-    ? records.filter(r => {
+    ? localRecords.filter(r => {
         const q = searchQuery.trim().toLowerCase();
         return (
           (r.regId && r.regId.toLowerCase().includes(q)) ||
@@ -3495,8 +3592,13 @@ export const AdminTicketScanner: React.FC<AdminTicketScannerProps> = ({
       {/* PROMINENT SCAN RESULT POPUP MODAL (STRICT 1-TIME SCAN LIMIT) */}
       {/* ============================================================== */}
       {scanResultModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/85 backdrop-blur-md animate-in fade-in duration-200">
-          <div className={`relative w-full max-w-lg max-h-[92vh] overflow-y-auto p-4 sm:p-7 rounded-2xl sm:rounded-3xl border shadow-2xl transition-all scale-100 ${
+        <div 
+          onClick={() => { setScanResultModal(null); lastScanAttemptRef.current = null; }}
+          className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/85 backdrop-blur-md animate-in fade-in duration-200 cursor-pointer"
+        >
+          <div 
+            onClick={(e) => e.stopPropagation()}
+            className={`relative w-full max-w-lg max-h-[92vh] overflow-y-auto p-4 sm:p-7 rounded-2xl sm:rounded-3xl border shadow-2xl transition-all scale-100 cursor-default ${
             scanResultModal.type === 'already_scanned'
               ? 'bg-[#180608] border-[#ef4444] shadow-[0_0_60px_rgba(239,68,68,0.55)] text-white ring-2 ring-[#ef4444]/60'
               : scanResultModal.type === 'success'
@@ -3614,7 +3716,7 @@ export const AdminTicketScanner: React.FC<AdminTicketScannerProps> = ({
             <div className="mt-5 sm:mt-6">
               <button
                 type="button"
-                onClick={() => setScanResultModal(null)}
+                onClick={() => { setScanResultModal(null); lastScanAttemptRef.current = null; }}
                 autoFocus
                 className={`w-full py-3.5 px-4 rounded-xl font-bold text-sm sm:text-base shadow-xl transition-all cursor-pointer flex items-center justify-center gap-2 ${
                   scanResultModal.type === 'already_scanned'
