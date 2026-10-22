@@ -1638,12 +1638,12 @@ export const AdminTicketScanner: React.FC<AdminTicketScannerProps> = ({
             </p>
           </div>
 
-          <div className="flex flex-wrap items-center gap-2 self-start md:self-auto shrink-0">
+          <div className="flex flex-wrap items-center gap-2 self-stretch sm:self-auto shrink-0 w-full sm:w-auto">
             {onNavigateToRegistrations && (
               <button
                 type="button"
                 onClick={onNavigateToRegistrations}
-                className={`px-3 py-2 rounded-xl text-xs font-bold border flex items-center gap-1.5 transition-all shadow cursor-pointer ${
+                className={`flex-1 sm:flex-initial px-3 py-2.5 sm:py-2 rounded-xl text-xs font-bold border flex items-center justify-center gap-1.5 transition-all shadow cursor-pointer ${
                   isLight
                     ? 'bg-white text-[#705600] border-[#d4a935]/40 hover:bg-[#fff9e6]'
                     : 'bg-[#1f1b0e] text-[#f2c14e] border-[#d4a935]/50 hover:bg-[#2b220d]'
@@ -1651,14 +1651,15 @@ export const AdminTicketScanner: React.FC<AdminTicketScannerProps> = ({
                 title="Switch to All Registrations & Participant Details Page"
               >
                 <Users className="w-3.5 h-3.5 text-[#f2c14e]" />
-                <span>All Registrations Page</span>
+                <span className="sm:hidden font-bold">Records Page</span>
+                <span className="hidden sm:inline">All Registrations Page</span>
               </button>
             )}
 
             <button
               type="button"
               onClick={() => setSoundEnabled(!soundEnabled)}
-              className={`p-2 rounded-xl text-xs font-semibold border flex items-center gap-1.5 transition-all cursor-pointer ${
+              className={`p-2.5 sm:p-2 rounded-xl text-xs font-semibold border flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
                 soundEnabled
                   ? isLight
                     ? 'bg-white text-[#006ca8] border-[#c0d6ea] hover:bg-[#e4effa]'
@@ -1670,13 +1671,13 @@ export const AdminTicketScanner: React.FC<AdminTicketScannerProps> = ({
               title={soundEnabled ? 'Sound alerts enabled' : 'Sound alerts muted'}
             >
               {soundEnabled ? <Volume2 className="w-4 h-4 text-[#0088d4]" /> : <VolumeX className="w-4 h-4" />}
-              <span className="hidden sm:inline">{soundEnabled ? 'Chime On' : 'Muted'}</span>
+              <span className="inline sm:inline">{soundEnabled ? 'Chime' : 'Muted'}</span>
             </button>
 
             <button
               type="button"
               onClick={isScanning ? stopCamera : startCamera}
-              className={`px-3.5 py-2 rounded-xl text-xs font-bold border flex items-center gap-2 transition-all shadow-md cursor-pointer ${
+              className={`flex-1 sm:flex-initial px-3.5 py-2.5 sm:py-2 rounded-xl text-xs font-bold border flex items-center justify-center gap-2 transition-all shadow-md cursor-pointer ${
                 isScanning
                   ? 'bg-[#ef4444]/20 text-[#ff8a80] border-[#ef4444]/40 hover:bg-[#ef4444]/30'
                   : 'bg-gradient-to-r from-[#d4a935] to-[#f2c14e] text-[#121217] border-transparent hover:scale-[1.02] shadow-[#f2c14e]/20'
@@ -1685,12 +1686,12 @@ export const AdminTicketScanner: React.FC<AdminTicketScannerProps> = ({
               {isScanning ? (
                 <>
                   <CameraOff className="w-4 h-4" />
-                  <span>Stop Camera</span>
+                  <span>Stop Cam</span>
                 </>
               ) : (
                 <>
                   <Camera className="w-4 h-4 text-[#121217]" />
-                  <span>Start Live Scanner</span>
+                  <span>Start Camera</span>
                 </>
               )}
             </button>
@@ -1698,89 +1699,90 @@ export const AdminTicketScanner: React.FC<AdminTicketScannerProps> = ({
         </div>
 
         {/* Desk Station Mode Switcher - 2 Main Options: Technical vs Spot, plus Lunch */}
-        <div className={`mt-4 pt-4 border-t flex flex-wrap items-center justify-between gap-3 ${
+        <div className={`mt-4 pt-4 border-t flex flex-col gap-2.5 ${
           isLight ? 'border-[#c0d6ea]' : 'border-[#234259]/60'
         }`}>
-          <div className="flex flex-wrap items-center gap-2.5">
-            <span className={`text-xs font-bold uppercase tracking-wider ${isLight ? 'text-[#3e556e]' : 'text-[#9fc7e8]'}`}>
-              Scan Section Options:
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1.5">
+            <span className={`text-xs font-bold uppercase tracking-wider flex items-center gap-1.5 ${isLight ? 'text-[#3e556e]' : 'text-[#9fc7e8]'}`}>
+              <Tag className="w-3.5 h-3.5 text-[#f2c14e]" />
+              <span>Select Scan Section (1-Time QR Limit):</span>
             </span>
-            <div className={`inline-flex rounded-xl p-1 border shadow-inner ${
-              isLight ? 'bg-white border-[#c0d6ea]' : 'bg-[#09111c] border-[#1b3447]'
-            }`}>
-              {/* Option 1: Technical Event Scan */}
-              <button
-                type="button"
-                onClick={() => {
-                  setScannerMode('tech');
-                  setLunchAlert(null);
-                  setScanResultModal(null);
-                }}
-                className={`px-3.5 py-2 rounded-lg text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer ${
-                  scannerMode === 'tech'
-                    ? 'bg-gradient-to-r from-[#0088d4] to-[#026aa6] text-white shadow-md scale-[1.02]'
-                    : isLight ? 'text-[#3e556e] hover:text-[#1c1811]' : 'text-[#9fc7e8] hover:text-white'
-                }`}
-              >
-                <Zap className="w-4 h-4 text-[#f2c14e]" />
-                <span>1. Technical Event Scan</span>
-              </button>
-
-              {/* Option 2: Spot Event Scan */}
-              <button
-                type="button"
-                onClick={() => {
-                  setScannerMode('spot');
-                  setLunchAlert(null);
-                  setScanResultModal(null);
-                }}
-                className={`px-3.5 py-2 rounded-lg text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer ${
-                  scannerMode === 'spot'
-                    ? 'bg-gradient-to-r from-[#8b5cf6] to-[#6d28d9] text-white shadow-md scale-[1.02]'
-                    : isLight ? 'text-[#3e556e] hover:text-[#1c1811]' : 'text-[#9fc7e8] hover:text-white'
-                }`}
-              >
-                <Sparkles className="w-4 h-4 text-[#f2c14e]" />
-                <span>2. Spot Event Scan</span>
-              </button>
-
-              {/* Station 3: Food & Catering Counter */}
-              <button
-                type="button"
-                onClick={() => {
-                  setScannerMode('lunch');
-                  setLunchAlert(null);
-                  setScanResultModal(null);
-                }}
-                className={`px-3.5 py-2 rounded-lg text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer ${
-                  scannerMode === 'lunch'
-                    ? 'bg-gradient-to-r from-[#d97706] to-[#b45309] text-white shadow-md scale-[1.02]'
-                    : isLight ? 'text-[#3e556e] hover:text-[#1c1811]' : 'text-[#9fc7e8] hover:text-white'
-                }`}
-              >
-                <Utensils className="w-4 h-4 text-[#f2c14e]" />
-                <span>3. Food & Catering (Lunch Token)</span>
-              </button>
+            <div className={`text-xs ${isLight ? 'text-[#6b6250]' : 'text-[#a79f8b]'}`}>
+              {scannerMode === 'tech' ? (
+                <span className="text-[#0088d4] font-semibold flex items-center gap-1.5 bg-[#0088d4]/10 border border-[#0088d4]/30 px-2 py-0.5 rounded-md">
+                  <Zap className="w-3.5 h-3.5 text-[#0088d4]" />
+                  <span>Technical Active · 1-Time Scan</span>
+                </span>
+              ) : scannerMode === 'spot' ? (
+                <span className="text-[#a78bfa] font-semibold flex items-center gap-1.5 bg-[#8b5cf6]/10 border border-[#8b5cf6]/30 px-2 py-0.5 rounded-md">
+                  <Sparkles className="w-3.5 h-3.5 text-[#a78bfa]" />
+                  <span>Spot Active · 1-Time Scan</span>
+                </span>
+              ) : (
+                <span className="text-[#f59e0b] font-semibold flex items-center gap-1.5 bg-[#f59e0b]/10 border border-[#f59e0b]/30 px-2 py-0.5 rounded-md">
+                  <Utensils className="w-3.5 h-3.5 text-[#f59e0b]" />
+                  <span>Catering Active · Meal Dispenser</span>
+                </span>
+              )}
             </div>
           </div>
 
-          <div className={`text-xs ${isLight ? 'text-[#6b6250]' : 'text-[#a79f8b]'}`}>
-            {scannerMode === 'tech' ? (
-              <span className="text-[#0088d4] font-semibold flex items-center gap-1.5 bg-[#0088d4]/10 border border-[#0088d4]/30 px-2.5 py-1 rounded-lg">
-                <Zap className="w-3.5 h-3.5 text-[#0088d4]" />
-                <span>Technical Mode Active · Flagship Track · Strict 1-Time Scan Limit</span>
-              </span>
-            ) : scannerMode === 'spot' ? (
-              <span className="text-[#a78bfa] font-semibold flex items-center gap-1.5 bg-[#8b5cf6]/10 border border-[#8b5cf6]/30 px-2.5 py-1 rounded-lg">
-                <Sparkles className="w-3.5 h-3.5 text-[#a78bfa]" />
-                <span>Spot Mode Active · Arena Activities · Strict 1-Time Scan Limit</span>
-              </span>
-            ) : (
-              <span className="text-[#f59e0b] font-semibold flex items-center gap-1.5 bg-[#f59e0b]/10 border border-[#f59e0b]/30 px-2.5 py-1 rounded-lg">
-                <Utensils className="w-3.5 h-3.5 text-[#f59e0b]" />
-                <span>Catering Counter Active · Meal Tray Dispenser & Anti-Dispute Verification</span>
-              </span>
-            )}
+          <div className={`grid grid-cols-1 sm:grid-cols-3 gap-2 w-full p-1.5 rounded-2xl border shadow-inner ${
+            isLight ? 'bg-white border-[#c0d6ea]' : 'bg-[#09111c] border-[#1b3447]'
+          }`}>
+            {/* Option 1: Technical Event Scan */}
+            <button
+              type="button"
+              onClick={() => {
+                setScannerMode('tech');
+                setLunchAlert(null);
+                setScanResultModal(null);
+              }}
+              className={`w-full py-2.5 sm:py-2 px-3 rounded-xl text-xs sm:text-sm font-bold flex items-center justify-center gap-2 transition-all cursor-pointer ${
+                scannerMode === 'tech'
+                  ? 'bg-gradient-to-r from-[#0088d4] to-[#026aa6] text-white shadow-md shadow-[#0088d4]/30 scale-[1.01]'
+                  : isLight ? 'text-[#3e556e] hover:text-[#1c1811] bg-[#f4f8fc]' : 'text-[#9fc7e8] hover:text-white bg-[#0e1c2e]'
+              }`}
+            >
+              <Zap className="w-4 h-4 text-[#f2c14e] shrink-0" />
+              <span>1. Technical Event Scan</span>
+            </button>
+
+            {/* Option 2: Spot Event Scan */}
+            <button
+              type="button"
+              onClick={() => {
+                setScannerMode('spot');
+                setLunchAlert(null);
+                setScanResultModal(null);
+              }}
+              className={`w-full py-2.5 sm:py-2 px-3 rounded-xl text-xs sm:text-sm font-bold flex items-center justify-center gap-2 transition-all cursor-pointer ${
+                scannerMode === 'spot'
+                  ? 'bg-gradient-to-r from-[#8b5cf6] to-[#6d28d9] text-white shadow-md shadow-[#8b5cf6]/30 scale-[1.01]'
+                  : isLight ? 'text-[#3e556e] hover:text-[#1c1811] bg-[#f7f4fe]' : 'text-[#9fc7e8] hover:text-white bg-[#1e1533]'
+              }`}
+            >
+              <Sparkles className="w-4 h-4 text-[#f2c14e] shrink-0" />
+              <span>2. Spot Event Scan</span>
+            </button>
+
+            {/* Station 3: Food & Catering Counter */}
+            <button
+              type="button"
+              onClick={() => {
+                setScannerMode('lunch');
+                setLunchAlert(null);
+                setScanResultModal(null);
+              }}
+              className={`w-full py-2.5 sm:py-2 px-3 rounded-xl text-xs sm:text-sm font-bold flex items-center justify-center gap-2 transition-all cursor-pointer ${
+                scannerMode === 'lunch'
+                  ? 'bg-gradient-to-r from-[#d97706] to-[#b45309] text-white shadow-md shadow-[#d97706]/30 scale-[1.01]'
+                  : isLight ? 'text-[#3e556e] hover:text-[#1c1811] bg-[#fef8ed]' : 'text-[#9fc7e8] hover:text-white bg-[#281c0c]'
+              }`}
+            >
+              <Utensils className="w-4 h-4 text-[#f2c14e] shrink-0" />
+              <span>3. Food & Catering (Lunch)</span>
+            </button>
           </div>
         </div>
 
@@ -1909,38 +1911,38 @@ export const AdminTicketScanner: React.FC<AdminTicketScannerProps> = ({
       )}
 
       {/* Primary Section Switcher: Live Scanner Desk vs All Individual Participants */}
-      <div className={`p-2.5 rounded-2xl border flex flex-wrap items-center justify-between gap-3 shadow-md ${
+      <div className={`p-2.5 rounded-2xl border flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 shadow-md ${
         isLight ? 'bg-white border-[#d8d0ba]' : 'bg-[#0a0a0d] border-[#2e2b22]'
       }`}>
-        <div className="flex flex-wrap items-center gap-2">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 w-full sm:w-auto">
           <button
             type="button"
             onClick={() => setMainScannerTab('scanner')}
-            className={`px-4 py-2.5 rounded-xl text-xs font-bold flex items-center gap-2 transition-all cursor-pointer ${
+            className={`w-full px-3.5 sm:px-4 py-2.5 rounded-xl text-xs font-bold flex items-center justify-center gap-2 transition-all cursor-pointer ${
               mainScannerTab === 'scanner'
-                ? 'bg-gradient-to-r from-[#d4a935] to-[#f2c14e] text-[#121217] shadow-md shadow-[#d4a935]/20 scale-[1.02]'
+                ? 'bg-gradient-to-r from-[#d4a935] to-[#f2c14e] text-[#121217] shadow-md shadow-[#d4a935]/20 scale-[1.01]'
                 : isLight ? 'text-[#6b6250] hover:text-[#1c1811] hover:bg-[#f4efe0]' : 'text-[#a79f8b] hover:text-white hover:bg-white/5'
             }`}
           >
-            <QrCode className="w-4 h-4" />
-            <span>Camera Scanner & Desk Station</span>
+            <QrCode className="w-4 h-4 shrink-0" />
+            <span>Camera Scanner & Desk</span>
           </button>
 
           <button
             type="button"
             onClick={() => setMainScannerTab('attendees')}
-            className={`px-4 py-2.5 rounded-xl text-xs font-bold flex items-center gap-2 transition-all cursor-pointer ${
+            className={`w-full px-3.5 sm:px-4 py-2.5 rounded-xl text-xs font-bold flex items-center justify-center gap-2 transition-all cursor-pointer ${
               mainScannerTab === 'attendees'
-                ? 'bg-gradient-to-r from-[#22c55e] to-[#16a34a] text-white shadow-md shadow-[#22c55e]/25 scale-[1.02]'
+                ? 'bg-gradient-to-r from-[#22c55e] to-[#16a34a] text-white shadow-md shadow-[#22c55e]/25 scale-[1.01]'
                 : isLight ? 'text-[#6b6250] hover:text-[#1c1811] hover:bg-[#f4efe0]' : 'text-[#a79f8b] hover:text-white hover:bg-white/5'
             }`}
           >
-            <Users className="w-4 h-4" />
-            <span>All Individual Participants ({totalDelegates})</span>
-            <span className={`text-[10px] font-mono px-2 py-0.5 rounded-full font-bold ${
+            <Users className="w-4 h-4 shrink-0" />
+            <span>Delegates ({totalDelegates})</span>
+            <span className={`text-[10px] font-mono px-1.5 py-0.5 rounded-full font-bold ${
               mainScannerTab === 'attendees' ? 'bg-black/30 text-white' : 'bg-[#4cc38a]/15 text-[#4cc38a]'
             }`}>
-              {checkedInDelegates} Present · {scannerStats.absentDelegates} Absent
+              {checkedInDelegates} In
             </span>
           </button>
         </div>
@@ -2017,7 +2019,7 @@ export const AdminTicketScanner: React.FC<AdminTicketScannerProps> = ({
             </div>
 
             {/* Viewfinder Window */}
-            <div className={`relative w-full aspect-[4/3] rounded-xl overflow-hidden bg-[#050507] border flex items-center justify-center transition-all ${
+            <div className={`relative w-full aspect-[4/3] max-h-[46vh] sm:max-h-[55vh] rounded-xl overflow-hidden bg-[#050507] border flex items-center justify-center transition-all ${
               scanFlash ? 'ring-4 ring-[#4cc38a] border-[#4cc38a]' : (isLight ? 'border-[#d8d0ba]' : 'border-[#2e2b22]')
             }`}>
               {/* Actual Video Stream */}
@@ -2055,25 +2057,31 @@ export const AdminTicketScanner: React.FC<AdminTicketScannerProps> = ({
                 </div>
               )}
 
-              {/* Fallback Idle State */}
+              {/* Fallback Idle State - Tap Anywhere to Start */}
               {!isScanning && (
-                <div className="p-6 text-center space-y-3">
-                  <div className={`w-12 h-12 rounded-2xl ${isLight ? 'bg-[#f8f5ee] border-[#d8d0ba] text-[#d4a935]' : 'bg-[#1f1b0e] border-[#d4a935]/40 text-[#f2c14e]'} border flex items-center justify-center mx-auto shadow-inner`}>
-                    <QrCode className="w-6 h-6" />
+                <div 
+                  onClick={startCamera}
+                  className="p-5 text-center space-y-2.5 cursor-pointer hover:bg-white/5 transition-colors w-full h-full flex flex-col items-center justify-center"
+                >
+                  <div className={`w-12 h-12 sm:w-14 sm:h-14 rounded-2xl ${isLight ? 'bg-[#f8f5ee] border-[#d8d0ba] text-[#d4a935]' : 'bg-[#1f1b0e] border-[#d4a935]/40 text-[#f2c14e]'} border flex items-center justify-center mx-auto shadow-inner`}>
+                    <QrCode className="w-6 h-6 sm:w-7 sm:h-7" />
                   </div>
                   <div>
-                    <h4 className={`text-sm font-bold ${isLight ? 'text-[#1c1811]' : 'text-white'}`}>Camera is Idle</h4>
+                    <h4 className={`text-sm sm:text-base font-bold ${isLight ? 'text-[#1c1811]' : 'text-white'}`}>Tap to Open Camera</h4>
                     <p className={`text-xs ${isLight ? 'text-[#6b6250]' : 'text-[#a79f8b]'} mt-0.5`}>
-                      Click below to activate device webcam or mobile camera.
+                      Live scanner for delegate passes
                     </p>
                   </div>
                   <button
                     type="button"
-                    onClick={startCamera}
-                    className="px-4 py-2 rounded-xl bg-[#f2c14e] hover:bg-[#d4a935] text-[#121217] font-bold text-xs shadow-md transition-all hover:scale-[1.03] cursor-pointer inline-flex items-center gap-1.5"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      startCamera();
+                    }}
+                    className="px-4 py-2 sm:py-2.5 rounded-xl bg-[#f2c14e] hover:bg-[#d4a935] text-[#121217] font-bold text-xs shadow-md transition-all hover:scale-[1.03] cursor-pointer inline-flex items-center gap-1.5"
                   >
                     <Camera className="w-3.5 h-3.5" />
-                    <span>Launch Camera Scanner</span>
+                    <span>Open Camera Scanner</span>
                   </button>
                 </div>
               )}
@@ -3551,8 +3559,8 @@ export const AdminTicketScanner: React.FC<AdminTicketScannerProps> = ({
       {/* PROMINENT SCAN RESULT POPUP MODAL (STRICT 1-TIME SCAN LIMIT) */}
       {/* ============================================================== */}
       {scanResultModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-md animate-in fade-in duration-200">
-          <div className={`relative w-full max-w-lg p-6 sm:p-7 rounded-3xl border shadow-2xl transition-all scale-100 ${
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/85 backdrop-blur-md animate-in fade-in duration-200">
+          <div className={`relative w-full max-w-lg max-h-[92vh] overflow-y-auto p-4 sm:p-7 rounded-2xl sm:rounded-3xl border shadow-2xl transition-all scale-100 ${
             scanResultModal.type === 'already_scanned'
               ? 'bg-[#180608] border-[#ef4444] shadow-[0_0_60px_rgba(239,68,68,0.55)] text-white ring-2 ring-[#ef4444]/60'
               : scanResultModal.type === 'success'
@@ -3560,8 +3568,8 @@ export const AdminTicketScanner: React.FC<AdminTicketScannerProps> = ({
                 : 'bg-[#181306] border-[#f59e0b] shadow-[0_0_50px_rgba(245,158,11,0.4)] text-white ring-2 ring-[#f59e0b]/60'
           }`}>
             {/* Top Track & Station Indicator Badge */}
-            <div className="flex items-center justify-between pb-3 border-b border-white/10 mb-4">
-              <span className={`text-xs font-bold uppercase tracking-wider px-2.5 py-1 rounded-lg border font-mono ${
+            <div className="flex items-center justify-between pb-2.5 border-b border-white/10 mb-3 sm:mb-4 gap-2">
+              <span className={`text-[11px] sm:text-xs font-bold uppercase tracking-wider px-2.5 py-1 rounded-lg border font-mono truncate ${
                 scanResultModal.scanTrack === 'Technical Event'
                   ? 'bg-[#0088d4]/20 text-[#70baff] border-[#0088d4]/40'
                   : scanResultModal.scanTrack === 'Spot Event'
@@ -3571,14 +3579,14 @@ export const AdminTicketScanner: React.FC<AdminTicketScannerProps> = ({
                 {scanResultModal.scanTrack} STATION
               </span>
 
-              <span className="text-[11px] text-white/60 font-mono">
-                STRICT 1-TIME QR VERIFICATION
+              <span className="text-[10px] sm:text-[11px] text-white/60 font-mono shrink-0">
+                1-TIME QR LIMIT
               </span>
             </div>
 
             {/* Main Alert Icon & Title */}
-            <div className="flex items-start gap-4">
-              <div className={`w-14 h-14 rounded-2xl flex items-center justify-center shrink-0 shadow-lg ${
+            <div className="flex items-start gap-3 sm:gap-4">
+              <div className={`w-12 h-12 sm:w-14 sm:h-14 rounded-2xl flex items-center justify-center shrink-0 shadow-lg ${
                 scanResultModal.type === 'already_scanned'
                   ? 'bg-[#ef4444] text-white animate-pulse shadow-[#ef4444]/40'
                   : scanResultModal.type === 'success'
@@ -3586,16 +3594,16 @@ export const AdminTicketScanner: React.FC<AdminTicketScannerProps> = ({
                     : 'bg-[#f59e0b] text-[#121217] shadow-[#f59e0b]/40'
               }`}>
                 {scanResultModal.type === 'already_scanned' ? (
-                  <ShieldAlert className="w-8 h-8" />
+                  <ShieldAlert className="w-7 h-7 sm:w-8 sm:h-8" />
                 ) : scanResultModal.type === 'success' ? (
-                  <CheckCircle2 className="w-8 h-8" />
+                  <CheckCircle2 className="w-7 h-7 sm:w-8 sm:h-8" />
                 ) : (
-                  <AlertCircle className="w-8 h-8" />
+                  <AlertCircle className="w-7 h-7 sm:w-8 sm:h-8" />
                 )}
               </div>
 
-              <div className="min-w-0">
-                <h2 className={`font-serif-title text-xl sm:text-2xl font-black uppercase tracking-tight leading-tight ${
+              <div className="min-w-0 flex-1">
+                <h2 className={`font-serif-title text-lg sm:text-2xl font-black uppercase tracking-tight leading-tight ${
                   scanResultModal.type === 'already_scanned'
                     ? 'text-[#ff6b6b]'
                     : scanResultModal.type === 'success'
@@ -3612,29 +3620,29 @@ export const AdminTicketScanner: React.FC<AdminTicketScannerProps> = ({
             </div>
 
             {/* Delegate Information Dossier */}
-            <div className={`mt-5 p-4 rounded-2xl border space-y-2.5 ${
+            <div className={`mt-4 sm:mt-5 p-3.5 sm:p-4 rounded-2xl border space-y-2.5 ${
               scanResultModal.type === 'already_scanned'
                 ? 'bg-black/50 border-[#ef4444]/30'
                 : scanResultModal.type === 'success'
                   ? 'bg-black/50 border-[#22c55e]/30'
                   : 'bg-black/50 border-[#f59e0b]/30'
             }`}>
-              <div className="grid grid-cols-2 gap-3 text-xs">
+              <div className="grid grid-cols-2 gap-2 sm:gap-3 text-xs">
                 <div>
                   <span className="text-[10px] text-white/50 uppercase font-mono block">Delegate Name</span>
-                  <span className="font-bold text-white text-sm block truncate">{scanResultModal.delegateName}</span>
+                  <span className="font-bold text-white text-xs sm:text-sm block truncate">{scanResultModal.delegateName}</span>
                 </div>
                 <div>
                   <span className="text-[10px] text-white/50 uppercase font-mono block">Roll / Reg ID</span>
-                  <span className="font-mono font-bold text-[#f2c14e] text-sm block">{scanResultModal.delegateRoll}</span>
+                  <span className="font-mono font-bold text-[#f2c14e] text-xs sm:text-sm block truncate">{scanResultModal.delegateRoll}</span>
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-3 text-xs pt-2 border-t border-white/10">
+              <div className="grid grid-cols-2 gap-2 sm:gap-3 text-xs pt-2 border-t border-white/10">
                 {scanResultModal.delegateRole && (
                   <div>
                     <span className="text-[10px] text-white/50 uppercase font-mono block">Role</span>
-                    <span className="font-semibold text-white/90 block">{scanResultModal.delegateRole}</span>
+                    <span className="font-semibold text-white/90 block truncate">{scanResultModal.delegateRole}</span>
                   </div>
                 )}
                 {scanResultModal.eventName && (
@@ -3647,11 +3655,11 @@ export const AdminTicketScanner: React.FC<AdminTicketScannerProps> = ({
 
               {scanResultModal.scannedAt && (
                 <div className="pt-2 border-t border-white/10 flex items-center justify-between text-xs">
-                  <span className="text-white/60 flex items-center gap-1">
+                  <span className="text-white/60 flex items-center gap-1 text-[11px] sm:text-xs">
                     <Clock className="w-3.5 h-3.5 text-white/40" />
                     <span>{scanResultModal.type === 'already_scanned' ? 'Original Scan Time:' : 'Recorded At:'}</span>
                   </span>
-                  <span className="font-mono font-bold text-white bg-white/10 px-2 py-0.5 rounded">
+                  <span className="font-mono font-bold text-white bg-white/10 px-2 py-0.5 rounded text-[11px] sm:text-xs">
                     {scanResultModal.scannedAt}
                   </span>
                 </div>
@@ -3660,19 +3668,19 @@ export const AdminTicketScanner: React.FC<AdminTicketScannerProps> = ({
 
             {/* Warning Notice Banner for Already Scanned */}
             {scanResultModal.type === 'already_scanned' && (
-              <div className="mt-4 p-3 rounded-xl bg-[#ef4444]/20 border border-[#ef4444]/50 flex items-center gap-2.5 text-xs text-[#ff9999] font-semibold">
+              <div className="mt-3.5 sm:mt-4 p-2.5 sm:p-3 rounded-xl bg-[#ef4444]/20 border border-[#ef4444]/50 flex items-center gap-2 text-xs text-[#ff9999] font-semibold">
                 <XCircle className="w-4 h-4 text-[#ef4444] shrink-0" />
-                <span>ZERO (0) Count Added. Only 1 scan allowed per QR code. No other chance.</span>
+                <span>Zero count added. Only 1 scan allowed per QR. No other chance.</span>
               </div>
             )}
 
             {/* Close & Next Scan Button */}
-            <div className="mt-6 flex items-center gap-3">
+            <div className="mt-5 sm:mt-6">
               <button
                 type="button"
                 onClick={() => setScanResultModal(null)}
                 autoFocus
-                className={`w-full py-3 px-4 rounded-xl font-bold text-sm shadow-xl transition-all hover:scale-[1.02] cursor-pointer flex items-center justify-center gap-2 ${
+                className={`w-full py-3.5 px-4 rounded-xl font-bold text-sm sm:text-base shadow-xl transition-all cursor-pointer flex items-center justify-center gap-2 ${
                   scanResultModal.type === 'already_scanned'
                     ? 'bg-[#ef4444] hover:bg-[#dc2626] text-white shadow-[#ef4444]/30'
                     : scanResultModal.type === 'success'

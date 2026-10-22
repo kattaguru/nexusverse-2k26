@@ -1708,44 +1708,44 @@ export const AdminModal: React.FC<AdminModalProps> = ({
         onClick={(e) => e.stopPropagation()}
       >
         {/* TOP HEADER */}
-        <div className="admin-header bg-gradient-to-r from-[#181820] via-[#1f1b0e] to-[#181820] p-4 sm:p-5 border-b border-[#2e2b22] flex items-center justify-between shrink-0 shadow-md">
-          <div className="flex items-center gap-3">
-            <div className="admin-header-shield w-10 h-10 rounded-xl bg-[#d4a935]/20 border border-[#d4a935]/50 flex items-center justify-center text-[#f2c14e] shadow-md shrink-0">
-              {activeTab === 'scan' ? <QrCode className="w-5 h-5" /> : <ShieldCheck className="w-5 h-5" />}
+        <div className="admin-header bg-gradient-to-r from-[#181820] via-[#1f1b0e] to-[#181820] p-3 sm:p-5 border-b border-[#2e2b22] flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 shrink-0 shadow-md">
+          <div className="flex items-center gap-2.5 sm:gap-3 min-w-0">
+            <div className="admin-header-shield w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-[#d4a935]/20 border border-[#d4a935]/50 flex items-center justify-center text-[#f2c14e] shadow-md shrink-0">
+              {activeTab === 'scan' ? <QrCode className="w-4 h-4 sm:w-5 sm:h-5" /> : <ShieldCheck className="w-4 h-4 sm:w-5 sm:h-5" />}
             </div>
-            <div>
-              <div className="text-[10px] sm:text-[11px] text-[#f2c14e] font-mono tracking-wider uppercase font-semibold flex items-center gap-1.5">
+            <div className="min-w-0">
+              <div className="text-[10px] sm:text-[11px] text-[#f2c14e] font-mono tracking-wider uppercase font-semibold flex items-center gap-1.5 truncate">
                 <span>NexusVerse 2K26</span>
-                <span className="w-1.5 h-1.5 rounded-full bg-[#4cc38a] animate-pulse" />
-                <span className="admin-header-badge-text">
+                <span className="w-1.5 h-1.5 rounded-full bg-[#4cc38a] animate-pulse shrink-0" />
+                <span className="admin-header-badge-text truncate">
                   {isVerifyPortal 
-                    ? 'Reception & Spot Verification Desk' 
-                    : (activeTab === 'scan' ? 'QR Ticket Scanner & Check-In Desk' : 'Executive Operations Center')}
+                    ? 'Verify Desk' 
+                    : (activeTab === 'scan' ? 'Scanner Desk' : 'Operations Center')}
                 </span>
               </div>
-              <h3 id="admin-panel-title" className="admin-header-title text-sm sm:text-lg font-bold text-[#ffffff] leading-tight">
+              <h3 id="admin-panel-title" className="admin-header-title text-xs sm:text-lg font-bold text-[#ffffff] leading-tight truncate">
                 {isVerifyPortal
                   ? (activeTab === 'scan' 
-                      ? 'Scan & Check-In Desk · Delegate Entry Station' 
-                      : (activeTab === 'manual' ? 'Spot & Manual Registration Desk' : 'Symposium Registration & Verification Portal'))
+                      ? 'Scan & Check-In Desk' 
+                      : (activeTab === 'manual' ? 'Spot Registration Desk' : 'Spot Registration & Verification'))
                   : (activeTab === 'scan' 
-                      ? 'Scan & Check-In Desk · Delegate Entry Station' 
-                      : 'Symposium Admin & Delegate Management Portal')}
+                      ? 'Scan & Check-In Desk' 
+                      : 'Symposium Admin Portal')}
               </h3>
             </div>
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1.5 sm:gap-2 self-end sm:self-auto shrink-0 flex-wrap">
             {/* Live 3s Auto-Refresh Status & Manual Trigger */}
             {isAuthenticated && (
               <button
                 type="button"
                 onClick={handleManualRefresh}
-                className="admin-header-btn px-2.5 py-1.5 text-xs font-semibold rounded-lg border border-[#2e2b22] text-[#4cc38a] hover:bg-[#142617] hover:border-[#4cc38a]/40 transition-all flex items-center gap-1.5 cursor-pointer shadow-sm"
+                className="admin-header-btn px-2 sm:px-2.5 py-1.5 text-[11px] sm:text-xs font-semibold rounded-lg border border-[#2e2b22] text-[#4cc38a] hover:bg-[#142617] hover:border-[#4cc38a]/40 transition-all flex items-center gap-1 cursor-pointer shadow-sm"
                 title="Auto-refreshing every 3 seconds. Click to refresh instantly."
               >
                 <RefreshCw className={`w-3.5 h-3.5 text-[#4cc38a] ${isRefreshing ? 'animate-spin' : ''}`} />
-                <span className="hidden sm:inline">Live 3s</span>
+                <span className="inline">Live</span>
               </button>
             )}
 
@@ -1753,7 +1753,7 @@ export const AdminModal: React.FC<AdminModalProps> = ({
             <button
               type="button"
               onClick={handleThemeToggle}
-              className="admin-header-btn px-2.5 py-1.5 text-xs font-semibold rounded-lg border border-[#2e2b22] text-[#f2c14e] hover:bg-[#1f1b0e] hover:border-[#d4a935]/40 transition-all flex items-center gap-1.5 cursor-pointer shadow-sm"
+              className="admin-header-btn px-2 sm:px-2.5 py-1.5 text-[11px] sm:text-xs font-semibold rounded-lg border border-[#2e2b22] text-[#f2c14e] hover:bg-[#1f1b0e] hover:border-[#d4a935]/40 transition-all flex items-center gap-1 cursor-pointer shadow-sm"
               title={`Switch to ${activeTheme === 'dark' ? 'Light' : 'Dark'} Mode`}
               aria-label="Toggle dark/light theme mode"
             >
@@ -1774,19 +1774,21 @@ export const AdminModal: React.FC<AdminModalProps> = ({
               <button
                 type="button"
                 onClick={handleLogout}
-                className="admin-lock-btn px-2.5 py-1.5 text-xs font-semibold rounded-lg bg-[#2a1315] border border-[#ff8a80]/30 text-[#ff8a80] hover:bg-[#ff8a80]/20 transition-colors cursor-pointer"
+                className="admin-lock-btn px-2 sm:px-2.5 py-1.5 text-[11px] sm:text-xs font-semibold rounded-lg bg-[#2a1315] border border-[#ff8a80]/30 text-[#ff8a80] hover:bg-[#ff8a80]/20 transition-colors cursor-pointer"
                 title="Lock admin session"
               >
-                Lock Session
+                Lock
               </button>
             )}
             {isFullPage ? (
               <a
                 href="/register.html"
-                className="admin-header-btn px-3 py-1.5 text-xs font-semibold text-[#f3ecd9] hover:text-[#f2c14e] rounded-lg border border-[#2e2b22] hover:bg-[#1f1b0e] hover:border-[#d4a935]/40 transition-all flex items-center gap-1.5 cursor-pointer shadow-sm"
+                className="admin-header-btn px-2.5 sm:px-3 py-1.5 text-[11px] sm:text-xs font-semibold text-[#f3ecd9] hover:text-[#f2c14e] rounded-lg border border-[#2e2b22] hover:bg-[#1f1b0e] hover:border-[#d4a935]/40 transition-all flex items-center gap-1 cursor-pointer shadow-sm"
                 title="Return to Public Website"
               >
-                <span>&larr; View Live Website</span>
+                <span>&larr;</span>
+                <span className="hidden sm:inline">Live Website</span>
+                <span className="sm:hidden">Site</span>
               </a>
             ) : (
               <button
@@ -1803,20 +1805,35 @@ export const AdminModal: React.FC<AdminModalProps> = ({
 
         {/* AUTHENTICATION SCREEN */}
         {!isAuthenticated ? (
-          <div className="p-8 sm:p-14 flex flex-col items-center justify-center text-center max-w-md mx-auto space-y-6 flex-1 my-auto">
-            <div className="w-20 h-20 rounded-2xl bg-[#1f1b0e] border border-[#d4a935]/50 flex items-center justify-center text-[#f2c14e] shadow-2xl">
-              <Lock className="w-10 h-10" />
+          <div className="p-4 sm:p-10 flex flex-col items-center justify-center text-center max-w-sm sm:max-w-md mx-auto space-y-5 flex-1 my-auto w-full">
+            <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-2xl bg-[#1f1b0e] border border-[#d4a935]/50 flex items-center justify-center text-[#f2c14e] shadow-2xl">
+              <Lock className="w-8 h-8 sm:w-10 sm:h-10" />
             </div>
 
-            <div className="space-y-2">
-              <h4 className="text-2xl font-bold text-white">
-                {isVerifyPortal ? 'Registration & Spot Desk Access' : 'Administrator Access Required'}
+            <div className="space-y-1.5">
+              <h4 className="text-xl sm:text-2xl font-bold text-white">
+                {isVerifyPortal ? 'Verification Desk Access' : 'Administrator Access Required'}
               </h4>
               <p className="text-xs text-[#a79f8b] leading-relaxed">
                 {isVerifyPortal
-                  ? 'Enter verification key (nexusk26) to manage delegate registrations, scan QR tickets, and register spot participants.'
-                  : 'Enter your administrative key to control registrations, manage team delegates, upload photos, sort, search, and download symposium records.'}
+                  ? 'Enter desk key to verify spot delegates and scan entry QR passes.'
+                  : 'Enter your administrative key to control registrations, manage team delegates, and download records.'}
               </p>
+              {isVerifyPortal && (
+                <div className="pt-1">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setPasswordInput('nexusk26');
+                      setPasswordError('');
+                    }}
+                    className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-mono bg-[#1f1b0e] border border-[#d4a935]/50 text-[#f2c14e] hover:bg-[#d4a935]/20 cursor-pointer shadow-sm"
+                  >
+                    <span>Tap to prefill key:</span>
+                    <span className="font-bold underline">nexusk26</span>
+                  </button>
+                </div>
+              )}
             </div>
 
             <form onSubmit={handleLogin} className="w-full space-y-4">
@@ -1830,13 +1847,13 @@ export const AdminModal: React.FC<AdminModalProps> = ({
                   }}
                   placeholder={isVerifyPortal ? "Enter Key (nexusk26)" : "Enter Secure Admin Key"}
                   disabled={lockoutRemaining > 0}
-                  className="w-full px-4 py-3 rounded-xl bg-[#0a0a0d] border border-[#2e2b22] text-[#f3ecd9] text-sm focus:outline-none focus:border-[#d4a935] font-mono pr-10 disabled:opacity-50"
+                  className="w-full px-4 py-3 rounded-xl bg-[#0a0a0d] border border-[#2e2b22] text-[#f3ecd9] text-base focus:outline-none focus:border-[#d4a935] font-mono pr-10 disabled:opacity-50"
                   autoFocus
                 />
                 <button
                   type="button"
                   onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-3 top-3.5 text-[#a79f8b] hover:text-white"
+                  className="absolute right-3 top-3.5 text-[#a79f8b] hover:text-white cursor-pointer"
                 >
                   {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                 </button>
@@ -1852,7 +1869,7 @@ export const AdminModal: React.FC<AdminModalProps> = ({
               <button
                 type="submit"
                 disabled={isVerifyingLogin || lockoutRemaining > 0}
-                className="w-full py-3 rounded-xl bg-[#f2c14e] text-[#1a1300] font-bold text-sm hover:bg-[#d4a935] transition-all flex items-center justify-center gap-2 cursor-pointer shadow-lg disabled:opacity-50"
+                className="w-full py-3.5 rounded-xl bg-[#f2c14e] text-[#1a1300] font-bold text-sm sm:text-base hover:bg-[#d4a935] transition-all flex items-center justify-center gap-2 cursor-pointer shadow-lg disabled:opacity-50"
               >
                 {lockoutRemaining > 0 ? (
                   <>
@@ -1867,7 +1884,7 @@ export const AdminModal: React.FC<AdminModalProps> = ({
                 ) : (
                   <>
                     <Unlock className="w-4 h-4" />
-                    <span>Authenticate & Unlock</span>
+                    <span>Unlock Verification Desk</span>
                   </>
                 )}
               </button>
@@ -1883,106 +1900,158 @@ export const AdminModal: React.FC<AdminModalProps> = ({
         ) : (
           /* AUTHENTICATED TABS & CONTENT */
           <div className="flex flex-col flex-1 overflow-hidden">
-            {/* Navigation Tabs */}
-            <div className="bg-[#0a0a0d] border-b border-[#2e2b22] px-3 sm:px-6 flex items-center gap-1 sm:gap-2 overflow-x-auto shrink-0 py-2.5">
-              <button
-                type="button"
-                onClick={() => handleTabChange('registrations')}
-                className={`py-2 px-3 text-xs font-semibold rounded-lg flex items-center gap-1.5 transition-all cursor-pointer whitespace-nowrap ${
-                  activeTab === 'registrations'
-                    ? 'bg-[#1f1b0e] text-[#f2c14e] border border-[#d4a935]/40 shadow-sm'
-                    : 'text-[#a79f8b] hover:text-[#f3ecd9]'
-                }`}
-              >
-                <Users className="w-3.5 h-3.5" />
-                <span>All Registrations ({totalRegistrations} Teams · {totalDelegates} Delegates)</span>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => handleTabChange('scan')}
-                className={`py-2 px-3 text-xs font-semibold rounded-lg flex items-center gap-1.5 transition-all cursor-pointer whitespace-nowrap ${
-                  activeTab === 'scan'
-                    ? 'bg-gradient-to-r from-[#1f1b0e] to-[#2e250f] text-[#f2c14e] border border-[#d4a935] shadow-md shadow-[#d4a935]/15'
-                    : 'text-[#f2c14e] bg-[#1f1b0e]/50 hover:bg-[#1f1b0e] border border-[#d4a935]/30 hover:border-[#d4a935]/60'
-                }`}
-              >
-                <QrCode className="w-3.5 h-3.5 text-[#f2c14e]" />
-                <span className="font-bold">Scan & Check-In</span>
-                <span className="text-[10px] font-mono px-1.5 py-0.2 rounded bg-[#4cc38a]/20 text-[#4cc38a] border border-[#4cc38a]/30">
-                  {checkedInDelegates}/{totalDelegates}
-                </span>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => handleTabChange('manual')}
-                className={`py-2 px-3 text-xs font-semibold rounded-lg flex items-center gap-1.5 transition-all cursor-pointer whitespace-nowrap ${
-                  activeTab === 'manual'
-                    ? 'bg-[#1f1b0e] text-[#f2c14e] border border-[#d4a935]/40 shadow-sm'
-                    : 'text-[#a79f8b] hover:text-[#f3ecd9]'
-                }`}
-              >
-                <Plus className="w-3.5 h-3.5" />
-                <span>Spot / Manual Register</span>
-              </button>
-
-              {!isVerifyPortal && (
-                <>
+            {/* Navigation Tabs - Responsive Segmented Grid for Verify Desk */}
+            {isVerifyPortal ? (
+              <div className="bg-[#0a0a0d] border-b border-[#2e2b22] px-2 sm:px-6 py-2 shrink-0">
+                <div className="grid grid-cols-3 gap-1.5 sm:flex sm:items-center sm:gap-2 max-w-full">
                   <button
                     type="button"
-                    onClick={() => handleTabChange('status')}
-                    className={`py-2 px-3 text-xs font-semibold rounded-lg flex items-center gap-1.5 transition-all cursor-pointer whitespace-nowrap ${
-                      activeTab === 'status'
-                        ? 'bg-[#1f1b0e] text-[#f2c14e] border border-[#d4a935]/40 shadow-sm'
-                        : 'text-[#a79f8b] hover:text-[#f3ecd9]'
+                    onClick={() => handleTabChange('registrations')}
+                    className={`py-2 px-1.5 sm:px-3 text-xs font-semibold rounded-xl flex items-center justify-center gap-1.5 transition-all cursor-pointer text-center ${
+                      activeTab === 'registrations'
+                        ? 'bg-[#1f1b0e] text-[#f2c14e] border border-[#d4a935] shadow-sm'
+                        : 'text-[#a79f8b] hover:text-[#f3ecd9] bg-[#111116] border border-[#2e2b22]'
                     }`}
                   >
-                    <Power className="w-3.5 h-3.5" />
-                    <span>Control Registration: {isRegClosed ? 'CLOSED' : 'OPEN'}</span>
+                    <Users className="w-4 h-4 text-[#d4a935] shrink-0" />
+                    <span className="truncate">
+                      <span className="sm:hidden font-bold">Records ({totalDelegates})</span>
+                      <span className="hidden sm:inline">All Registrations ({totalRegistrations} Teams · {totalDelegates} Delegates)</span>
+                    </span>
                   </button>
 
                   <button
                     type="button"
-                    onClick={() => handleTabChange('photos')}
-                    className={`py-2 px-3 text-xs font-semibold rounded-lg flex items-center gap-1.5 transition-all cursor-pointer whitespace-nowrap ${
-                      activeTab === 'photos'
-                        ? 'bg-[#1f1b0e] text-[#f2c14e] border border-[#d4a935]/40 shadow-sm'
-                        : 'text-[#a79f8b] hover:text-[#f3ecd9]'
+                    onClick={() => handleTabChange('scan')}
+                    className={`py-2 px-1.5 sm:px-3 text-xs font-semibold rounded-xl flex items-center justify-center gap-1.5 transition-all cursor-pointer text-center ${
+                      activeTab === 'scan'
+                        ? 'bg-gradient-to-r from-[#1f1b0e] to-[#2e250f] text-[#f2c14e] border border-[#d4a935] shadow-md shadow-[#d4a935]/15'
+                        : 'text-[#f2c14e] bg-[#111116] border border-[#d4a935]/30 hover:border-[#d4a935]/60'
                     }`}
                   >
-                    <ImageIcon className="w-3.5 h-3.5" />
-                    <span>Upload Photos & Media ({galleryPhotos.length})</span>
+                    <QrCode className="w-4 h-4 text-[#f2c14e] shrink-0" />
+                    <span className="truncate flex items-center justify-center gap-1">
+                      <span className="font-bold">Scan</span>
+                      <span className="text-[10px] font-mono px-1 py-0.2 rounded bg-[#4cc38a]/20 text-[#4cc38a] border border-[#4cc38a]/30">
+                        {checkedInDelegates}/{totalDelegates}
+                      </span>
+                    </span>
                   </button>
 
                   <button
                     type="button"
-                    onClick={() => handleTabChange('settings')}
-                    className={`py-2 px-3 text-xs font-semibold rounded-lg flex items-center gap-1.5 transition-all cursor-pointer whitespace-nowrap ${
-                      activeTab === 'settings'
-                        ? 'bg-[#1f1b0e] text-[#f2c14e] border border-[#d4a935]/40 shadow-sm'
-                        : 'text-[#a79f8b] hover:text-[#f3ecd9]'
+                    onClick={() => handleTabChange('manual')}
+                    className={`py-2 px-1.5 sm:px-3 text-xs font-semibold rounded-xl flex items-center justify-center gap-1.5 transition-all cursor-pointer text-center ${
+                      activeTab === 'manual'
+                        ? 'bg-[#1f1b0e] text-[#f2c14e] border border-[#d4a935] shadow-sm'
+                        : 'text-[#a79f8b] hover:text-[#f3ecd9] bg-[#111116] border border-[#2e2b22]'
                     }`}
                   >
-                    <Database className="w-3.5 h-3.5" />
-                    <span>Backup & Security</span>
+                    <Plus className="w-4 h-4 text-[#d4a935] shrink-0" />
+                    <span className="truncate">
+                      <span className="sm:hidden font-bold">Spot Desk</span>
+                      <span className="hidden sm:inline">Spot / Manual Register</span>
+                    </span>
                   </button>
+                </div>
+              </div>
+            ) : (
+              <div className="bg-[#0a0a0d] border-b border-[#2e2b22] px-3 sm:px-6 flex items-center gap-1 sm:gap-2 overflow-x-auto shrink-0 py-2.5">
+                <button
+                  type="button"
+                  onClick={() => handleTabChange('registrations')}
+                  className={`py-2 px-3 text-xs font-semibold rounded-lg flex items-center gap-1.5 transition-all cursor-pointer whitespace-nowrap ${
+                    activeTab === 'registrations'
+                      ? 'bg-[#1f1b0e] text-[#f2c14e] border border-[#d4a935]/40 shadow-sm'
+                      : 'text-[#a79f8b] hover:text-[#f3ecd9]'
+                  }`}
+                >
+                  <Users className="w-3.5 h-3.5" />
+                  <span>All Registrations ({totalRegistrations} Teams · {totalDelegates} Delegates)</span>
+                </button>
 
-                  <button
-                    type="button"
-                    onClick={() => handleTabChange('cache')}
-                    className={`py-2 px-3 text-xs font-semibold rounded-lg flex items-center gap-1.5 transition-all cursor-pointer whitespace-nowrap ${
-                      activeTab === 'cache'
-                        ? 'bg-[#1f1b0e] text-[#f2c14e] border border-[#d4a935]/40 shadow-sm'
-                        : 'text-[#a79f8b] hover:text-[#f3ecd9]'
-                    }`}
-                  >
-                    <Cpu className="w-3.5 h-3.5" />
-                    <span>Cache Memory</span>
-                  </button>
-                </>
-              )}
-            </div>
+                <button
+                  type="button"
+                  onClick={() => handleTabChange('scan')}
+                  className={`py-2 px-3 text-xs font-semibold rounded-lg flex items-center gap-1.5 transition-all cursor-pointer whitespace-nowrap ${
+                    activeTab === 'scan'
+                      ? 'bg-gradient-to-r from-[#1f1b0e] to-[#2e250f] text-[#f2c14e] border border-[#d4a935] shadow-md shadow-[#d4a935]/15'
+                      : 'text-[#f2c14e] bg-[#1f1b0e]/50 hover:bg-[#1f1b0e] border border-[#d4a935]/30 hover:border-[#d4a935]/60'
+                  }`}
+                >
+                  <QrCode className="w-3.5 h-3.5 text-[#f2c14e]" />
+                  <span className="font-bold">Scan & Check-In</span>
+                  <span className="text-[10px] font-mono px-1.5 py-0.2 rounded bg-[#4cc38a]/20 text-[#4cc38a] border border-[#4cc38a]/30">
+                    {checkedInDelegates}/{totalDelegates}
+                  </span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => handleTabChange('manual')}
+                  className={`py-2 px-3 text-xs font-semibold rounded-lg flex items-center gap-1.5 transition-all cursor-pointer whitespace-nowrap ${
+                    activeTab === 'manual'
+                      ? 'bg-[#1f1b0e] text-[#f2c14e] border border-[#d4a935]/40 shadow-sm'
+                      : 'text-[#a79f8b] hover:text-[#f3ecd9]'
+                  }`}
+                >
+                  <Plus className="w-3.5 h-3.5" />
+                  <span>Spot / Manual Register</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => handleTabChange('status')}
+                  className={`py-2 px-3 text-xs font-semibold rounded-lg flex items-center gap-1.5 transition-all cursor-pointer whitespace-nowrap ${
+                    activeTab === 'status'
+                      ? 'bg-[#1f1b0e] text-[#f2c14e] border border-[#d4a935]/40 shadow-sm'
+                      : 'text-[#a79f8b] hover:text-[#f3ecd9]'
+                  }`}
+                >
+                  <Power className="w-3.5 h-3.5" />
+                  <span>Control Registration: {isRegClosed ? 'CLOSED' : 'OPEN'}</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => handleTabChange('photos')}
+                  className={`py-2 px-3 text-xs font-semibold rounded-lg flex items-center gap-1.5 transition-all cursor-pointer whitespace-nowrap ${
+                    activeTab === 'photos'
+                      ? 'bg-[#1f1b0e] text-[#f2c14e] border border-[#d4a935]/40 shadow-sm'
+                      : 'text-[#a79f8b] hover:text-[#f3ecd9]'
+                  }`}
+                >
+                  <ImageIcon className="w-3.5 h-3.5" />
+                  <span>Upload Photos & Media ({galleryPhotos.length})</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => handleTabChange('settings')}
+                  className={`py-2 px-3 text-xs font-semibold rounded-lg flex items-center gap-1.5 transition-all cursor-pointer whitespace-nowrap ${
+                    activeTab === 'settings'
+                      ? 'bg-[#1f1b0e] text-[#f2c14e] border border-[#d4a935]/40 shadow-sm'
+                      : 'text-[#a79f8b] hover:text-[#f3ecd9]'
+                  }`}
+                >
+                  <Database className="w-3.5 h-3.5" />
+                  <span>Backup & Security</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => handleTabChange('cache')}
+                  className={`py-2 px-3 text-xs font-semibold rounded-lg flex items-center gap-1.5 transition-all cursor-pointer whitespace-nowrap ${
+                    activeTab === 'cache'
+                      ? 'bg-[#1f1b0e] text-[#f2c14e] border border-[#d4a935]/40 shadow-sm'
+                      : 'text-[#a79f8b] hover:text-[#f3ecd9]'
+                  }`}
+                >
+                  <Cpu className="w-3.5 h-3.5" />
+                  <span>Cache Memory</span>
+                </button>
+              </div>
+            )}
 
             {/* TAB CONTENT CONTAINER */}
             <div className="p-3.5 sm:p-6 overflow-y-auto flex-1 space-y-5">
@@ -2115,7 +2184,7 @@ export const AdminModal: React.FC<AdminModalProps> = ({
                   </div>
 
                   {/* SEARCH, SORT, FILTER & DOWNLOAD TOOLBAR */}
-                  <div className="p-3.5 rounded-xl bg-[#0a0a0d] border border-[#2e2b22] space-y-3">
+                  <div className="p-3 sm:p-3.5 rounded-xl bg-[#0a0a0d] border border-[#2e2b22] space-y-3">
                     <div className="flex flex-col lg:flex-row items-stretch lg:items-center justify-between gap-2.5">
                       {/* Search Input */}
                       <div className="relative flex-1">
@@ -2138,13 +2207,13 @@ export const AdminModal: React.FC<AdminModalProps> = ({
                         )}
                       </div>
 
-                      {/* Dropdown Filters: Event, Membership, Payment Verification */}
-                      <div className="flex flex-wrap items-center gap-2">
+                      {/* Dropdown Filters: Event, Membership, Payment Verification in responsive grid */}
+                      <div className="grid grid-cols-1 sm:grid-cols-2 lg:flex lg:flex-wrap items-center gap-2 w-full lg:w-auto">
                         {/* Event Filter */}
                         <select
                           value={selectedEventFilter}
                           onChange={(e) => setSelectedEventFilter(e.target.value)}
-                          className="px-2.5 py-2 text-xs rounded-lg bg-[#131318] border border-[#2e2b22] text-[#f3ecd9] focus:outline-none focus:border-[#d4a935] cursor-pointer"
+                          className="w-full lg:w-auto px-2.5 py-2 text-xs rounded-lg bg-[#131318] border border-[#2e2b22] text-[#f3ecd9] focus:outline-none focus:border-[#d4a935] cursor-pointer"
                           aria-label="Filter by Event"
                         >
                           <option value="all">All Events (Tech & Spot)</option>
@@ -2157,7 +2226,7 @@ export const AdminModal: React.FC<AdminModalProps> = ({
                         <select
                           value={ieeeFilter}
                           onChange={(e) => setIeeeFilter(e.target.value as any)}
-                          className="px-2.5 py-2 text-xs rounded-lg bg-[#131318] border border-[#2e2b22] text-[#f3ecd9] focus:outline-none focus:border-[#d4a935] cursor-pointer font-medium"
+                          className="w-full lg:w-auto px-2.5 py-2 text-xs rounded-lg bg-[#131318] border border-[#2e2b22] text-[#f3ecd9] focus:outline-none focus:border-[#d4a935] cursor-pointer font-medium"
                           aria-label="Filter by IEEE Membership"
                         >
                           <option value="all">All Memberships ({totalDelegates} Delegates · {totalRegistrations} Teams)</option>
@@ -2169,7 +2238,7 @@ export const AdminModal: React.FC<AdminModalProps> = ({
                         <select
                           value={verificationFilter}
                           onChange={(e) => setVerificationFilter(e.target.value as any)}
-                          className={`px-2.5 py-2 text-xs rounded-lg border focus:outline-none cursor-pointer font-medium transition-colors ${
+                          className={`w-full lg:w-auto px-2.5 py-2 text-xs rounded-lg border focus:outline-none cursor-pointer font-medium transition-colors ${
                             verificationFilter === 'unverified'
                               ? 'bg-[#2a1d06] border-[#f2c14e] text-[#f2c14e]'
                               : 'bg-[#131318] border-[#2e2b22] text-[#f3ecd9] focus:border-[#d4a935]'
@@ -2187,7 +2256,7 @@ export const AdminModal: React.FC<AdminModalProps> = ({
                         <select
                           value={checkInFilter}
                           onChange={(e) => setCheckInFilter(e.target.value as any)}
-                          className={`px-2.5 py-2 text-xs rounded-lg border focus:outline-none cursor-pointer font-medium transition-colors ${
+                          className={`w-full lg:w-auto px-2.5 py-2 text-xs rounded-lg border focus:outline-none cursor-pointer font-medium transition-colors ${
                             checkInFilter === 'checked-in'
                               ? 'bg-[#142617] border-[#4cc38a] text-[#4cc38a]'
                               : 'bg-[#131318] border-[#2e2b22] text-[#f3ecd9] focus:border-[#d4a935]'
@@ -2202,8 +2271,8 @@ export const AdminModal: React.FC<AdminModalProps> = ({
                     </div>
 
                     {/* Quick Filter Pill Buttons */}
-                    <div className="flex flex-wrap items-center gap-1.5 pt-1 text-xs">
-                      <span className="text-[11px] text-[#a79f8b] font-semibold mr-1 flex items-center gap-1">
+                    <div className="flex items-center gap-1.5 pt-1 text-xs overflow-x-auto no-scrollbar py-1 flex-nowrap sm:flex-wrap">
+                      <span className="text-[11px] text-[#a79f8b] font-semibold mr-1 flex items-center gap-1 shrink-0">
                         <Filter className="w-3 h-3 text-[#d4a935]" />
                         <span>Filter:</span>
                       </span>
@@ -2760,8 +2829,8 @@ export const AdminModal: React.FC<AdminModalProps> = ({
                                 </div>
                               </div>
 
-                              <div className="flex flex-wrap items-center gap-2 self-end sm:self-center shrink-0">
-                                <div className="text-right mr-1">
+                              <div className="flex flex-wrap items-center justify-between sm:justify-end gap-2 pt-2.5 sm:pt-0 border-t sm:border-t-0 border-[#2e2b22]/50 w-full sm:w-auto shrink-0">
+                                <div className="text-left sm:text-right mr-1">
                                   <span className="font-mono font-bold text-sm text-[#f2c14e] block">
                                     ₹{record.totalPaid}
                                   </span>
@@ -2772,184 +2841,188 @@ export const AdminModal: React.FC<AdminModalProps> = ({
                                   ) : null}
                                 </div>
 
-                                {/* Payment Verification Button: Manual for UPI, Automatic for Razorpay */}
-                                {isVerifyPortal && !isSpotRecord(record) ? (
-                                  record.isVerified ? (
-                                    <span
-                                      className="px-2.5 py-1 rounded-lg bg-[#0d2a1c] border border-[#4cc38a]/60 text-[#4cc38a] flex items-center gap-1 text-xs font-semibold shadow-sm"
-                                      title="Online payment verified by Executive Admin"
-                                    >
-                                      <CheckCircle2 className="w-3.5 h-3.5 text-[#4cc38a]" />
-                                      <span>Verified ✓</span>
-                                    </span>
+                                <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
+                                  {/* Payment Verification Button: Manual for UPI, Automatic for Razorpay */}
+                                  {isVerifyPortal && !isSpotRecord(record) ? (
+                                    record.isVerified ? (
+                                      <span
+                                        className="px-2.5 py-1.5 rounded-lg bg-[#0d2a1c] border border-[#4cc38a]/60 text-[#4cc38a] flex items-center gap-1 text-xs font-semibold shadow-sm"
+                                        title="Online payment verified by Executive Admin"
+                                      >
+                                        <CheckCircle2 className="w-3.5 h-3.5 text-[#4cc38a]" />
+                                        <span>Verified ✓</span>
+                                      </span>
+                                    ) : (
+                                      <button
+                                        type="button"
+                                        onClick={() => {
+                                          alert('Permission Notice: Desk operators can only verify Spot Registrations.\n\nOnline UPI registrations must be verified by Executive Admin at nbkristieee.in/nexusadmin.');
+                                        }}
+                                        className="px-2.5 py-1.5 rounded-lg bg-[#1f1b0e] border border-[#d4a935]/40 text-[#d4a935] hover:bg-[#2e250f] transition-all cursor-pointer flex items-center gap-1 text-xs font-semibold shadow-sm opacity-80"
+                                        title="Online payment verification is restricted to Executive Admin"
+                                      >
+                                        <Clock className="w-3.5 h-3.5 text-[#d4a935]" />
+                                        <span>Online UPI</span>
+                                      </button>
+                                    )
+                                  ) : record.paymentMode === 'upi' || isSpotRecord(record) ? (
+                                    record.isVerified ? (
+                                      <button
+                                        type="button"
+                                        onClick={() => handleToggleVerify(record)}
+                                        className="px-2.5 py-1.5 rounded-lg bg-[#0d2a1c] border border-[#4cc38a]/60 text-[#4cc38a] hover:bg-[#153e2a] transition-all cursor-pointer flex items-center gap-1 text-xs font-semibold shadow-sm"
+                                        title={isSpotRecord(record) ? "Spot Payment Verified! Click to toggle / unverify if needed" : "UPI Payment Verified! Click to toggle / unverify if needed"}
+                                      >
+                                        <CheckCircle2 className="w-3.5 h-3.5 text-[#4cc38a]" />
+                                        <span>{isSpotRecord(record) ? 'Spot Verified ✓' : 'Verified ✓'}</span>
+                                      </button>
+                                    ) : (
+                                      <button
+                                        type="button"
+                                        onClick={() => handleToggleVerify(record)}
+                                        className="px-2.5 py-1.5 rounded-lg bg-gradient-to-r from-[#241a06] via-[#382608] to-[#241a06] border border-[#f2c14e] text-[#f2c14e] hover:bg-[#f2c14e] hover:text-[#1a1300] transition-all cursor-pointer flex items-center gap-1 text-xs font-bold shadow-md shadow-[#f2c14e]/20"
+                                        title={isSpotRecord(record) ? "Click to verify Spot Registration" : "Click to verify this UPI payment receipt & transaction reference"}
+                                      >
+                                        <Clock className="w-3.5 h-3.5 text-[#f2c14e] animate-pulse" />
+                                        <span>{isSpotRecord(record) ? 'Verify Spot ✓' : 'Verify UPI'}</span>
+                                      </button>
+                                    )
                                   ) : (
+                                    <span 
+                                      className="px-2.5 py-1.5 rounded-lg bg-[#0c1f33] border border-[#0088d4]/40 text-[#70baff] text-[11px] font-semibold flex items-center gap-1"
+                                      title="Razorpay payments are automatically authorized and verified by gateway"
+                                    >
+                                      <ShieldCheck className="w-3.5 h-3.5 text-[#4cc38a]" />
+                                      <span>Auto Verified</span>
+                                    </span>
+                                  )}
+
+                                  {/* Quick Check-In / Attendance Button */}
+                                  <button
+                                    type="button"
+                                    onClick={() => handleToggleCheckIn(record)}
+                                    className={`p-1.5 px-2.5 rounded-lg border text-xs font-semibold flex items-center gap-1.5 transition-all cursor-pointer ${
+                                      checkInStats.checkedInCount > 0
+                                        ? 'bg-[#142617] text-[#4cc38a] border-[#4cc38a]/50 hover:bg-[#1b5e39]/40'
+                                        : 'bg-[#181820] text-[#a79f8b] border-[#2e2b22] hover:text-[#4cc38a] hover:border-[#4cc38a]/40'
+                                    }`}
+                                    title={
+                                      teammates.length > 0
+                                        ? (checkInStats.checkedInCount > 0
+                                            ? `${checkInStats.checkedInCount}/${checkInStats.totalMembers} checked in (Click to toggle all)`
+                                            : 'Click to check in all team members')
+                                        : (record.checkedIn ? 'Delegate Checked In (Click to Undo)' : 'Click to Check In Delegate')
+                                    }
+                                  >
+                                    <CheckCircle2 className="w-3.5 h-3.5" />
+                                    <span className="hidden sm:inline">
+                                      {teammates.length > 0
+                                        ? (checkInStats.isFullyCheckedIn
+                                            ? 'All Present'
+                                            : (checkInStats.checkedInCount > 0
+                                                ? `${checkInStats.checkedInCount}/${checkInStats.totalMembers} Present`
+                                                : 'Check In All'))
+                                        : (record.checkedIn ? 'Checked In' : 'Check In')}
+                                    </span>
+                                  </button>
+
+                                  {/* View Official Ticket Pass Button */}
+                                  <button
+                                    type="button"
+                                    onClick={() => setViewingAdminTicket(record)}
+                                    className="px-2.5 py-1.5 rounded-lg bg-[#181820] border border-[#d4a935]/40 text-[#f2c14e] hover:bg-[#d4a935] hover:text-[#1a1300] transition-colors cursor-pointer flex items-center gap-1 text-xs font-semibold shadow-sm"
+                                    title="View digital ticket pass with dynamic entry QR code"
+                                  >
+                                    <Ticket className="w-3.5 h-3.5" />
+                                    <span>Ticket</span>
+                                  </button>
+
+                                  {/* View UPI Receipt Screenshot */}
+                                  {(record.paymentScreenshot || (record.teamDetails as any)?._paymentScreenshot) && (
                                     <button
                                       type="button"
                                       onClick={() => {
-                                        alert('Permission Notice: Desk operators can only verify Spot Registrations.\n\nOnline UPI registrations must be verified by Executive Admin at nbkristieee.in/nexusadmin.');
+                                        const scr = record.paymentScreenshot || (record.teamDetails as any)?._paymentScreenshot;
+                                        if (scr) {
+                                          setViewingReceipt({
+                                            name: record.name,
+                                            roll: record.roll,
+                                            paymentId: record.paymentId,
+                                            screenshot: scr
+                                          });
+                                        }
                                       }}
-                                      className="px-2.5 py-1 rounded-lg bg-[#1f1b0e] border border-[#d4a935]/40 text-[#d4a935] hover:bg-[#2e250f] transition-all cursor-pointer flex items-center gap-1 text-xs font-semibold shadow-sm opacity-80"
-                                      title="Online payment verification is restricted to Executive Admin"
+                                      className="p-1.5 px-2 rounded-lg bg-[#0f2e1e] border border-[#4cc38a]/40 text-[#4cc38a] hover:bg-[#1b5e39] transition-colors cursor-pointer flex items-center gap-1 text-[11px] font-semibold"
+                                      title="View UPI Receipt Screenshot"
                                     >
-                                      <Clock className="w-3.5 h-3.5 text-[#d4a935]" />
-                                      <span>Online UPI</span>
+                                      <ImageIcon className="w-3.5 h-3.5" />
+                                      <span className="hidden sm:inline">Receipt</span>
                                     </button>
-                                  )
-                                ) : record.paymentMode === 'upi' || isSpotRecord(record) ? (
-                                  record.isVerified ? (
-                                    <button
-                                      type="button"
-                                      onClick={() => handleToggleVerify(record)}
-                                      className="px-2.5 py-1 rounded-lg bg-[#0d2a1c] border border-[#4cc38a]/60 text-[#4cc38a] hover:bg-[#153e2a] transition-all cursor-pointer flex items-center gap-1 text-xs font-semibold shadow-sm"
-                                      title={isSpotRecord(record) ? "Spot Payment Verified! Click to toggle / unverify if needed" : "UPI Payment Verified! Click to toggle / unverify if needed"}
-                                    >
-                                      <CheckCircle2 className="w-3.5 h-3.5 text-[#4cc38a]" />
-                                      <span>{isSpotRecord(record) ? 'Spot Verified ✓' : 'Verified ✓'}</span>
-                                    </button>
-                                  ) : (
-                                    <button
-                                      type="button"
-                                      onClick={() => handleToggleVerify(record)}
-                                      className="px-2.5 py-1 rounded-lg bg-gradient-to-r from-[#241a06] via-[#382608] to-[#241a06] border border-[#f2c14e] text-[#f2c14e] hover:bg-[#f2c14e] hover:text-[#1a1300] transition-all cursor-pointer flex items-center gap-1 text-xs font-bold shadow-md shadow-[#f2c14e]/20"
-                                      title={isSpotRecord(record) ? "Click to verify Spot Registration" : "Click to verify this UPI payment receipt & transaction reference"}
-                                    >
-                                      <Clock className="w-3.5 h-3.5 text-[#f2c14e] animate-pulse" />
-                                      <span>{isSpotRecord(record) ? 'Verify Spot ✓' : 'Verify UPI'}</span>
-                                    </button>
-                                  )
-                                ) : (
-                                  <span 
-                                    className="px-2 py-1 rounded-lg bg-[#0c1f33] border border-[#0088d4]/40 text-[#70baff] text-[11px] font-semibold flex items-center gap-1"
-                                    title="Razorpay payments are automatically authorized and verified by gateway"
-                                  >
-                                    <ShieldCheck className="w-3.5 h-3.5 text-[#4cc38a]" />
-                                    <span>Auto Verified</span>
-                                  </span>
-                                )}
-
-                                {/* Quick Check-In / Attendance Button */}
-                                <button
-                                  type="button"
-                                  onClick={() => handleToggleCheckIn(record)}
-                                  className={`p-1.5 px-2.5 rounded-lg border text-xs font-semibold flex items-center gap-1.5 transition-all cursor-pointer ${
-                                    checkInStats.checkedInCount > 0
-                                      ? 'bg-[#142617] text-[#4cc38a] border-[#4cc38a]/50 hover:bg-[#1b5e39]/40'
-                                      : 'bg-[#181820] text-[#a79f8b] border-[#2e2b22] hover:text-[#4cc38a] hover:border-[#4cc38a]/40'
-                                  }`}
-                                  title={
-                                    teammates.length > 0
-                                      ? (checkInStats.checkedInCount > 0
-                                          ? `${checkInStats.checkedInCount}/${checkInStats.totalMembers} checked in (Click to toggle all)`
-                                          : 'Click to check in all team members')
-                                      : (record.checkedIn ? 'Delegate Checked In (Click to Undo)' : 'Click to Check In Delegate')
-                                  }
-                                >
-                                  <CheckCircle2 className="w-3.5 h-3.5" />
-                                  <span className="hidden md:inline">
-                                    {teammates.length > 0
-                                      ? (checkInStats.isFullyCheckedIn
-                                          ? 'All Present'
-                                          : (checkInStats.checkedInCount > 0
-                                              ? `${checkInStats.checkedInCount}/${checkInStats.totalMembers} Present`
-                                              : 'Check In All'))
-                                      : (record.checkedIn ? 'Checked In' : 'Check In')}
-                                  </span>
-                                </button>
-
-                                {/* View Official Ticket Pass Button */}
-                                <button
-                                  type="button"
-                                  onClick={() => setViewingAdminTicket(record)}
-                                  className="px-2.5 py-1 rounded-lg bg-[#181820] border border-[#d4a935]/40 text-[#f2c14e] hover:bg-[#d4a935] hover:text-[#1a1300] transition-colors cursor-pointer flex items-center gap-1 text-xs font-semibold shadow-sm"
-                                  title="View digital ticket pass with dynamic entry QR code"
-                                >
-                                  <Ticket className="w-3.5 h-3.5" />
-                                  <span>View Ticket</span>
-                                </button>
-
-                                {/* View UPI Receipt Screenshot */}
-                                {(record.paymentScreenshot || (record.teamDetails as any)?._paymentScreenshot) && (
-                                  <button
-                                    type="button"
-                                    onClick={() => {
-                                      const scr = record.paymentScreenshot || (record.teamDetails as any)?._paymentScreenshot;
-                                      if (scr) {
-                                        setViewingReceipt({
-                                          name: record.name,
-                                          roll: record.roll,
-                                          paymentId: record.paymentId,
-                                          screenshot: scr
-                                        });
-                                      }
-                                    }}
-                                    className="p-1 px-2 rounded-lg bg-[#0f2e1e] border border-[#4cc38a]/40 text-[#4cc38a] hover:bg-[#1b5e39] transition-colors cursor-pointer flex items-center gap-1 text-[11px] font-semibold"
-                                    title="View UPI Receipt Screenshot"
-                                  >
-                                    <ImageIcon className="w-3.5 h-3.5" />
-                                    <span className="hidden sm:inline">Receipt</span>
-                                  </button>
-                                )}
-
-                                {/* View / Print Pass */}
-                                {onViewPass && (
-                                  <button
-                                    type="button"
-                                    onClick={() => onViewPass(record)}
-                                    className="p-1.5 rounded-lg bg-[#181820] border border-[#2e2b22] text-[#f2c14e] hover:bg-[#d4a935] hover:text-[#1a1300] transition-colors cursor-pointer"
-                                    title="View & Download Pass"
-                                  >
-                                    <Printer className="w-3.5 h-3.5" />
-                                  </button>
-                                )}
-
-                                {/* Send Ticket Email */}
-                                <button
-                                  type="button"
-                                  disabled={sendingEmailRegId === record.regId}
-                                  onClick={() => handleSendTicketEmail(record)}
-                                  className="p-1.5 rounded-lg bg-[#181820] border border-[#2e2b22] text-[#4cc38a] hover:bg-[#153424] hover:text-white transition-colors cursor-pointer"
-                                  title={`Send ticket pass email to ${record.email} (8 PM batch)`}
-                                >
-                                  {sendingEmailRegId === record.regId ? (
-                                    <RefreshCw className="w-3.5 h-3.5 animate-spin" />
-                                  ) : (
-                                    <Mail className="w-3.5 h-3.5" />
                                   )}
-                                </button>
 
-                                {/* Edit Member & Team */}
-                                <button
-                                  type="button"
-                                  onClick={() => setEditingRecord(JSON.parse(JSON.stringify(record)))}
-                                  className="p-1.5 rounded-lg bg-[#181820] border border-[#2e2b22] text-[#d4a935] hover:text-white transition-colors cursor-pointer"
-                                  title="Edit Participant & Team Members"
-                                >
-                                  <Edit3 className="w-3.5 h-3.5" />
-                                </button>
+                                  {/* View / Print Pass */}
+                                  {onViewPass && (
+                                    <button
+                                      type="button"
+                                      onClick={() => onViewPass(record)}
+                                      className="p-1.5 rounded-lg bg-[#181820] border border-[#2e2b22] text-[#f2c14e] hover:bg-[#d4a935] hover:text-[#1a1300] transition-colors cursor-pointer"
+                                      title="View & Download Pass"
+                                    >
+                                      <Printer className="w-3.5 h-3.5" />
+                                    </button>
+                                  )}
 
-                                {/* Delete Record */}
-                                <button
-                                  type="button"
-                                  onClick={() => {
-                                    if (confirm(`Delete registration ${record.regId} for ${record.name}?`)) {
-                                      onDeleteRecord(record.regId);
-                                    }
-                                  }}
-                                  className="p-1.5 rounded-lg bg-[#2a1315] border border-[#ff8a80]/30 text-[#ff8a80] hover:bg-[#ff8a80]/20 transition-colors cursor-pointer"
-                                  title="Delete Registration"
-                                >
-                                  <Trash2 className="w-3.5 h-3.5" />
-                                </button>
+                                  {/* Send Ticket Email */}
+                                  <button
+                                    type="button"
+                                    disabled={sendingEmailRegId === record.regId}
+                                    onClick={() => handleSendTicketEmail(record)}
+                                    className="p-1.5 rounded-lg bg-[#181820] border border-[#2e2b22] text-[#4cc38a] hover:bg-[#153424] hover:text-white transition-colors cursor-pointer"
+                                    title={`Send ticket pass email to ${record.email} (8 PM batch)`}
+                                  >
+                                    {sendingEmailRegId === record.regId ? (
+                                      <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                                    ) : (
+                                      <Mail className="w-3.5 h-3.5" />
+                                    )}
+                                  </button>
 
-                                {/* Expand / Collapse */}
-                                <button
-                                  type="button"
-                                  onClick={() => setExpandedRecordId(isExpanded ? null : record.regId)}
-                                  className="p-1.5 rounded-lg bg-[#181820] border border-[#2e2b22] text-[#a79f8b] hover:text-white transition-colors cursor-pointer"
-                                  title="Expand full team details"
-                                >
-                                  {isExpanded ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
-                                </button>
+                                  {/* Edit Member & Team */}
+                                  <button
+                                    type="button"
+                                    onClick={() => setEditingRecord(JSON.parse(JSON.stringify(record)))}
+                                    className="p-1.5 rounded-lg bg-[#181820] border border-[#2e2b22] text-[#d4a935] hover:text-white transition-colors cursor-pointer"
+                                    title="Edit Participant & Team Members"
+                                  >
+                                    <Edit3 className="w-3.5 h-3.5" />
+                                  </button>
+
+                                  {/* Delete Record (Only visible for Executive Admin, hidden on Verify Desk) */}
+                                  {!isVerifyPortal && (
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        if (confirm(`Delete registration ${record.regId} for ${record.name}?`)) {
+                                          onDeleteRecord(record.regId);
+                                        }
+                                      }}
+                                      className="p-1.5 rounded-lg bg-[#2a1315] border border-[#ff8a80]/30 text-[#ff8a80] hover:bg-[#ff8a80]/20 transition-colors cursor-pointer"
+                                      title="Delete Registration"
+                                    >
+                                      <Trash2 className="w-3.5 h-3.5" />
+                                    </button>
+                                  )}
+
+                                  {/* Expand / Collapse */}
+                                  <button
+                                    type="button"
+                                    onClick={() => setExpandedRecordId(isExpanded ? null : record.regId)}
+                                    className="p-1.5 rounded-lg bg-[#181820] border border-[#2e2b22] text-[#a79f8b] hover:text-white transition-colors cursor-pointer"
+                                    title="Expand full team details"
+                                  >
+                                    {isExpanded ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+                                  </button>
+                                </div>
                               </div>
                             </div>
 
