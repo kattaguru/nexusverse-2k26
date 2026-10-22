@@ -431,7 +431,13 @@ apiRouter.put('/registrations/:regId', (req: Request, res: Response) => {
         ...(updatedRecord.memberTechStatus ? { _memberTechStatus: updatedRecord.memberTechStatus } : {}),
         ...(updatedRecord.memberTechTimes ? { _memberTechTimes: updatedRecord.memberTechTimes } : {}),
         ...(updatedRecord.memberSpotStatus ? { _memberSpotStatus: updatedRecord.memberSpotStatus } : {}),
-        ...(updatedRecord.memberSpotTimes ? { _memberSpotTimes: updatedRecord.memberSpotTimes } : {})
+        ...(updatedRecord.memberSpotTimes ? { _memberSpotTimes: updatedRecord.memberSpotTimes } : {}),
+        ...(updatedRecord.memberCertStatus ? { _memberCertStatus: updatedRecord.memberCertStatus } : {}),
+        ...(updatedRecord.memberCertTimes ? { _memberCertTimes: updatedRecord.memberCertTimes } : {}),
+        ...(updatedRecord.certificateIssued !== undefined ? { _certificateIssued: updatedRecord.certificateIssued } : {}),
+        ...(updatedRecord.certificateIssuedTime ? { _certificateIssuedTime: updatedRecord.certificateIssuedTime } : {}),
+        ...(updatedRecord.certificateIssuedBy ? { _certificateIssuedBy: updatedRecord.certificateIssuedBy } : {}),
+        ...(updatedRecord.deskScans ? { _deskScans: updatedRecord.deskScans } : {})
       },
       total_paid: Number(updatedRecord.totalPaid || 0),
       promo_code: updatedRecord.promoCode || '',

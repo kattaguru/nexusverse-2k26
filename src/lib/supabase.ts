@@ -81,6 +81,12 @@ export function mapDbToRegistrationRecord(row: any): RegistrationRecord {
     memberTechTimes: row.member_tech_times || row.memberTechTimes || row.team_details?._memberTechTimes || {},
     memberSpotStatus: row.member_spot_status || row.memberSpotStatus || row.team_details?._memberSpotStatus || {},
     memberSpotTimes: row.member_spot_times || row.memberSpotTimes || row.team_details?._memberSpotTimes || {},
+    memberCertStatus: row.member_cert_status || row.memberCertStatus || row.team_details?._memberCertStatus || {},
+    memberCertTimes: row.member_cert_times || row.memberCertTimes || row.team_details?._memberCertTimes || {},
+    certificateIssued: Boolean(row.certificate_issued ?? row.certificateIssued ?? row.team_details?._certificateIssued),
+    certificateIssuedTime: row.certificate_issued_time || row.certificateIssuedTime || row.team_details?._certificateIssuedTime,
+    certificateIssuedBy: row.certificate_issued_by || row.certificateIssuedBy || row.team_details?._certificateIssuedBy,
+    deskScans: row.desk_scans || row.deskScans || row.team_details?._deskScans || {}
   };
 }
 
@@ -111,7 +117,13 @@ export function mapRegistrationRecordToDb(record: RegistrationRecord): Record<st
     ...(record.memberTechStatus ? { _memberTechStatus: record.memberTechStatus } : {}),
     ...(record.memberTechTimes ? { _memberTechTimes: record.memberTechTimes } : {}),
     ...(record.memberSpotStatus ? { _memberSpotStatus: record.memberSpotStatus } : {}),
-    ...(record.memberSpotTimes ? { _memberSpotTimes: record.memberSpotTimes } : {})
+    ...(record.memberSpotTimes ? { _memberSpotTimes: record.memberSpotTimes } : {}),
+    ...(record.memberCertStatus ? { _memberCertStatus: record.memberCertStatus } : {}),
+    ...(record.memberCertTimes ? { _memberCertTimes: record.memberCertTimes } : {}),
+    ...(record.certificateIssued !== undefined ? { _certificateIssued: record.certificateIssued } : {}),
+    ...(record.certificateIssuedTime ? { _certificateIssuedTime: record.certificateIssuedTime } : {}),
+    ...(record.certificateIssuedBy ? { _certificateIssuedBy: record.certificateIssuedBy } : {}),
+    ...(record.deskScans ? { _deskScans: record.deskScans } : {})
   };
   return {
     reg_id: record.regId,

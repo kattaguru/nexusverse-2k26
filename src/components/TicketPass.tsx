@@ -91,6 +91,18 @@ export interface RegistrationRecord {
   memberTechTimes?: Record<string, string>;
   memberSpotStatus?: Record<string, boolean>;
   memberSpotTimes?: Record<string, string>;
+  memberCertStatus?: Record<string, boolean>;
+  memberCertTimes?: Record<string, string>;
+  certificateIssued?: boolean;
+  certificateIssuedTime?: string;
+  certificateIssuedBy?: string;
+  deskScans?: Record<string, {
+    scanned: boolean;
+    time?: string;
+    by?: string;
+    memberStatus?: Record<string, boolean>;
+    memberTimes?: Record<string, string>;
+  }>;
 }
 
 interface TicketPassProps {

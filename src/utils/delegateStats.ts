@@ -561,3 +561,343 @@ export function computeDelegatesStats(records: RegistrationRecord[]): DelegateSt
     totalLunchMealsDispensed
   };
 }
+
+// =========================================================================
+// 5-DESK SYMPOSIUM ATTENDANCE & VERIFICATION SYSTEM
+// =========================================================================
+
+export type DeskId = 'desk1_reception' | 'desk2_tech' | 'desk3_lunch' | 'desk4_spot' | 'desk5_cert';
+export type DeskKey = 'reception' | 'tech' | 'lunch' | 'spot' | 'cert';
+
+export interface DeskDefinition {
+  id: DeskId;
+  deskNumber: number;
+  key: DeskKey;
+  defaultTitle: string;
+  shortLabel: string;
+  badgeLabel: string;
+  description: string;
+  color: string;
+  borderColor: string;
+  bgLight: string;
+  bgDark: string;
+  iconName: 'UserCheck' | 'Zap' | 'Utensils' | 'Sparkles' | 'Award';
+}
+
+export const SYMPOSIUM_DESKS: DeskDefinition[] = [
+  {
+    id: 'desk1_reception',
+    deskNumber: 1,
+    key: 'reception',
+    defaultTitle: 'Reception & Kit Desk',
+    shortLabel: 'Desk 1 · Reception',
+    badgeLabel: 'D1: Reception',
+    description: 'Main Entry Verification & Delegate Welcome Kit Issuance',
+    color: '#22c55e',
+    borderColor: '#22c55e',
+    bgLight: '#f0fdf4',
+    bgDark: '#06180f',
+    iconName: 'UserCheck'
+  },
+  {
+    id: 'desk2_tech',
+    deskNumber: 2,
+    key: 'tech',
+    defaultTitle: 'Technical Events Desk',
+    shortLabel: 'Desk 2 · Technical',
+    badgeLabel: 'D2: Tech Event',
+    description: 'Morning Technical Competition Verification & Lab Seating',
+    color: '#0088d4',
+    borderColor: '#0088d4',
+    bgLight: '#f0f9ff',
+    bgDark: '#071829',
+    iconName: 'Zap'
+  },
+  {
+    id: 'desk3_lunch',
+    deskNumber: 3,
+    key: 'lunch',
+    defaultTitle: 'Food & Lunch Desk',
+    shortLabel: 'Desk 3 · Food/Lunch',
+    badgeLabel: 'D3: Lunch Token',
+    description: 'Campus Dining Hall Meal Tray & Refreshment Token Dispenser',
+    color: '#f59e0b',
+    borderColor: '#f59e0b',
+    bgLight: '#fffbeb',
+    bgDark: '#1c1305',
+    iconName: 'Utensils'
+  },
+  {
+    id: 'desk4_spot',
+    deskNumber: 4,
+    key: 'spot',
+    defaultTitle: 'Spot Events Desk',
+    shortLabel: 'Desk 4 · Spot Events',
+    badgeLabel: 'D4: Spot Arena',
+    description: 'Track 2 Non-Technical Arena Games & Courtyard Activities',
+    color: '#8b5cf6',
+    borderColor: '#8b5cf6',
+    bgLight: '#faf5ff',
+    bgDark: '#1a0e2e',
+    iconName: 'Sparkles'
+  },
+  {
+    id: 'desk5_cert',
+    deskNumber: 5,
+    key: 'cert',
+    defaultTitle: 'Certificates & Valedictory Desk',
+    shortLabel: 'Desk 5 · Certificates',
+    badgeLabel: 'D5: Certificate',
+    description: 'Official Participation Certificate, Merit Shields & Valedictory Exit',
+    color: '#ec4899',
+    borderColor: '#ec4899',
+    bgLight: '#fdf2f8',
+    bgDark: '#240718',
+    iconName: 'Award'
+  }
+];
+
+export const DEFAULT_DESK_TITLES: Record<DeskId, string> = {
+  desk1_reception: 'Reception & Kit Desk',
+  desk2_tech: 'Technical Events Desk',
+  desk3_lunch: 'Food & Lunch Desk',
+  desk4_spot: 'Spot Events Desk',
+  desk5_cert: 'Certificates & Valedictory Desk'
+};
+
+export interface RecordCertStats {
+  totalCertificates: number;
+  certificatesIssuedCount: number;
+  certificatesRemaining: number;
+  isFullyIssued: boolean;
+  memberStatus: Record<string, boolean>;
+  memberTimes: Record<string, string>;
+}
+
+export function getRecordCertStats(record: RegistrationRecord | undefined | null): RecordCertStats {
+  if (!record) {
+    return {
+      totalCertificates: 0,
+      certificatesIssuedCount: 0,
+      certificatesRemaining: 0,
+      isFullyIssued: false,
+      memberStatus: {},
+      memberTimes: {}
+    };
+  }
+
+  const teammates = getRecordTeammates(record);
+  const totalMembers = 1 + teammates.length;
+  const statusMap: Record<string, boolean> = { ...(record.memberCertStatus || {}) };
+  const timesMap: Record<string, string> = { ...(record.memberCertTimes || {}) };
+  const memberKeys = ['lead', ...teammates.map((_, i) => `teammate_${i}`)];
+
+  if (record.certificateIssued && Object.keys(statusMap).length === 0) {
+    statusMap['lead'] = true;
+    if (record.certificateIssuedTime) timesMap['lead'] = record.certificateIssuedTime;
+    teammates.forEach((_, i) => {
+      const k = `teammate_${i}`;
+      statusMap[k] = true;
+      if (record.certificateIssuedTime) timesMap[k] = record.certificateIssuedTime;
+    });
+  }
+
+  const issuedCount = memberKeys.filter(k => Boolean(statusMap[k])).length;
+  const isFullyIssued = issuedCount >= totalMembers && totalMembers > 0;
+
+  return {
+    totalCertificates: totalMembers,
+    certificatesIssuedCount: issuedCount,
+    certificatesRemaining: Math.max(0, totalMembers - issuedCount),
+    isFullyIssued,
+    memberStatus: statusMap,
+    memberTimes: timesMap
+  };
+}
+
+export interface RecordDeskItem {
+  id: DeskId;
+  deskNumber: number;
+  key: DeskKey;
+  title: string;
+  shortLabel: string;
+  badgeLabel: string;
+  color: string;
+  isApplicable: boolean;
+  isScanned: boolean;
+  isFullyScanned: boolean;
+  scannedCount: number;
+  totalMembers: number;
+  primaryTime?: string;
+  operator?: string;
+  memberStatus: Record<string, boolean>;
+  memberTimes: Record<string, string>;
+}
+
+export interface Record5DeskSummary {
+  completedDesksCount: number;
+  applicableDesksCount: number;
+  allApplicableCompleted: boolean;
+  desks: RecordDeskItem[];
+}
+
+export function getRecord5DeskSummary(record: RegistrationRecord | undefined | null): Record5DeskSummary {
+  if (!record) {
+    return {
+      completedDesksCount: 0,
+      applicableDesksCount: 0,
+      allApplicableCompleted: false,
+      desks: []
+    };
+  }
+
+  const teammates = getRecordTeammates(record);
+  const totalMembers = 1 + teammates.length;
+  const checkInStats = getRecordCheckInStats(record);
+  const trackStats = getRecordTrackAttendanceStats(record);
+  const lunchStats = getRecordLunchStats(record);
+  const certStats = getRecordCertStats(record);
+
+  const desks: RecordDeskItem[] = [
+    {
+      id: 'desk1_reception',
+      deskNumber: 1,
+      key: 'reception',
+      title: 'Reception & Kit Desk',
+      shortLabel: 'Desk 1 · Reception',
+      badgeLabel: 'D1: Reception',
+      color: '#22c55e',
+      isApplicable: true,
+      isScanned: checkInStats.checkedInCount > 0,
+      isFullyScanned: checkInStats.isFullyCheckedIn,
+      scannedCount: checkInStats.checkedInCount,
+      totalMembers,
+      primaryTime: record.checkInTime || checkInStats.memberTimes['lead'],
+      operator: record.checkedInBy || 'Reception Desk',
+      memberStatus: checkInStats.memberStatus,
+      memberTimes: checkInStats.memberTimes
+    },
+    {
+      id: 'desk2_tech',
+      deskNumber: 2,
+      key: 'tech',
+      title: 'Technical Events Desk',
+      shortLabel: 'Desk 2 · Technical',
+      badgeLabel: 'D2: Tech Event',
+      color: '#0088d4',
+      isApplicable: trackStats.hasTech,
+      isScanned: trackStats.techAttendedCount > 0,
+      isFullyScanned: trackStats.isFullyTechAttended,
+      scannedCount: trackStats.techAttendedCount,
+      totalMembers,
+      primaryTime: trackStats.techMemberTimes['lead'],
+      operator: 'Technical Desk Scanner',
+      memberStatus: trackStats.techMemberStatus,
+      memberTimes: trackStats.techMemberTimes
+    },
+    {
+      id: 'desk3_lunch',
+      deskNumber: 3,
+      key: 'lunch',
+      title: 'Food & Lunch Desk',
+      shortLabel: 'Desk 3 · Food/Lunch',
+      badgeLabel: 'D3: Lunch Token',
+      color: '#f59e0b',
+      isApplicable: true,
+      isScanned: lunchStats.mealsDispensed > 0,
+      isFullyScanned: lunchStats.isFullyCollected,
+      scannedCount: lunchStats.mealsDispensed,
+      totalMembers,
+      primaryTime: record.lunchCollectedTime,
+      operator: record.lunchCollectedBy || 'Catering Counter',
+      memberStatus: lunchStats.memberStatus,
+      memberTimes: record.lunchCollectedTime ? { lead: record.lunchCollectedTime } : {}
+    },
+    {
+      id: 'desk4_spot',
+      deskNumber: 4,
+      key: 'spot',
+      title: 'Spot Events Desk',
+      shortLabel: 'Desk 4 · Spot Events',
+      badgeLabel: 'D4: Spot Arena',
+      color: '#8b5cf6',
+      isApplicable: trackStats.hasSpot,
+      isScanned: trackStats.spotAttendedCount > 0,
+      isFullyScanned: trackStats.isFullySpotAttended,
+      scannedCount: trackStats.spotAttendedCount,
+      totalMembers,
+      primaryTime: trackStats.spotMemberTimes['lead'],
+      operator: 'Spot Desk Scanner',
+      memberStatus: trackStats.spotMemberStatus,
+      memberTimes: trackStats.spotMemberTimes
+    },
+    {
+      id: 'desk5_cert',
+      deskNumber: 5,
+      key: 'cert',
+      title: 'Certificates & Valedictory Desk',
+      shortLabel: 'Desk 5 · Certificates',
+      badgeLabel: 'D5: Certificate',
+      color: '#ec4899',
+      isApplicable: true,
+      isScanned: certStats.certificatesIssuedCount > 0,
+      isFullyScanned: certStats.isFullyIssued,
+      scannedCount: certStats.certificatesIssuedCount,
+      totalMembers,
+      primaryTime: record.certificateIssuedTime || certStats.memberTimes['lead'],
+      operator: record.certificateIssuedBy || 'Valedictory Desk',
+      memberStatus: certStats.memberStatus,
+      memberTimes: certStats.memberTimes
+    }
+  ];
+
+  const applicableDesks = desks.filter(d => d.isApplicable);
+  const completedDesksCount = desks.filter(d => d.isApplicable && d.isScanned).length;
+  const allApplicableCompleted = applicableDesks.length > 0 && applicableDesks.every(d => d.isScanned);
+
+  return {
+    completedDesksCount,
+    applicableDesksCount: applicableDesks.length,
+    allApplicableCompleted,
+    desks
+  };
+}
+
+export interface FiveDesksGlobalStats {
+  desk1ScannedDelegates: number;
+  desk2ScannedDelegates: number;
+  desk3ScannedDelegates: number;
+  desk4ScannedDelegates: number;
+  desk5ScannedDelegates: number;
+  fullyCompletedRegistrations: number;
+}
+
+export function get5DesksGlobalStats(records: RegistrationRecord[]): FiveDesksGlobalStats {
+  let d1 = 0;
+  let d2 = 0;
+  let d3 = 0;
+  let d4 = 0;
+  let d5 = 0;
+  let allDone = 0;
+
+  for (const r of records) {
+    const summary = getRecord5DeskSummary(r);
+    d1 += summary.desks[0]?.scannedCount || 0;
+    d2 += summary.desks[1]?.scannedCount || 0;
+    d3 += summary.desks[2]?.scannedCount || 0;
+    d4 += summary.desks[3]?.scannedCount || 0;
+    d5 += summary.desks[4]?.scannedCount || 0;
+    if (summary.allApplicableCompleted) {
+      allDone++;
+    }
+  }
+
+  return {
+    desk1ScannedDelegates: d1,
+    desk2ScannedDelegates: d2,
+    desk3ScannedDelegates: d3,
+    desk4ScannedDelegates: d4,
+    desk5ScannedDelegates: d5,
+    fullyCompletedRegistrations: allDone
+  };
+}

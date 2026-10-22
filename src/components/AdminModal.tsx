@@ -61,7 +61,11 @@ import {
   computeDelegatesStats,
   getRecordCheckInStats,
   flattenToIndividualParticipants,
-  IndividualParticipant
+  IndividualParticipant,
+  getRecord5DeskSummary,
+  getRecordCertStats,
+  get5DesksGlobalStats,
+  SYMPOSIUM_DESKS
 } from '../utils/delegateStats';
 import { AdminTicketScanner } from './AdminTicketScanner';
 import { AdminCacheManager } from './AdminCacheManager';
@@ -521,6 +525,7 @@ export const AdminModal: React.FC<AdminModalProps> = ({
   const [ieeeFilter, setIeeeFilter] = useState<'all' | 'ieee' | 'non-ieee'>('all');
   const [verificationFilter, setVerificationFilter] = useState<'all' | 'verified' | 'unverified' | 'upi' | 'razorpay'>('all');
   const [checkInFilter, setCheckInFilter] = useState<'all' | 'checked-in' | 'not-checked-in'>('all');
+  const [deskFilter, setDeskFilter] = useState<'all' | 'desk1' | 'desk2' | 'desk3' | 'desk4' | 'desk5' | 'all-completed'>('all');
   const [registrationViewMode, setRegistrationViewMode] = useState<'teams' | 'individual'>('teams');
   const [individualAttendeeFilter, setIndividualAttendeeFilter] = useState<'all' | 'present' | 'absent'>('all');
   const [sortBy, setSortBy] = useState<SortOption>('date-desc');
@@ -1320,7 +1325,21 @@ export const AdminModal: React.FC<AdminModalProps> = ({
       'Teammate 3 Year',
       'Teammate 3 Phone',
       'Teammate 3 IEEE Member',
-      'Teammate 3 IEEE ID'
+      'Teammate 3 IEEE ID',
+      'Desk 1 (Reception & Kit) Status',
+      'Desk 1 Scan Time',
+      'Desk 1 Scanned Count',
+      'Desk 2 (Tech Events) Status',
+      'Desk 2 Scan Time',
+      'Desk 3 (Food & Lunch) Status',
+      'Desk 3 Scan Time',
+      'Desk 3 Meals Dispensed',
+      'Desk 4 (Spot Arena) Status',
+      'Desk 4 Scan Time',
+      'Desk 5 (Certificates) Status',
+      'Desk 5 Scan Time',
+      'Desk 5 Certs Issued',
+      'All 5 Desks Completed'
     ];
 
     const rows = savedRecords.map(r => {
@@ -1332,6 +1351,13 @@ export const AdminModal: React.FC<AdminModalProps> = ({
       const m1 = members[0] || {};
       const m2 = members[1] || {};
       const m3 = members[2] || {};
+
+      const deskSummary = getRecord5DeskSummary(r);
+      const d1 = deskSummary.desks[0];
+      const d2 = deskSummary.desks[1];
+      const d3 = deskSummary.desks[2];
+      const d4 = deskSummary.desks[3];
+      const d5 = deskSummary.desks[4];
 
       return [
         `"${r.regId}"`,
@@ -1380,7 +1406,21 @@ export const AdminModal: React.FC<AdminModalProps> = ({
         `"${m3.year || ''}"`,
         `"${m3.phone || ''}"`,
         `"${m3.isIeeeMember ? 'YES' : 'NO'}"`,
-        `"${m3.ieeeId || ''}"`
+        `"${m3.ieeeId || ''}"`,
+        `"${d1?.isScanned ? (d1.isFullyScanned ? 'FULL' : 'PARTIAL') : 'PENDING'}"`,
+        `"${d1?.primaryTime ? new Date(d1.primaryTime).toLocaleString() : 'N/A'}"`,
+        `"${d1?.scannedCount || 0}/${d1?.totalMembers || 1}"`,
+        `"${!d2?.isApplicable ? 'N/A' : d2?.isScanned ? (d2.isFullyScanned ? 'ATTENDED' : 'PARTIAL') : 'PENDING'}"`,
+        `"${d2?.primaryTime ? new Date(d2.primaryTime).toLocaleString() : 'N/A'}"`,
+        `"${d3?.isScanned ? (d3.isFullyScanned ? 'DISPENSED' : 'PARTIAL') : 'PENDING'}"`,
+        `"${d3?.primaryTime ? new Date(d3.primaryTime).toLocaleString() : 'N/A'}"`,
+        `"${d3?.scannedCount || 0}/${d3?.totalMembers || 1}"`,
+        `"${!d4?.isApplicable ? 'N/A' : d4?.isScanned ? 'VERIFIED' : 'PENDING'}"`,
+        `"${d4?.primaryTime ? new Date(d4.primaryTime).toLocaleString() : 'N/A'}"`,
+        `"${d5?.isScanned ? (d5.isFullyScanned ? 'ISSUED' : 'PARTIAL') : 'PENDING'}"`,
+        `"${d5?.primaryTime ? new Date(d5.primaryTime).toLocaleString() : 'N/A'}"`,
+        `"${d5?.scannedCount || 0}/${d5?.totalMembers || 1}"`,
+        `"${deskSummary.allApplicableCompleted ? 'YES' : 'NO'}"`
       ].join(',');
     });
 
@@ -1432,33 +1472,47 @@ export const AdminModal: React.FC<AdminModalProps> = ({
       'Payment Mode',
       'Payment Verified',
       'Total Paid',
-      'Lunch Meal Tray Status'
+      'Desk 1 (Reception & Kit)',
+      'Desk 2 (Tech Track)',
+      'Desk 3 (Lunch Tray)',
+      'Desk 4 (Spot Arena)',
+      'Desk 5 (Certificate)'
     ];
 
-    const rows = list.map((p, idx) => [
-      idx + 1,
-      `"${p.regId}"`,
-      `"${p.passCode}"`,
-      `"${(p.name || '').replace(/"/g, '""')}"`,
-      `"${p.roll}"`,
-      `"${p.role}"`,
-      `"${(p.teamName || 'Solo').replace(/"/g, '""')}"`,
-      `"${p.isCheckedIn ? 'PRESENT' : 'ABSENT'}"`,
-      `"${p.checkInTime ? new Date(p.checkInTime).toLocaleString() : 'N/A'}"`,
-      `"${p.phone}"`,
-      `"${p.email}"`,
-      `"${p.dept}"`,
-      `"${p.year}"`,
-      `"${p.section}"`,
-      `"${p.className}"`,
-      `"${(p.college || '').replace(/"/g, '""')}"`,
-      `"${p.isIeeeMember ? 'YES' : 'NO'}"`,
-      `"${p.ieeeId || ''}"`,
-      `"${p.paymentMode || 'UPI'}"`,
-      `"${p.isVerified ? 'VERIFIED' : 'PENDING'}"`,
-      `"${p.totalPaid}"`,
-      `"${p.isLunchCollected ? 'DISPENSED' : 'PENDING'}"`
-    ].join(','));
+    const rows = list.map((p, idx) => {
+      const isD2Attended = p.record.attendedEvents && p.record.attendedEvents.length > 0;
+      const isD4Attended = Boolean(p.record.deskScans?.['desk4_spot']?.scanned);
+      const isD5Issued = Boolean(p.record.memberCertStatus?.[p.memberKey] || p.record.certificateIssued);
+
+      return [
+        idx + 1,
+        `"${p.regId}"`,
+        `"${p.passCode}"`,
+        `"${(p.name || '').replace(/"/g, '""')}"`,
+        `"${p.roll}"`,
+        `"${p.role}"`,
+        `"${(p.teamName || 'Solo').replace(/"/g, '""')}"`,
+        `"${p.isCheckedIn ? 'PRESENT' : 'ABSENT'}"`,
+        `"${p.checkInTime ? new Date(p.checkInTime).toLocaleString() : 'N/A'}"`,
+        `"${p.phone}"`,
+        `"${p.email}"`,
+        `"${p.dept}"`,
+        `"${p.year}"`,
+        `"${p.section}"`,
+        `"${p.className}"`,
+        `"${(p.college || '').replace(/"/g, '""')}"`,
+        `"${p.isIeeeMember ? 'YES' : 'NO'}"`,
+        `"${p.ieeeId || ''}"`,
+        `"${p.paymentMode || 'UPI'}"`,
+        `"${p.isVerified ? 'VERIFIED' : 'PENDING'}"`,
+        `"${p.totalPaid}"`,
+        `"${p.isCheckedIn ? 'CHECKED IN' : 'PENDING'}"`,
+        `"${isD2Attended ? 'ATTENDED' : 'PENDING'}"`,
+        `"${p.isLunchCollected ? 'DISPENSED' : 'PENDING'}"`,
+        `"${isD4Attended ? 'VERIFIED' : 'PENDING'}"`,
+        `"${isD5Issued ? 'ISSUED' : 'PENDING'}"`
+      ].join(',');
+    });
 
     const csvContent = '\uFEFF' + [headers.join(','), ...rows].join('\r\n');
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
@@ -1669,7 +1723,24 @@ export const AdminModal: React.FC<AdminModalProps> = ({
         ? checkInStats.checkedInCount > 0
         : checkInStats.checkedInCount < checkInStats.totalMembers;
 
-      return matchesEvent && matchesIeee && matchesVerification && matchesCheckIn && matchesQuery;
+      const fiveDeskSummary = getRecord5DeskSummary(r);
+      const matchesDesk = deskFilter === 'all'
+        ? true
+        : deskFilter === 'all-completed'
+        ? fiveDeskSummary.allApplicableCompleted
+        : deskFilter === 'desk1'
+        ? fiveDeskSummary.desks[0]?.isScanned
+        : deskFilter === 'desk2'
+        ? fiveDeskSummary.desks[1]?.isScanned
+        : deskFilter === 'desk3'
+        ? fiveDeskSummary.desks[2]?.isScanned
+        : deskFilter === 'desk4'
+        ? fiveDeskSummary.desks[3]?.isScanned
+        : deskFilter === 'desk5'
+        ? fiveDeskSummary.desks[4]?.isScanned
+        : true;
+
+      return matchesEvent && matchesIeee && matchesVerification && matchesCheckIn && matchesDesk && matchesQuery;
     })
     .sort((a, b) => {
       switch (sortBy) {
@@ -1713,6 +1784,7 @@ export const AdminModal: React.FC<AdminModalProps> = ({
   const checkedInCount = stats.checkedInRegistrations;
   const checkedInDelegates = stats.checkedInDelegates;
   const checkInPercent = totalDelegates > 0 ? Math.round((checkedInDelegates / totalDelegates) * 100) : 0;
+  const fiveDesksGlobal = get5DesksGlobalStats(savedRecords);
 
   // Toggle individual delegate check-in status
   const handleToggleMemberCheckIn = (record: RegistrationRecord, memberKey: string, forceStatus?: boolean) => {
@@ -2380,6 +2452,26 @@ export const AdminModal: React.FC<AdminModalProps> = ({
                           <option value="checked-in">Checked In ({checkedInCount})</option>
                           <option value="not-checked-in">Not Checked In ({totalRegistrations - checkedInCount})</option>
                         </select>
+
+                        {/* 5-Desk Station Filter */}
+                        <select
+                          value={deskFilter}
+                          onChange={(e) => setDeskFilter(e.target.value as any)}
+                          className={`w-full lg:w-auto px-2.5 py-2 text-xs rounded-lg border focus:outline-none cursor-pointer font-medium transition-colors ${
+                            deskFilter !== 'all'
+                              ? 'bg-[#1f1b0e] border-[#d4a935] text-[#f2c14e]'
+                              : 'bg-[#131318] border-[#2e2b22] text-[#f3ecd9] focus:border-[#d4a935]'
+                          }`}
+                          aria-label="Filter by 5-Desk Station"
+                        >
+                          <option value="all">All 5 Desks (No desk filter)</option>
+                          <option value="desk1">Desk 1: Reception & Kit Scanned ({fiveDesksGlobal.desk1ScannedDelegates})</option>
+                          <option value="desk2">Desk 2: Technical Events Scanned ({fiveDesksGlobal.desk2ScannedDelegates})</option>
+                          <option value="desk3">Desk 3: Food & Lunch Dispensed ({fiveDesksGlobal.desk3ScannedDelegates})</option>
+                          <option value="desk4">Desk 4: Spot Events Scanned ({fiveDesksGlobal.desk4ScannedDelegates})</option>
+                          <option value="desk5">Desk 5: Certificates Issued ({fiveDesksGlobal.desk5ScannedDelegates})</option>
+                          <option value="all-completed">★ All Desks Completed ({fiveDesksGlobal.fullyCompletedRegistrations} teams)</option>
+                        </select>
                       </div>
                     </div>
 
@@ -2392,9 +2484,9 @@ export const AdminModal: React.FC<AdminModalProps> = ({
 
                       <button
                         type="button"
-                        onClick={() => { setIeeeFilter('all'); setVerificationFilter('all'); setCheckInFilter('all'); }}
+                        onClick={() => { setIeeeFilter('all'); setVerificationFilter('all'); setCheckInFilter('all'); setDeskFilter('all'); }}
                         className={`px-2.5 py-0.5 rounded-full text-[11px] font-semibold transition-all cursor-pointer ${
-                          ieeeFilter === 'all' && verificationFilter === 'all' && checkInFilter === 'all'
+                          ieeeFilter === 'all' && verificationFilter === 'all' && checkInFilter === 'all' && deskFilter === 'all'
                             ? 'bg-[#d4a935] text-[#1a1300]'
                             : 'bg-[#181820] text-[#a79f8b] hover:text-[#f3ecd9] border border-[#2e2b22]'
                         }`}
@@ -2465,6 +2557,87 @@ export const AdminModal: React.FC<AdminModalProps> = ({
                       >
                         <CheckCircle2 className="w-3 h-3 text-[#4cc38a]" />
                         <span>Verified ({verifiedCount})</span>
+                      </button>
+
+                      <span className="text-[#2e2b22] px-1">|</span>
+                      <span className="text-[10px] text-[#a79f8b] uppercase tracking-wider font-semibold">5 Desks:</span>
+
+                      <button
+                        type="button"
+                        onClick={() => setDeskFilter(deskFilter === 'desk1' ? 'all' : 'desk1')}
+                        className={`px-2 py-0.5 rounded-full text-[10px] font-semibold transition-all cursor-pointer flex items-center gap-1 ${
+                          deskFilter === 'desk1'
+                            ? 'bg-[#22c55e] text-[#0a1a0f] font-bold'
+                            : 'bg-[#181820] text-[#4cc38a] hover:bg-[#142617] border border-[#2e2b22]'
+                        }`}
+                        title="Desk 1: Reception & Kit Scanned"
+                      >
+                        <span>D1 Reception ({fiveDesksGlobal.desk1ScannedDelegates})</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => setDeskFilter(deskFilter === 'desk2' ? 'all' : 'desk2')}
+                        className={`px-2 py-0.5 rounded-full text-[10px] font-semibold transition-all cursor-pointer flex items-center gap-1 ${
+                          deskFilter === 'desk2'
+                            ? 'bg-[#0088d4] text-white font-bold'
+                            : 'bg-[#181820] text-[#70baff] hover:bg-[#0f2c4a] border border-[#2e2b22]'
+                        }`}
+                        title="Desk 2: Technical Events Scanned"
+                      >
+                        <span>D2 Tech ({fiveDesksGlobal.desk2ScannedDelegates})</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => setDeskFilter(deskFilter === 'desk3' ? 'all' : 'desk3')}
+                        className={`px-2 py-0.5 rounded-full text-[10px] font-semibold transition-all cursor-pointer flex items-center gap-1 ${
+                          deskFilter === 'desk3'
+                            ? 'bg-[#f59e0b] text-[#1a1300] font-bold'
+                            : 'bg-[#181820] text-[#f2c14e] hover:bg-[#2a1e06] border border-[#2e2b22]'
+                        }`}
+                        title="Desk 3: Food & Lunch Dispensed"
+                      >
+                        <span>D3 Lunch ({fiveDesksGlobal.desk3ScannedDelegates})</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => setDeskFilter(deskFilter === 'desk4' ? 'all' : 'desk4')}
+                        className={`px-2 py-0.5 rounded-full text-[10px] font-semibold transition-all cursor-pointer flex items-center gap-1 ${
+                          deskFilter === 'desk4'
+                            ? 'bg-[#8b5cf6] text-white font-bold'
+                            : 'bg-[#181820] text-[#c084fc] hover:bg-[#2a1740] border border-[#2e2b22]'
+                        }`}
+                        title="Desk 4: Spot Arena Scanned"
+                      >
+                        <span>D4 Spot ({fiveDesksGlobal.desk4ScannedDelegates})</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => setDeskFilter(deskFilter === 'desk5' ? 'all' : 'desk5')}
+                        className={`px-2 py-0.5 rounded-full text-[10px] font-semibold transition-all cursor-pointer flex items-center gap-1 ${
+                          deskFilter === 'desk5'
+                            ? 'bg-[#ec4899] text-white font-bold'
+                            : 'bg-[#181820] text-[#f472b6] hover:bg-[#3b1227] border border-[#2e2b22]'
+                        }`}
+                        title="Desk 5: Certificates Issued"
+                      >
+                        <span>D5 Cert ({fiveDesksGlobal.desk5ScannedDelegates})</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => setDeskFilter(deskFilter === 'all-completed' ? 'all' : 'all-completed')}
+                        className={`px-2 py-0.5 rounded-full text-[10px] font-semibold transition-all cursor-pointer flex items-center gap-1 ${
+                          deskFilter === 'all-completed'
+                            ? 'bg-gradient-to-r from-[#d4a935] to-[#f2c14e] text-[#1a1300] font-bold'
+                            : 'bg-[#181820] text-[#d4a935] hover:bg-[#241a06] border border-[#d4a935]/40'
+                        }`}
+                        title="All Applicable Desks Completed"
+                      >
+                        <span>★ All 5 Done ({fiveDesksGlobal.fullyCompletedRegistrations})</span>
                       </button>
                     </div>
 
@@ -2771,6 +2944,36 @@ export const AdminModal: React.FC<AdminModalProps> = ({
                                         )}
                                         {p.email && <span>✉️ {cleanAdminText(p.email)}</span>}
                                       </div>
+
+                                      {/* 5-Desk Member Status Strip */}
+                                      {(() => {
+                                        const isD1 = p.isCheckedIn;
+                                        const isD2 = (p.record.attendedEvents && p.record.attendedEvents.length > 0) || Boolean(p.record.deskScans?.['desk2_tech']?.scanned);
+                                        const isD3 = p.isLunchCollected;
+                                        const isD4 = Boolean(p.record.deskScans?.['desk4_spot']?.scanned);
+                                        const isD5 = Boolean(p.record.memberCertStatus?.[p.memberKey] || p.record.certificateIssued);
+
+                                        return (
+                                          <div className="flex flex-wrap items-center gap-1 pt-1">
+                                            <span className="text-[9px] text-[#7e7663] font-medium mr-0.5">Desks:</span>
+                                            <span className={`text-[9px] font-mono px-1.5 py-0.2 rounded border ${isD1 ? 'bg-[#142617] text-[#4cc38a] border-[#4cc38a]/40 font-bold' : 'bg-[#181820] text-[#777] border-[#2e2b22]'}`} title={`Desk 1 (Reception): ${isD1 ? `Checked In (${p.checkInTime ? new Date(p.checkInTime).toLocaleTimeString() : 'Yes'})` : 'Pending'}`}>
+                                              D1 {isD1 ? '✓' : '—'}
+                                            </span>
+                                            <span className={`text-[9px] font-mono px-1.5 py-0.2 rounded border ${isD2 ? 'bg-[#002238] text-[#70baff] border-[#0088d4]/40 font-bold' : 'bg-[#181820] text-[#777] border-[#2e2b22]'}`} title={`Desk 2 (Tech): ${isD2 ? 'Attended' : 'Pending'}`}>
+                                              D2 {isD2 ? '✓' : '—'}
+                                            </span>
+                                            <span className={`text-[9px] font-mono px-1.5 py-0.2 rounded border ${isD3 ? 'bg-[#2b1f07] text-[#f2c14e] border-[#d4a935]/40 font-bold' : 'bg-[#181820] text-[#777] border-[#2e2b22]'}`} title={`Desk 3 (Lunch): ${isD3 ? 'Dispensed' : 'Pending'}`}>
+                                              D3 {isD3 ? '✓' : '—'}
+                                            </span>
+                                            <span className={`text-[9px] font-mono px-1.5 py-0.2 rounded border ${isD4 ? 'bg-[#24133d] text-[#c084fc] border-[#8b5cf6]/40 font-bold' : 'bg-[#181820] text-[#777] border-[#2e2b22]'}`} title={`Desk 4 (Spot Arena): ${isD4 ? 'Verified' : 'Pending'}`}>
+                                              D4 {isD4 ? '✓' : '—'}
+                                            </span>
+                                            <span className={`text-[9px] font-mono px-1.5 py-0.2 rounded border ${isD5 ? 'bg-[#3b1227] text-[#f472b6] border-[#ec4899]/40 font-bold' : 'bg-[#181820] text-[#777] border-[#2e2b22]'}`} title={`Desk 5 (Certificate): ${isD5 ? 'Issued' : 'Pending'}`}>
+                                              D5 {isD5 ? '✓' : '—'}
+                                            </span>
+                                          </div>
+                                        );
+                                      })()}
                                     </div>
                                   </div>
 
@@ -2939,6 +3142,54 @@ export const AdminModal: React.FC<AdminModalProps> = ({
                                     <span>🎓 {[cleanAdminText(record.className), cleanAdminText(record.section)].filter(Boolean).join(' ')} {record.dept ? `· ${cleanAdminText(record.dept)}` : ''} {record.year && record.year !== '0' ? `(${cleanAdminText(record.year)})` : ''}</span>
                                   )}
                                   {record.college && <span>🏫 {cleanAdminText(record.college)}</span>}
+                                </div>
+
+                                {/* 5-Desk Station Status Badge Strip */}
+                                <div className="flex flex-wrap items-center gap-1.5 pt-1">
+                                  <span className="text-[10px] text-[#7e7663] font-semibold mr-0.5">5 Desks:</span>
+                                  {(() => {
+                                    const summary = getRecord5DeskSummary(record);
+                                    return summary.desks.map(desk => {
+                                      if (!desk.isApplicable) {
+                                        return (
+                                          <span
+                                            key={desk.id}
+                                            className="text-[9px] font-mono px-1.5 py-0.5 rounded bg-[#131318] text-[#555] border border-[#222]"
+                                            title={`${desk.title} · Not Applicable`}
+                                          >
+                                            {desk.badgeLabel}: N/A
+                                          </span>
+                                        );
+                                      }
+                                      if (desk.isScanned) {
+                                        const timeStr = desk.primaryTime ? new Date(desk.primaryTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '';
+                                        return (
+                                          <span
+                                            key={desk.id}
+                                            className={`text-[9px] font-mono font-semibold px-2 py-0.5 rounded border flex items-center gap-1 cursor-help transition-all ${
+                                              desk.isFullyScanned
+                                                ? 'bg-[#142617] text-[#4cc38a] border-[#4cc38a]/50 shadow-sm'
+                                                : 'bg-[#2a1e06] text-[#f2c14e] border-[#d4a935]/50'
+                                            }`}
+                                            title={`${desk.title}\nStatus: ${desk.isFullyScanned ? 'Fully Scanned' : 'Partially Scanned'} (${desk.scannedCount}/${desk.totalMembers})\nTime: ${desk.primaryTime ? new Date(desk.primaryTime).toLocaleString() : 'Recorded'}\nOperator: ${desk.operator || 'Station Scanner'}`}
+                                          >
+                                            <CheckCircle2 className="w-2.5 h-2.5" />
+                                            <span>{desk.badgeLabel}: {desk.scannedCount}/{desk.totalMembers}</span>
+                                            {timeStr && <span className="opacity-75 font-normal">({timeStr})</span>}
+                                          </span>
+                                        );
+                                      }
+                                      return (
+                                        <span
+                                          key={desk.id}
+                                          className="text-[9px] font-mono px-1.5 py-0.5 rounded bg-[#181820] text-[#777] border border-[#2e2b22]"
+                                          title={`${desk.title} · Pending Scan (0/${desk.totalMembers})`}
+                                        >
+                                          {desk.badgeLabel}: Pending
+                                        </span>
+                                      );
+                                    });
+                                  })()}
                                 </div>
                               </div>
 
@@ -3160,6 +3411,109 @@ export const AdminModal: React.FC<AdminModalProps> = ({
                                     <span className="text-[#f3ecd9] truncate block">{team?.projectTitle || 'N/A'}</span>
                                   </div>
                                 </div>
+
+                                {/* 5-DESK STATION VERIFICATION DOSSIER */}
+                                {(() => {
+                                  const summary = getRecord5DeskSummary(record);
+                                  return (
+                                    <div className="p-3.5 rounded-xl bg-[#09090c] border border-[#2e2b22] space-y-2.5">
+                                      <div className="flex flex-wrap items-center justify-between gap-2 border-b border-[#2e2b22]/70 pb-2">
+                                        <div className="flex items-center gap-2">
+                                          <span className="text-base">🏢</span>
+                                          <div>
+                                            <span className="text-xs font-bold text-white block">
+                                              5-Desk Station Verification Dossier
+                                            </span>
+                                            <span className="text-[10px] text-[#a79f8b]">
+                                              Live desk scanning audit trail, verified operator & timestamps
+                                            </span>
+                                          </div>
+                                        </div>
+                                        <div className="flex items-center gap-1.5">
+                                          <span className={`text-[10px] font-mono px-2 py-0.5 rounded font-bold border ${
+                                            summary.allApplicableCompleted
+                                              ? 'bg-[#142617] text-[#4cc38a] border-[#4cc38a]/40'
+                                              : 'bg-[#2a1e06] text-[#f2c14e] border-[#d4a935]/40'
+                                          }`}>
+                                            {summary.allApplicableCompleted ? '★ ALL 5 DESKS COMPLETED' : `${summary.completedDesksCount} of ${summary.applicableDesksCount} Desks Completed`}
+                                          </span>
+                                        </div>
+                                      </div>
+
+                                      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-2">
+                                        {summary.desks.map(desk => {
+                                          const isDone = desk.isScanned;
+                                          const isFull = desk.isFullyScanned;
+
+                                          return (
+                                            <div
+                                              key={desk.id}
+                                              className={`p-2.5 rounded-lg border flex flex-col justify-between space-y-2 transition-all ${
+                                                !desk.isApplicable
+                                                  ? 'bg-[#0f0f14]/50 border-[#1f1f28] opacity-60'
+                                                  : isDone
+                                                  ? isFull
+                                                    ? 'bg-[#0e2316]/70 border-[#4cc38a]/40 shadow-sm'
+                                                    : 'bg-[#241a06]/70 border-[#d4a935]/40'
+                                                  : 'bg-[#131318] border-[#2e2b22]'
+                                              }`}
+                                            >
+                                              <div className="space-y-1">
+                                                <div className="flex items-center justify-between">
+                                                  <span className="text-[10px] font-mono font-bold uppercase tracking-wider text-[#a79f8b]">
+                                                    Desk {desk.deskNumber}
+                                                  </span>
+                                                  <span className={`text-[9px] font-mono font-bold px-1.5 py-0.2 rounded border ${
+                                                    !desk.isApplicable
+                                                      ? 'bg-[#181820] text-[#666] border-[#2e2b22]'
+                                                      : isDone
+                                                      ? isFull
+                                                        ? 'bg-[#4cc38a]/20 text-[#4cc38a] border-[#4cc38a]/40'
+                                                        : 'bg-[#f2c14e]/20 text-[#f2c14e] border-[#f2c14e]/40'
+                                                      : 'bg-[#ff8a80]/15 text-[#ff8a80] border-[#ff8a80]/30'
+                                                  }`}>
+                                                    {!desk.isApplicable ? 'N/A' : isDone ? (isFull ? 'VERIFIED ✓' : 'PARTIAL') : 'PENDING'}
+                                                  </span>
+                                                </div>
+
+                                                <span className="text-xs font-bold text-white block truncate" title={desk.title}>
+                                                  {desk.title}
+                                                </span>
+
+                                                <div className="text-[10px] font-mono text-[#a79f8b]">
+                                                  {desk.isApplicable ? (
+                                                    <span>Scanned: <strong className="text-[#f3ecd9]">{desk.scannedCount}</strong> / {desk.totalMembers}</span>
+                                                  ) : (
+                                                    <span className="text-[#666]">Not applicable</span>
+                                                  )}
+                                                </div>
+                                              </div>
+
+                                              <div className="pt-1.5 border-t border-[#2e2b22]/60 space-y-0.5 text-[9px] font-mono">
+                                                {desk.primaryTime ? (
+                                                  <div className="text-[#4cc38a] flex items-center gap-1">
+                                                    <Clock className="w-2.5 h-2.5 shrink-0" />
+                                                    <span className="truncate">{new Date(desk.primaryTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}</span>
+                                                  </div>
+                                                ) : (
+                                                  <div className="text-[#777] flex items-center gap-1">
+                                                    <Clock className="w-2.5 h-2.5 shrink-0" />
+                                                    <span>No scan record</span>
+                                                  </div>
+                                                )}
+                                                {desk.operator && desk.isScanned && (
+                                                  <div className="text-[#a79f8b] truncate" title={desk.operator}>
+                                                    By: {desk.operator}
+                                                  </div>
+                                                )}
+                                              </div>
+                                            </div>
+                                          );
+                                        })}
+                                      </div>
+                                    </div>
+                                  );
+                                })()}
 
                                 {/* UPI Payment Screenshot Card (if uploaded) */}
                                 {(record.paymentScreenshot || (record.teamDetails as any)?._paymentScreenshot) && (
