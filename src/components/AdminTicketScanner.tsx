@@ -46,6 +46,7 @@ import {
 import { RegistrationRecord } from './TicketPass';
 import { computeDelegatesStats, getRecordTeammates, getRecordMemberCount, getRecordLunchStats } from '../utils/delegateStats';
 import { EVENTS, SPOT_EVENT, ALL_EVENTS, SYMPOSIUM_CONFIG } from '../data/symposiumData';
+import { sendTicketEmailApi } from '../services/api';
 
 interface AdminTicketScannerProps {
   records: RegistrationRecord[];
@@ -810,6 +811,9 @@ export const AdminTicketScanner: React.FC<AdminTicketScannerProps> = ({
     };
     onUpdateRecord(updated);
     setActiveRecord(updated);
+    if (updated.email) {
+      sendTicketEmailApi(updated).catch(e => console.warn('Desk verify auto email notice:', e));
+    }
   };
 
   // On-Spot Upgrade: Add Spot Events Pass (+₹100)

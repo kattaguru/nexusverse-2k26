@@ -382,7 +382,11 @@ _(Show this pass or QR code at the registration desk for badge, kit, and meal tr
               {record.isVerified ? 'UPI Payment Verified ✓ · Official Entry Authorized' : 'UPI Payment Recorded · Official Ticket Access'}
             </span>
             <span className="text-[#d8cea7] text-xs">
-              Your ticket will be sent to your mail at <strong>8 PM</strong> and you can access your live ticket anytime in <strong>your space</strong> (<strong>find my ticket</strong>).
+              {record.isVerified
+                ? 'Your payment has been officially verified by the desk. This ticket pass is active and fully authorized for venue entry, event participation, and lunch meal trays.'
+                : (
+                  <>Your ticket will be sent to your mail at <strong>8 PM</strong> and you can access your live ticket anytime in <strong>your space</strong> (<strong>find my ticket</strong>).</>
+                )}
             </span>
           </div>
         </div>

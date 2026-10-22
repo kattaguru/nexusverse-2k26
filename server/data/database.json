@@ -50,9 +50,9 @@
     "upiPayeeName": "NexusVerse 2K26",
     "razorpayMeLink": "https://razorpay.me/@veluriprasanth",
     "razorpayMeName": "VELURI PRASANTH",
-    "totalSlotsLimit": 500,
-    "ieeeSlotsLimit": 200,
-    "nonIeeeSlotsLimit": 300
+    "totalSlotsLimit": 0,
+    "ieeeSlotsLimit": 0,
+    "nonIeeeSlotsLimit": 0
   },
   "photos": [
     {
@@ -225,7 +225,7 @@
       "avatarUrl": "https://lh3.googleusercontent.com/a/ACg8ocJjcm_3OX64mAssB1GdbeLa7VkBQYkFRv04VX3u19tyMuL7uw=s96-c",
       "phone": "",
       "college": "N.B.K.R. Institute of Science & Technology",
-      "roll": "",
+      "roll": "23KB1A0597",
       "authProvider": "google",
       "createdAt": "2026-10-17T07:48:30.244Z",
       "updatedAt": "2026-10-17T08:30:23.146Z"

@@ -507,12 +507,26 @@ export const AdminModal: React.FC<AdminModalProps> = ({
       verifiedBy: isNowVerified ? 'admin' : undefined
     };
     onUpdateRecord(updated);
+
+    // Automatically dispatch official pass email to the delegate upon verification
+    if (isNowVerified && updated.email) {
+      sendTicketEmailApi(updated)
+        .then(res => {
+          if (res.success) {
+            setEmailSendToast(`✅ ${record.name} verified & pass emailed to ${updated.email}!`);
+          }
+        })
+        .catch(err => {
+          console.warn('Auto email dispatch on verification notice:', err);
+        });
+    }
+
     setEmailSendToast(
       isNowVerified 
-        ? `Payment for ${record.name} marked as VERIFIED ✓` 
+        ? `Payment for ${record.name} marked as VERIFIED ✓ · Pass is now active in their space!` 
         : `Payment for ${record.name} marked as UNVERIFIED ⏳`
     );
-    setTimeout(() => setEmailSendToast(null), 3500);
+    setTimeout(() => setEmailSendToast(null), 4000);
   };
 
   const handleSendTicketEmail = async (record: RegistrationRecord) => {

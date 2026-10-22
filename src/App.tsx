@@ -707,9 +707,13 @@ export default function App() {
     } catch (e) {}
   };
 
-  // Continuous auto-refresh every 3 seconds while in admin portal
+  // Continuous auto-refresh every 3 seconds while in admin portal or participant space
   useEffect(() => {
-    if (!isAdminRoute && !isAdminOpen) return;
+    if (!isAdminRoute && !isAdminOpen && !isParticipantSpaceOpen) return;
+
+    if (isParticipantSpaceOpen) {
+      refreshAllAdminData();
+    }
 
     let isPolling = false;
     const interval = setInterval(async () => {
@@ -723,7 +727,7 @@ export default function App() {
     }, 3000);
 
     return () => clearInterval(interval);
-  }, [isAdminRoute, isAdminOpen]);
+  }, [isAdminRoute, isAdminOpen, isParticipantSpaceOpen]);
 
   // Save registration record helper (synced to backend API + local cache)
   const saveRegistration = async (record: RegistrationRecord) => {
@@ -3007,6 +3011,7 @@ export default function App() {
           currentUser={currentUser}
           onUserChange={(usr) => setCurrentUser(usr)}
           savedRecords={savedRecords}
+          onRefreshRecords={refreshAllAdminData}
           onOpenTicketPass={(rec) => {
             setConfirmedRecord(rec);
             setUpiPendingRecord(null);

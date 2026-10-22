@@ -94,22 +94,55 @@ function isAdminAuthorized(req: Request): boolean {
 }
 
 const adminVerifyRateLimit = new Map<string, { count: number; lockedUntil: number }>();
-function findUserRegistrations(email?: string, roll?: string, phone?: string) {
+function findUserRegistrations(email?: string, roll?: string, phone?: string, username?: string) {
   const db = readDatabase();
   const cleanEmail = (email || '').toLowerCase().trim();
   const cleanRoll = (roll || '').toUpperCase().trim();
   const cleanPhone = (phone || '').replace(/\s+/g, '');
+  const cleanUsername = (username || '').toUpperCase().trim();
+  const emailPrefix = cleanEmail ? cleanEmail.split('@')[0].toUpperCase() : '';
 
   return db.registrations.filter((r: any) => {
     const rEmail = (r.email || '').toLowerCase().trim();
     const rRoll = (r.roll || '').toUpperCase().trim();
     const rPhone = (r.phone || '').replace(/\s+/g, '');
 
-    return (
+    const directMatch = (
       (cleanEmail && rEmail === cleanEmail) ||
       (cleanRoll && rRoll === cleanRoll) ||
+      (cleanUsername && rRoll === cleanUsername) ||
+      (emailPrefix && rRoll === emailPrefix) ||
       (cleanPhone && cleanPhone.length > 5 && rPhone === cleanPhone)
     );
+    if (directMatch) return true;
+
+    // Check teammates in teamDetails
+    const teamDetails = r.teamDetails || {};
+    for (const key of Object.keys(teamDetails)) {
+      const details = teamDetails[key];
+      if (!details || typeof details !== 'object') continue;
+      const teamMembers = details.teamMembers || details.members || [];
+      if (Array.isArray(teamMembers)) {
+        for (const m of teamMembers) {
+          if (!m) continue;
+          const mRoll = (typeof m === 'object' ? (m.roll || '') : '').toUpperCase().trim();
+          const mEmail = (typeof m === 'object' ? (m.email || '') : '').toLowerCase().trim();
+          const mPhone = (typeof m === 'object' ? (m.phone || '') : '').replace(/\s+/g, '');
+
+          if (
+            (cleanRoll && mRoll === cleanRoll) ||
+            (cleanUsername && mRoll === cleanUsername) ||
+            (emailPrefix && mRoll === emailPrefix) ||
+            (cleanEmail && mEmail === cleanEmail) ||
+            (cleanPhone && cleanPhone.length > 5 && mPhone === cleanPhone)
+          ) {
+            return true;
+          }
+        }
+      }
+    }
+
+    return false;
   });
 }
 
@@ -367,6 +400,11 @@ apiRouter.put('/registrations/:regId', (req: Request, res: Response) => {
       event_ids: updatedRecord.eventIds || [],
       team_details: {
         ...(updatedRecord.teamDetails || {}),
+        ...(updatedRecord.paymentScreenshot ? { _paymentScreenshot: updatedRecord.paymentScreenshot } : {}),
+        ...(updatedRecord.paymentMode ? { _paymentMode: updatedRecord.paymentMode } : {}),
+        ...(updatedRecord.isVerified !== undefined ? { _isVerified: updatedRecord.isVerified } : {}),
+        ...(updatedRecord.verifiedAt ? { _verifiedAt: updatedRecord.verifiedAt } : {}),
+        ...(updatedRecord.verifiedBy ? { _verifiedBy: updatedRecord.verifiedBy } : {}),
         ...(updatedRecord.checkedIn !== undefined ? { _checkedIn: updatedRecord.checkedIn } : {}),
         ...(updatedRecord.checkInTime ? { _checkInTime: updatedRecord.checkInTime } : {}),
         ...(updatedRecord.checkedInBy ? { _checkedInBy: updatedRecord.checkedInBy } : {}),
@@ -375,7 +413,9 @@ apiRouter.put('/registrations/:regId', (req: Request, res: Response) => {
         ...(updatedRecord.checkInNotes ? { _checkInNotes: updatedRecord.checkInNotes } : {}),
         ...(updatedRecord.lunchCollected !== undefined ? { _lunchCollected: updatedRecord.lunchCollected } : {}),
         ...(updatedRecord.lunchCollectedTime ? { _lunchCollectedTime: updatedRecord.lunchCollectedTime } : {}),
-        ...(updatedRecord.lunchCollectedBy ? { _lunchCollectedBy: updatedRecord.lunchCollectedBy } : {})
+        ...(updatedRecord.lunchCollectedBy ? { _lunchCollectedBy: updatedRecord.lunchCollectedBy } : {}),
+        ...(updatedRecord.lunchCollectedCount !== undefined ? { _lunchCollectedCount: updatedRecord.lunchCollectedCount } : {}),
+        ...(updatedRecord.memberLunchStatus ? { _memberLunchStatus: updatedRecord.memberLunchStatus } : {})
       },
       total_paid: Number(updatedRecord.totalPaid || 0),
       promo_code: updatedRecord.promoCode || '',
@@ -1411,7 +1451,7 @@ apiRouter.post('/auth/register', authRateLimiter.middleware(), async (req: Reque
       updated_at: new Date().toISOString()
     }, { onConflict: 'email' }));
 
-    const userRegistrations = findUserRegistrations(newUser.email, newUser.roll, newUser.phone);
+    const userRegistrations = findUserRegistrations(newUser.email, newUser.roll, newUser.phone, newUser.username);
 
     res.json({
       success: true,
@@ -1453,7 +1493,7 @@ apiRouter.post('/auth/login', authRateLimiter.middleware(), (req: Request, res: 
       return res.status(401).json({ success: false, error: 'Invalid email/username or password.' });
     }
 
-    const userRegistrations = findUserRegistrations(user.email, user.roll, user.phone);
+    const userRegistrations = findUserRegistrations(user.email, user.roll, user.phone, user.username);
 
     res.json({
       success: true,
@@ -1479,17 +1519,18 @@ apiRouter.post('/auth/google', authRateLimiter.middleware(), async (req: Request
     if (!db.users) db.users = [];
 
     let user = db.users.find(u => u.email.toLowerCase() === cleanEmail);
+    const cleanUsername = cleanEmail.split('@')[0];
+    const derivedRoll = (roll?.trim().toUpperCase()) || (/^[0-9]{2}[A-Z0-9]{8}$/i.test(cleanUsername) ? cleanUsername.toUpperCase() : '');
 
     if (user) {
       // Update info if provided
       if (name && (!user.name || user.name.startsWith('User '))) user.name = name.trim();
       if (avatarUrl && !user.avatarUrl) user.avatarUrl = avatarUrl;
-      if (roll && !user.roll) user.roll = roll.trim().toUpperCase();
+      if (!user.roll && derivedRoll) user.roll = derivedRoll;
       if (college && !user.college) user.college = college.trim();
       if (phone && !user.phone) user.phone = phone.trim();
       user.updatedAt = new Date().toISOString();
     } else {
-      const cleanUsername = cleanEmail.split('@')[0];
       user = {
         id: 'usr_' + crypto.randomBytes(6).toString('hex'),
         name: name ? name.trim() : cleanUsername,
@@ -1498,7 +1539,7 @@ apiRouter.post('/auth/google', authRateLimiter.middleware(), async (req: Request
         avatarUrl: avatarUrl || '',
         phone: phone?.trim() || '',
         college: college?.trim() || 'N.B.K.R. Institute of Science & Technology',
-        roll: roll?.trim().toUpperCase() || '',
+        roll: derivedRoll,
         authProvider: 'google',
         createdAt: new Date().toISOString()
       };
@@ -1522,7 +1563,7 @@ apiRouter.post('/auth/google', authRateLimiter.middleware(), async (req: Request
       updated_at: new Date().toISOString()
     }, { onConflict: 'email' }));
 
-    const userRegistrations = findUserRegistrations(user.email, user.roll, user.phone);
+    const userRegistrations = findUserRegistrations(user.email, user.roll, user.phone, user.username);
 
     res.json({
       success: true,
@@ -1555,7 +1596,7 @@ apiRouter.get('/auth/me', (req: Request, res: Response) => {
       return res.status(404).json({ success: false, error: 'Participant session not found.' });
     }
 
-    const userRegistrations = findUserRegistrations(user.email, user.roll, user.phone);
+    const userRegistrations = findUserRegistrations(user.email, user.roll, user.phone, user.username);
 
     res.json({
       success: true,
@@ -1615,7 +1656,7 @@ apiRouter.put('/auth/profile', (req: Request, res: Response) => {
       updated_at: user.updatedAt || new Date().toISOString()
     }, { onConflict: 'email' }));
 
-    const userRegistrations = findUserRegistrations(user.email, user.roll, user.phone);
+    const userRegistrations = findUserRegistrations(user.email, user.roll, user.phone, user.username);
 
     res.json({
       success: true,

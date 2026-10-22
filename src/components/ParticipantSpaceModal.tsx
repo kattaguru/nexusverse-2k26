@@ -37,6 +37,8 @@ import {
   logoutParticipant 
 } from '../services/auth';
 import { RegistrationRecord } from './TicketPass';
+import { getRecordTeammates } from '../utils/delegateStats';
+import { fetchRegistrationsApi } from '../services/api';
 import { ALL_EVENTS, SYMPOSIUM_CONFIG } from '../data/symposiumData';
 import { supabase, isSupabaseConfigured } from '../lib/supabase';
 
@@ -46,6 +48,7 @@ interface ParticipantSpaceModalProps {
   currentUser: ParticipantUser | null;
   onUserChange: (user: ParticipantUser | null) => void;
   savedRecords: RegistrationRecord[];
+  onRefreshRecords?: () => Promise<void> | void;
   onOpenTicketPass: (record: RegistrationRecord) => void;
   onNavigateToRegister: (prefillData: Partial<ParticipantUser>) => void;
   initialMode?: 'signin' | 'signup';
@@ -57,6 +60,7 @@ export const ParticipantSpaceModal: React.FC<ParticipantSpaceModalProps> = ({
   currentUser,
   onUserChange,
   savedRecords,
+  onRefreshRecords,
   onOpenTicketPass,
   onNavigateToRegister,
   initialMode
@@ -104,6 +108,32 @@ export const ParticipantSpaceModal: React.FC<ParticipantSpaceModalProps> = ({
   const [copiedUtr, setCopiedUtr] = useState<string | null>(null);
   const [viewingReceiptModal, setViewingReceiptModal] = useState<string | null>(null);
 
+  // Reactive state for registrations to support real-time pass appearance upon desk verification
+  const [localRecords, setLocalRecords] = useState<RegistrationRecord[]>(savedRecords);
+  const [isRefreshingPasses, setIsRefreshingPasses] = useState(false);
+
+  useEffect(() => {
+    setLocalRecords(savedRecords);
+  }, [savedRecords]);
+
+  // Dedicated refresh function to fetch latest desk verification status
+  const refreshPassesNow = async () => {
+    setIsRefreshingPasses(true);
+    try {
+      if (onRefreshRecords) {
+        await onRefreshRecords();
+      }
+      const fresh = await fetchRegistrationsApi();
+      if (Array.isArray(fresh) && fresh.length > 0) {
+        setLocalRecords(fresh);
+      }
+    } catch (e) {
+      console.warn('Error refreshing participant space passes:', e);
+    } finally {
+      setIsRefreshingPasses(false);
+    }
+  };
+
   // Sync initialMode when modal opens
   useEffect(() => {
     if (isOpen && initialMode) {
@@ -111,13 +141,29 @@ export const ParticipantSpaceModal: React.FC<ParticipantSpaceModalProps> = ({
     }
   }, [isOpen, initialMode]);
 
+  // Live auto-refresh when participant space is opened or activeTab is passes
+  useEffect(() => {
+    if (isOpen && currentUser) {
+      refreshPassesNow();
+      const interval = setInterval(() => {
+        refreshPassesNow();
+      }, 5000);
+      return () => clearInterval(interval);
+    }
+  }, [isOpen, currentUser?.id]);
+
   // Populate profile edit form when user changes
   useEffect(() => {
     if (currentUser) {
+      const emailPrefix = (currentUser.email || '').split('@')[0].toUpperCase();
+      const derivedRoll = currentUser.roll || 
+        (/^[0-9]{2}[A-Z0-9]{8}$/i.test(currentUser.username || '') ? currentUser.username.toUpperCase() : '') ||
+        (/^[0-9]{2}[A-Z0-9]{8}$/i.test(emailPrefix) ? emailPrefix : '');
+
       setEditName(currentUser.name || '');
       setEditPhone(currentUser.phone || '');
       setEditCollege(currentUser.college || 'N.B.K.R. Institute of Science & Technology');
-      setEditRoll(currentUser.roll || '');
+      setEditRoll(derivedRoll);
       setEditBranch(currentUser.branch || '');
       setEditYear(currentUser.year || '');
       setEditIeeeId(currentUser.ieeeId || '');
@@ -127,24 +173,46 @@ export const ParticipantSpaceModal: React.FC<ParticipantSpaceModalProps> = ({
 
   if (!isOpen) return null;
 
-  // Filter registrations belonging to this user
+  // Filter registrations belonging to this user (supports primary registrant, username, roll, email prefix, and team members)
   const userRegistrations = currentUser
-    ? savedRecords.filter(r => {
+    ? localRecords.filter(r => {
         const uId = currentUser.id;
         const uEmail = (currentUser.email || '').toLowerCase().trim();
         const uRoll = (currentUser.roll || '').toUpperCase().trim();
+        const uUsername = (currentUser.username || '').toUpperCase().trim();
+        const uEmailPrefix = (currentUser.email ? currentUser.email.split('@')[0] : '').toUpperCase().trim();
         const uPhone = (currentUser.phone || '').replace(/\s+/g, '');
         
         const rEmail = (r.email || '').toLowerCase().trim();
         const rRoll = (r.roll || '').toUpperCase().trim();
         const rPhone = (r.phone || '').replace(/\s+/g, '');
 
-        return (
+        // 1. Direct Primary Registrant Match
+        const matchesPrimary = (
           (uId && r.userId && r.userId === uId) ||
           (uEmail && rEmail === uEmail) ||
           (uRoll && rRoll === uRoll) ||
+          (uUsername && rRoll === uUsername) ||
+          (uEmailPrefix && rRoll === uEmailPrefix) ||
           (uPhone && uPhone.length > 5 && rPhone === uPhone)
         );
+        if (matchesPrimary) return true;
+
+        // 2. Team Member / Delegate Match
+        const teammates = getRecordTeammates(r);
+        return teammates.some(m => {
+          const mRoll = (m.roll || '').toUpperCase().trim();
+          const mEmail = (m.email || '').toLowerCase().trim();
+          const mPhone = (m.phone || '').replace(/\s+/g, '');
+
+          return (
+            (uRoll && mRoll === uRoll) ||
+            (uUsername && mRoll === uUsername) ||
+            (uEmailPrefix && mRoll === uEmailPrefix) ||
+            (uEmail && mEmail === uEmail) ||
+            (uPhone && uPhone.length > 5 && mPhone === uPhone)
+          );
+        });
       })
     : [];
 
@@ -866,6 +934,29 @@ export const ParticipantSpaceModal: React.FC<ParticipantSpaceModalProps> = ({
             {/* TAB CONTENT: PASSES */}
             {activeTab === 'passes' && (
               <div className="space-y-3">
+                <div className="flex items-center justify-between px-1">
+                  <div className="flex items-center gap-2">
+                    <span className="text-[11px] font-bold uppercase tracking-wider text-[#d4a935]">
+                      Active Ticket Passes ({userRegistrations.length})
+                    </span>
+                    {userRegistrations.some(r => r.isVerified) && (
+                      <span className="px-2 py-0.5 rounded-full bg-[#142617] text-[#4cc38a] border border-[#4cc38a]/40 text-[10px] font-bold">
+                        Verified ✓
+                      </span>
+                    )}
+                  </div>
+                  <button
+                    type="button"
+                    onClick={refreshPassesNow}
+                    disabled={isRefreshingPasses}
+                    className="px-2.5 py-1 rounded-lg bg-[#1a170f] border border-[#d4a935]/40 text-[#f2c14e] hover:bg-[#2b220d] text-[11px] font-semibold flex items-center gap-1.5 cursor-pointer transition-colors shadow-sm"
+                    title="Refresh live ticket and payment verification status"
+                  >
+                    <Clock className={`w-3 h-3 ${isRefreshingPasses ? 'animate-spin' : ''}`} />
+                    <span>{isRefreshingPasses ? 'Checking...' : 'Refresh Passes 🔄'}</span>
+                  </button>
+                </div>
+
                 {userRegistrations.length > 0 ? (
                   userRegistrations.map((rec) => {
                     const eventObjects = (rec.eventIds || [])
@@ -915,7 +1006,12 @@ export const ParticipantSpaceModal: React.FC<ParticipantSpaceModalProps> = ({
                           </div>
 
                           <div className="flex flex-col items-end gap-1">
-                            {rec.paymentMode === 'upi' ? (
+                            {rec.isVerified ? (
+                              <span className="px-2.5 py-1 rounded-full bg-[#142617] border border-[#81c784]/60 text-[#a5d6a7] font-bold text-xs flex items-center gap-1.5 shadow-sm">
+                                <CheckCircle2 className="w-3.5 h-3.5 text-[#4cc38a]" />
+                                <span>Verified ✓ · Pass Active</span>
+                              </span>
+                            ) : rec.paymentMode === 'upi' ? (
                               <span className="px-2.5 py-1 rounded-full bg-[#1e2714] border border-[#d4a935]/50 text-[#f2c14e] font-semibold text-xs flex items-center gap-1.5">
                                 <Clock className="w-3.5 h-3.5" />
                                 <span>UPI Submitted · Ticket at 8 PM</span>
@@ -995,8 +1091,29 @@ export const ParticipantSpaceModal: React.FC<ParticipantSpaceModalProps> = ({
                           </div>
                         </div>
 
-                        {/* IF UPI: 8 PM NOTIFICATION & PAYMENT RECEIPT SCREENSHOT */}
-                        {rec.paymentMode === 'upi' && (
+                        {/* PAYMENT VERIFIED BANNER OR UPI PENDING REVIEW BANNER */}
+                        {rec.isVerified ? (
+                          <div className="p-3.5 rounded-xl bg-gradient-to-r from-[#0d2a1c] via-[#143a28] to-[#0d2a1c] border border-[#4cc38a]/60 flex flex-wrap items-center justify-between gap-3 text-xs shadow-md">
+                            <div className="flex items-center gap-2.5">
+                              <Shield className="w-4 h-4 text-[#4cc38a] shrink-0" />
+                              <span className="text-[#e2f9ed] leading-tight">
+                                <strong className="text-[#4cc38a]">Payment Verified ✓</strong> Official Entry Pass is active! Present this digital QR pass at the registration desk for check-in and delegate meal tray.
+                              </span>
+                            </div>
+
+                            <button
+                              type="button"
+                              onClick={() => {
+                                onOpenTicketPass(rec);
+                                onClose();
+                              }}
+                              className="px-3 py-1.5 rounded-lg bg-[#4cc38a] text-[#062414] font-bold text-xs hover:bg-[#3db078] flex items-center gap-1.5 cursor-pointer shrink-0 transition-colors shadow"
+                            >
+                              <Ticket className="w-3.5 h-3.5" />
+                              <span>Open QR Pass</span>
+                            </button>
+                          </div>
+                        ) : rec.paymentMode === 'upi' ? (
                           <div className="p-3 rounded-xl bg-gradient-to-r from-[#171306] via-[#1f1a08] to-[#171306] border border-[#d4a935]/50 flex flex-wrap items-center justify-between gap-3 text-xs">
                             <div className="flex items-center gap-2.5">
                               <Clock className="w-4 h-4 text-[#f2c14e] shrink-0" />
@@ -1016,7 +1133,7 @@ export const ParticipantSpaceModal: React.FC<ParticipantSpaceModalProps> = ({
                               </button>
                             )}
                           </div>
-                        )}
+                        ) : null}
 
                         {/* REGISTERED EVENTS & DETAILED TEAM ROSTER */}
                         <div className="space-y-2">
@@ -1155,10 +1272,14 @@ export const ParticipantSpaceModal: React.FC<ParticipantSpaceModalProps> = ({
                                 onOpenTicketPass(rec);
                                 onClose();
                               }}
-                              className="px-4 py-2 rounded-lg bg-[#f2c14e] text-[#1a1300] font-bold text-xs hover:bg-[#d4a935] transition-all flex items-center gap-1.5 cursor-pointer shadow-sm"
+                              className={`px-4 py-2 rounded-lg font-bold text-xs transition-all flex items-center gap-1.5 cursor-pointer shadow-sm ${
+                                rec.isVerified
+                                  ? 'bg-[#4cc38a] text-[#052b14] hover:bg-[#3db078]'
+                                  : 'bg-[#f2c14e] text-[#1a1300] hover:bg-[#d4a935]'
+                              }`}
                             >
                               <Ticket className="w-3.5 h-3.5" />
-                              <span>View Digital QR Pass</span>
+                              <span>{rec.isVerified ? 'View Activated QR Pass' : 'View Digital QR Pass'}</span>
                             </button>
                           </div>
                         </div>
@@ -1176,27 +1297,39 @@ export const ParticipantSpaceModal: React.FC<ParticipantSpaceModalProps> = ({
                         You have not registered for any technical events. Choose from CTF, CodeNano, InnovRush, TechQuest, or Designova!
                       </p>
                     </div>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        onNavigateToRegister({
-                          name: currentUser.name,
-                          email: currentUser.email,
-                          phone: currentUser.phone,
-                          roll: currentUser.roll,
-                          college: currentUser.college,
-                          branch: currentUser.branch,
-                          year: currentUser.year,
-                          isIeeeMember: currentUser.isIeeeMember,
-                          ieeeId: currentUser.ieeeId,
-                        });
-                        onClose();
-                      }}
-                      className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-[#f2c14e] text-[#1a1300] font-bold text-xs hover:bg-[#d4a935] transition-all cursor-pointer shadow-md"
-                    >
-                      <span>Register for an Event Now</span>
-                      <ArrowRight className="w-3.5 h-3.5" />
-                    </button>
+                    <div className="flex flex-wrap items-center justify-center gap-2 pt-1">
+                      <button
+                        type="button"
+                        onClick={refreshPassesNow}
+                        disabled={isRefreshingPasses}
+                        className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-[#1a170f] border border-[#d4a935]/50 text-[#f2c14e] text-xs font-semibold hover:bg-[#2e2612] cursor-pointer"
+                      >
+                        <Clock className={`w-3.5 h-3.5 ${isRefreshingPasses ? 'animate-spin' : ''}`} />
+                        <span>{isRefreshingPasses ? 'Checking Desk Records...' : 'Check Status / Refresh Passes 🔄'}</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => {
+                          onNavigateToRegister({
+                            name: currentUser.name,
+                            email: currentUser.email,
+                            phone: currentUser.phone,
+                            roll: currentUser.roll,
+                            college: currentUser.college,
+                            branch: currentUser.branch,
+                            year: currentUser.year,
+                            isIeeeMember: currentUser.isIeeeMember,
+                            ieeeId: currentUser.ieeeId,
+                          });
+                          onClose();
+                        }}
+                        className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-[#f2c14e] text-[#1a1300] font-bold text-xs hover:bg-[#d4a935] transition-all cursor-pointer shadow-md"
+                      >
+                        <span>Register for an Event Now</span>
+                        <ArrowRight className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
                   </div>
                 )}
               </div>

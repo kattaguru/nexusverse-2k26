@@ -52,8 +52,8 @@ export const PassLookupModal: React.FC<PassLookupModalProps> = ({
     // 1. Check local device records
     let found = savedRecords.find(matchesQuery);
 
-    // 2. If not found locally, query backend server records
-    if (!found) {
+    // 2. If not found locally or if local record is still pending verification, query latest backend records
+    if (!found || (found.paymentMode === 'upi' && !found.isVerified)) {
       setIsSearching(true);
       setErrorMsg('');
       try {
@@ -61,7 +61,10 @@ export const PassLookupModal: React.FC<PassLookupModalProps> = ({
         if (res.ok) {
           const json = await res.json();
           const remoteRecords: RegistrationRecord[] = json.data || [];
-          found = remoteRecords.find(matchesQuery);
+          const fresh = remoteRecords.find(matchesQuery);
+          if (fresh) {
+            found = fresh;
+          }
         }
       } catch (err) {
         console.warn('Pass lookup network notice:', err);
