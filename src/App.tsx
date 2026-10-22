@@ -212,6 +212,9 @@ export default function App() {
   const [upiPendingRecord, setUpiPendingRecord] = useState<RegistrationRecord | null>(null);
   const [savedRecords, setSavedRecords] = useState<RegistrationRecord[]>([]);
   const [isScannedPass, setIsScannedPass] = useState(false);
+  // Pass link (?passId=...) is held here until we confirm the logged-in user owns it
+  const [pendingPassRecord, setPendingPassRecord] = useState<RegistrationRecord | null>(null);
+  const [passAccessDenied, setPassAccessDenied] = useState<'login' | 'not_owner' | null>(null);
 
   // Form Draft Cache Memory State
   const [draftRestoredNotice, setDraftRestoredNotice] = useState<{ age: string; timestamp: number } | null>(null);
@@ -328,7 +331,99 @@ export default function App() {
   const handleLogoutParticipant = async () => {
     await logoutParticipant();
     setCurrentUser(null);
+    // Never leave a pass visible after logout
+    setConfirmedRecord(null);
+    setIsScannedPass(false);
   };
+
+  // Does the logged-in participant (or verified admin session) own this registration?
+  const userOwnsRecord = (rec: RegistrationRecord, user: ParticipantUser | null): boolean => {
+    if (!rec) return false;
+
+    // Authorized Admin / Verification Desk session override
+    try {
+      if (typeof window !== 'undefined' && window.sessionStorage) {
+        if (
+          sessionStorage.getItem('nexusverse_admin_auth') === 'true' ||
+          sessionStorage.getItem('nexusverse_verify_auth') === 'true'
+        ) {
+          return true;
+        }
+      }
+    } catch {}
+
+    if (!user) return false;
+
+    const norm = (v?: string) => (v || '').trim().toLowerCase();
+    const normUpper = (v?: string) => (v || '').trim().toUpperCase();
+    const cleanPhoneDigits = (v?: string) => {
+      const d = (v || '').replace(/\D/g, '');
+      return d.length >= 10 ? d.slice(-10) : '';
+    };
+
+    const uId = user.id;
+    const uEmail = norm(user.email);
+    const uRoll = normUpper(user.roll);
+    const uUsername = normUpper(user.username);
+    const uEmailPrefix = user.email ? normUpper(user.email.split('@')[0]) : '';
+    const uPhoneTen = cleanPhoneDigits(user.phone);
+
+    const rEmail = norm(rec.email);
+    const rRoll = normUpper(rec.roll);
+    const rPhoneTen = cleanPhoneDigits(rec.phone);
+
+    // 1. Direct Primary Registrant Match
+    const matchesPrimary = Boolean(
+      (uId && rec.userId && rec.userId === uId) ||
+      (uEmail && rEmail === uEmail) ||
+      (uRoll && rRoll === uRoll) ||
+      (uUsername && rRoll === uUsername) ||
+      (uEmailPrefix && rRoll === uEmailPrefix) ||
+      (uPhoneTen && rPhoneTen && uPhoneTen === rPhoneTen)
+    );
+    if (matchesPrimary) return true;
+
+    // 2. Team Member / Delegate Match
+    const teammates = getRecordTeammates(rec);
+    return teammates.some((m: any) => {
+      const mRoll = normUpper(m.roll);
+      const mEmail = norm(m.email);
+      const mPhoneTen = cleanPhoneDigits(m.phone);
+
+      return Boolean(
+        (uRoll && mRoll === uRoll) ||
+        (uUsername && mRoll === uUsername) ||
+        (uEmailPrefix && mRoll === uEmailPrefix) ||
+        (uEmail && mEmail === uEmail) ||
+        (uPhoneTen && mPhoneTen && uPhoneTen === mPhoneTen)
+      );
+    });
+  };
+
+  // Pass-link ownership gate: re-evaluated whenever login state changes
+  useEffect(() => {
+    if (!pendingPassRecord) return;
+    if (userOwnsRecord(pendingPassRecord, currentUser)) {
+      setConfirmedRecord(pendingPassRecord);
+      setUpiPendingRecord(null);
+      setIsScannedPass(true);
+      setPassAccessDenied(null);
+      setPendingPassRecord(null);
+      setIsParticipantSpaceOpen(false);
+      setTimeout(() => window.scrollTo({ top: 0, behavior: 'smooth' }), 300);
+      return;
+    }
+
+    if (!currentUser) {
+      setPassAccessDenied('login');
+      setConfirmedRecord(null);
+      setIsScannedPass(false);
+    } else {
+      setPassAccessDenied('not_owner');
+      setConfirmedRecord(null);
+      setIsScannedPass(false);
+    }
+  }, [pendingPassRecord, currentUser]);
 
   // Sync fresh participant data on mount if logged in
   useEffect(() => {
@@ -682,12 +777,8 @@ export default function App() {
             ))
           );
           if (matched) {
-            setConfirmedRecord(matched);
-            setUpiPendingRecord(null);
-            setIsScannedPass(true);
-            setTimeout(() => {
-              window.scrollTo({ top: 0, behavior: 'smooth' });
-            }, 300);
+            // Do NOT reveal directly — ownership gate decides
+            setPendingPassRecord(matched);
           } else {
             try {
               const lookupId = baseRegId || cleanTarget || cleanRoll;
@@ -695,12 +786,7 @@ export default function App() {
               if (singleRes.ok) {
                 const singleJson = await singleRes.json();
                 if (singleJson.success && singleJson.data && mounted) {
-                  setConfirmedRecord(singleJson.data);
-                  setUpiPendingRecord(null);
-                  setIsScannedPass(true);
-                  setTimeout(() => {
-                    window.scrollTo({ top: 0, behavior: 'smooth' });
-                  }, 300);
+                  setPendingPassRecord(singleJson.data);
                 }
               }
             } catch (e) {}
@@ -1377,7 +1463,7 @@ export default function App() {
         onAddManualRecord={(rec) => saveRegistration(rec)}
         onViewPass={(rec) => {
           setConfirmedRecord(rec);
-          window.location.href = '/register.html';
+          window.location.href = `/register.html?passId=${encodeURIComponent(rec.regId)}`;
         }}
         isRegClosed={isRegClosed}
         onToggleRegClosed={handleToggleRegClosed}
@@ -1414,7 +1500,7 @@ export default function App() {
         onAddManualRecord={(rec) => saveRegistration(rec)}
         onViewPass={(rec) => {
           setConfirmedRecord(rec);
-          window.location.href = '/register.html';
+          window.location.href = `/register.html?passId=${encodeURIComponent(rec.regId)}`;
         }}
         isRegClosed={isRegClosed}
         onToggleRegClosed={handleToggleRegClosed}
@@ -1473,7 +1559,59 @@ export default function App() {
         )}
 
         {/* Confirmed Ticket Pass View OR UPI Submission Confirmation */}
-        {confirmedRecord ? (
+        {passAccessDenied && !confirmedRecord ? (
+          <section className="min-h-[70vh] flex items-center justify-center px-4 py-16">
+            <div className="w-full max-w-md text-center p-6 sm:p-8 rounded-3xl bg-gradient-to-br from-[#121218] via-[#171724] to-[#0e0e14] border-2 border-[#d4a935]/60 shadow-2xl space-y-5">
+              <div className="w-16 h-16 mx-auto rounded-2xl bg-[#2a1315] border border-[#ff8a80]/40 flex items-center justify-center">
+                <ShieldCheck className="w-8 h-8 text-[#ff8a80]" />
+              </div>
+              <h2 className="font-serif-title text-2xl font-bold text-white">
+                {passAccessDenied === 'login' ? 'Private Delegate Pass' : 'Access Denied'}
+              </h2>
+              <p className="text-sm text-[#b9ae94] leading-relaxed">
+                {passAccessDenied === 'login'
+                  ? 'This ticket is private. Please sign in to your space to view your own pass.'
+                  : 'This pass belongs to another delegate. You can only view passes registered with your own account.'}
+              </p>
+              <div className="flex flex-col gap-2.5 pt-1">
+                {passAccessDenied === 'login' ? (
+                  <button
+                    type="button"
+                    id="pass-gate-signin"
+                    onClick={() => {
+                      setParticipantSpaceInitialMode('signin');
+                      setIsParticipantSpaceOpen(true);
+                    }}
+                    className="w-full py-3 rounded-xl font-bold text-sm bg-gradient-to-r from-[#f2c14e] to-[#d4a935] text-black hover:brightness-105 transition-all cursor-pointer"
+                  >
+                    Sign In to View Your Pass
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    id="pass-gate-dashboard"
+                    onClick={() => setIsParticipantSpaceOpen(true)}
+                    className="w-full py-3 rounded-xl font-bold text-sm bg-gradient-to-r from-[#f2c14e] to-[#d4a935] text-black hover:brightness-105 transition-all cursor-pointer"
+                  >
+                    Open My Passes
+                  </button>
+                )}
+                <button
+                  type="button"
+                  id="pass-gate-home"
+                  onClick={() => {
+                    setPendingPassRecord(null);
+                    setPassAccessDenied(null);
+                    window.history.replaceState(null, '', window.location.pathname);
+                  }}
+                  className="w-full py-3 rounded-xl font-semibold text-sm bg-[#0a0a0d] border border-[#2e2b22] text-[#a79f8b] hover:text-white transition-colors cursor-pointer"
+                >
+                  Go to Home
+                </button>
+              </div>
+            </div>
+          </section>
+        ) : confirmedRecord ? (
           <TicketPass 
             record={confirmedRecord}
             events={ALL_EVENTS}
@@ -1484,6 +1622,11 @@ export default function App() {
               setConfirmedRecord(null);
               setUpiPendingRecord(null);
               setIsScannedPass(false);
+              setPendingPassRecord(null);
+              setPassAccessDenied(null);
+              try {
+                window.history.replaceState(null, '', window.location.pathname);
+              } catch {}
               setSelectedEvents(['ctf']);
               setIncludeSpotEvents(false);
               setName('');
@@ -1503,11 +1646,18 @@ export default function App() {
             onViewPass={() => {
               setConfirmedRecord(upiPendingRecord);
               setUpiPendingRecord(null);
+              setPendingPassRecord(null);
+              setPassAccessDenied(null);
               window.scrollTo({ top: 0, behavior: 'smooth' });
             }}
             onReset={() => {
               setUpiPendingRecord(null);
               setConfirmedRecord(null);
+              setPendingPassRecord(null);
+              setPassAccessDenied(null);
+              try {
+                window.history.replaceState(null, '', window.location.pathname);
+              } catch {}
               setSelectedEvents(['ctf']);
               setIncludeSpotEvents(false);
               setName('');
@@ -3033,9 +3183,8 @@ export default function App() {
         onClose={() => setIsLookupOpen(false)}
         savedRecords={savedRecords}
         onSelectRecord={(rec) => {
-          setConfirmedRecord(rec);
-          setUpiPendingRecord(null);
-          window.scrollTo({ top: 0, behavior: 'smooth' });
+          setIsLookupOpen(false);
+          setPendingPassRecord(rec);
         }}
       />
 
@@ -3083,6 +3232,8 @@ export default function App() {
           onOpenTicketPass={(rec) => {
             setConfirmedRecord(rec);
             setUpiPendingRecord(null);
+            setPendingPassRecord(null);
+            setPassAccessDenied(null);
             window.scrollTo({ top: 0, behavior: 'smooth' });
           }}
           onNavigateToRegister={handlePrefillFromUser}
