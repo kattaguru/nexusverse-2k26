@@ -9,7 +9,6 @@ import { TicketPass, RegistrationRecord, TeamMemberInfo } from './components/Tic
 import { UpiConfirmationView } from './components/UpiConfirmationView';
 import { PassLookupModal } from './components/PassLookupModal';
 import { AdminModal } from './components/AdminModal';
-import { VerifyPortal } from './components/VerifyPortal';
 import { ParticipantSpaceModal } from './components/ParticipantSpaceModal';
 import { PreRegistrationEventsShowcase } from './components/PreRegistrationEventsShowcase';
 import { 
@@ -1353,21 +1352,40 @@ export default function App() {
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
-  // Dedicated Full-Page Payment Verification Desk (/nexusverify) - password: nexusk26
+  // Dedicated Full-Page Registration & Verification Desk (/nexusverify) - password: nexusk26
   if (isVerifyRoute) {
     return (
-      <VerifyPortal
+      <AdminModal
+        isOpen={true}
+        isFullPage={true}
+        isVerifyPortal={true}
+        theme={theme}
+        onToggleTheme={handleToggleTheme}
+        onClose={() => {
+          window.location.href = '/';
+        }}
         savedRecords={savedRecords}
         onRefreshRecords={refreshAllAdminData}
         onUpdateRecord={handleUpdateRecord}
+        onDeleteRecord={handleDeleteRecord}
+        onAddManualRecord={(rec) => saveRegistration(rec)}
         onViewPass={(rec) => {
           setConfirmedRecord(rec);
           window.location.href = '/register.html';
         }}
-        theme={theme}
-        onToggleTheme={handleToggleTheme}
+        isRegClosed={isRegClosed}
+        onToggleRegClosed={handleToggleRegClosed}
+        closedMessage={closedMessage}
+        onUpdateClosedMessage={handleUpdateClosedMessage}
+        totalSlotsLimit={totalSlotsLimit}
+        ieeeSlotsLimit={ieeeSlotsLimit}
+        nonIeeeSlotsLimit={nonIeeeSlotsLimit}
+        onUpdateSlotLimits={handleUpdateSlotLimits}
         leftLogo={leftLogo}
         rightLogo={rightLogo}
+        onUpdateLeftLogo={handleUpdateLeftLogo}
+        onUpdateRightLogo={handleUpdateRightLogo}
+        initialTab={adminInitialTab}
       />
     );
   }
