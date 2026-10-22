@@ -1,4 +1,5 @@
 import { RegistrationRecord } from '../components/TicketPass';
+import { getRecordTeammates } from '../utils/delegateStats';
 import { 
   supabase, 
   isSupabaseConfigured, 
@@ -713,6 +714,7 @@ export async function verifyPaymentSignatureApi(payload: {
  */
 export async function sendTicketEmailApi(record: RegistrationRecord): Promise<{ success: boolean; messageId?: string; error?: string }> {
   try {
+    const teammates = getRecordTeammates(record);
     const res = await fetch(`${API_BASE}/send-ticket-email`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -727,13 +729,19 @@ export async function sendTicketEmailApi(record: RegistrationRecord): Promise<{ 
         year: record.year,
         eventIds: record.eventIds,
         totalPaid: record.totalPaid,
-        paymentId: record.paymentId
+        paymentId: record.paymentId,
+        teammates: teammates.map(m => ({
+          name: m.name,
+          roll: m.roll,
+          email: (m as any).email || ''
+        }))
       })
     });
     if (res.ok) {
       return await res.json();
     }
-    return { success: false, error: 'Server responded with an error.' };
+    const errJson = await res.json().catch(() => null);
+    return { success: false, error: errJson?.error || 'Server responded with an error.' };
   } catch (err: any) {
     return { success: false, error: err.message };
   }

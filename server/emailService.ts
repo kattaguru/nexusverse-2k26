@@ -3,6 +3,9 @@ import dotenv from 'dotenv';
 
 dotenv.config();
 
+const DEFAULT_SMTP_USER = 'kattaguravaiah39@gmail.com';
+const DEFAULT_SMTP_PASS = 'rvrvpkgbzdldgmyt';
+
 export interface EmailTicketPayload {
   regId: string;
   name: string;
@@ -17,12 +20,13 @@ export interface EmailTicketPayload {
   gstAmount?: number;
   totalPaid: number;
   paymentId: string;
+  teammates?: { name?: string; roll?: string; email?: string }[];
 }
 
 // Check if SMTP is configured
 export function isEmailConfigured(): boolean {
-  const user = (process.env.SMTP_USER || '').trim();
-  const pass = (process.env.SMTP_PASS || '').replace(/\s+/g, '').trim();
+  const user = (process.env.SMTP_USER || DEFAULT_SMTP_USER).trim();
+  const pass = (process.env.SMTP_PASS || DEFAULT_SMTP_PASS).replace(/\s+/g, '').trim();
   return Boolean(user && pass && !user.includes('your-email') && !pass.includes('your-app-password'));
 }
 
@@ -31,10 +35,11 @@ function getTransporter() {
   const host = process.env.SMTP_HOST || 'smtp.gmail.com';
   const port = Number(process.env.SMTP_PORT || 465);
   const secure = port === 465;
-  const user = (process.env.SMTP_USER || '').trim();
-  const pass = (process.env.SMTP_PASS || '').replace(/\s+/g, '').trim();
+  const user = (process.env.SMTP_USER || DEFAULT_SMTP_USER).trim();
+  const pass = (process.env.SMTP_PASS || DEFAULT_SMTP_PASS).replace(/\s+/g, '').trim();
 
   return nodemailer.createTransport({
+    service: 'gmail',
     host,
     port,
     secure,
@@ -42,6 +47,9 @@ function getTransporter() {
       user,
       pass,
     },
+    connectionTimeout: 15000,
+    greetingTimeout: 15000,
+    socketTimeout: 20000,
   });
 }
 
@@ -52,6 +60,45 @@ function escapeHtml(str: any = ''): string {
     .replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;')
     .replace(/'/g, '&#39;');
+}
+
+/**
+ * Plain-text fallback for maximum spam filter deliverability
+ */
+function generateTicketEmailText(payload: EmailTicketPayload, passUrl: string): string {
+  const events = (payload.eventIds || []).map(e => e.toUpperCase()).join(', ');
+  return `NEXUSVERSE 2K26 - OFFICIAL DELEGATE PASS CONFIRMATION
+IEEE Student Branch · NBKR Institute of Science & Technology
+National Level Technical Symposium · 29 October 2026
+
+Dear ${payload.name},
+
+Your registration for NexusVerse 2K26 has been successfully verified! Below are your official delegate credentials:
+
+--------------------------------------------------
+REGISTRATION DETAILS:
+- Registration ID : ${payload.regId}
+- Roll Number     : ${payload.roll}
+- Department      : ${payload.dept || 'N/A'} (${payload.year || 'Student'})
+- College         : ${payload.college || 'NBKRIST'}
+- Registered Events: ${events || 'Symposium Events'}
+- Amount Paid     : ₹${payload.totalPaid} (Paid)
+- Payment Ref     : ${payload.paymentId}
+--------------------------------------------------
+
+VIEW & DOWNLOAD YOUR DIGITAL QR PASS:
+${passUrl}
+
+IMPORTANT INSTRUCTIONS:
+1. Please carry this email confirmation or your digital QR pass to the IEEE Registration Help Desk on 29 October 2026.
+2. Present your QR code at the desk for your registration kit, official delegate badge, and lunch coupon.
+3. Join the Official WhatsApp Group for live symposium schedule and announcements:
+   https://chat.whatsapp.com/GEpv2i56odNEV0LpLizzaO?s=cl&p=a&mlu=4&ilr=4&iam=2
+
+Symposium Venue: NBKR Institute of Science & Technology, Vidyanagar, Nellore Dist, AP - 524413.
+
+(If this email arrived in your Spam/Promotions folder, please mark it as "Not Spam" or move to Primary to ensure you receive future announcements.)
+`;
 }
 
 /**
@@ -108,7 +155,7 @@ function generateTicketEmailHtml(payload: EmailTicketPayload, passUrl: string): 
           <tr>
             <td style="padding:24px 24px 12px 24px;text-align:center;">
               <div style="display:inline-block;padding:6px 16px;background:rgba(62,207,142,0.12);border:1px solid rgba(62,207,142,0.4);border-radius:24px;color:#3ecf8e;font-size:13px;font-weight:700;">
-                ✓ Payment Received & Delegate Pass Confirmed
+                ✓ Payment Received &amp; Delegate Pass Confirmed
               </div>
               <h2 style="margin:16px 0 4px 0;font-size:20px;color:#ffffff;font-weight:700;">
                 Greetings, ${safeName}!
@@ -165,23 +212,32 @@ function generateTicketEmailHtml(payload: EmailTicketPayload, passUrl: string): 
           <!-- CTA Buttons -->
           <tr>
             <td style="padding:20px 24px;text-align:center;">
-              <a href="${passUrl}" target="_blank" style="display:inline-block;padding:14px 28px;background:#f2c14e;color:#1a1300;text-decoration:none;font-size:14px;font-weight:800;border-radius:12px;box-shadow:0 4px 16px rgba(242,193,78,0.3);letter-spacing:0.5px;margin:6px;">
-                🎟️ View & Download QR Ticket Pass
+              <a href="${safePassUrl}" target="_blank" style="display:inline-block;padding:14px 28px;background:#f2c14e;color:#1a1300;text-decoration:none;font-size:14px;font-weight:800;border-radius:12px;box-shadow:0 4px 16px rgba(242,193,78,0.3);letter-spacing:0.5px;margin:6px;">
+                🎟️ View &amp; Download QR Ticket Pass
               </a>
               <a href="https://chat.whatsapp.com/GEpv2i56odNEV0LpLizzaO?s=cl&p=a&mlu=4&ilr=4&iam=2" target="_blank" style="display:inline-block;padding:14px 28px;background:#25d366;color:#052e16;text-decoration:none;font-size:14px;font-weight:800;border-radius:12px;box-shadow:0 4px 16px rgba(37,211,102,0.3);letter-spacing:0.5px;margin:6px;">
                 💬 Join Official WhatsApp Group
               </a>
               <p style="margin:14px 0 0 0;font-size:11px;color:#857e6c;">
-                You can also look up your pass anytime on the website using your roll number: <strong style="color:#d4a935;">${payload.roll}</strong>
+                You can also look up your pass anytime on the website using your roll number: <strong style="color:#d4a935;">${safeRoll}</strong>
               </p>
+            </td>
+          </tr>
+
+          <!-- Inbox Guidance Note -->
+          <tr>
+            <td style="padding:6px 24px 16px 24px;">
+              <div style="background:#1b1910;border:1px solid #6b5722;border-radius:10px;padding:12px;font-size:12px;color:#d8caaa;line-height:1.4;text-align:center;">
+                💡 <strong style="color:#f2c14e;">Inbox Notice:</strong> If this email appeared in your <em>Spam</em> or <em>Promotions</em> folder, please tap <strong>"Report Not Spam"</strong> or move it to <strong>Primary</strong> so you don't miss live schedule alerts on event day!
+              </div>
             </td>
           </tr>
 
           <!-- Venue & Guidelines -->
           <tr>
             <td style="padding:16px 24px;background:#0d0d12;border-top:1px solid #22222a;font-size:11px;color:#8a8373;line-height:1.5;">
-              <strong style="color:#ffffff;">Symposium Venue:</strong> NBKR Institute of Science & Technology, Vidyanagar, Nellore Dist, AP.<br>
-              <strong style="color:#ffffff;">Important Instructions:</strong> Please present your digital QR pass or printed ID card at the IEEE Help Desk upon arrival for registration kit and entry badge.
+              <strong style="color:#ffffff;">Symposium Venue:</strong> NBKR Institute of Science &amp; Technology, Vidyanagar, Nellore Dist, AP.<br>
+              <strong style="color:#ffffff;">Important Instructions:</strong> Please present your digital QR pass or printed ID card at the IEEE Help Desk upon arrival for registration kit, lunch token, and entry badge.
             </td>
           </tr>
 
@@ -189,7 +245,7 @@ function generateTicketEmailHtml(payload: EmailTicketPayload, passUrl: string): 
           <tr>
             <td style="padding:18px 24px;text-align:center;font-size:11px;color:#6b6557;">
               © 2026 NexusVerse · IEEE Student Branch NBKRIST<br>
-              For support or spot entries, reach out to <a href="mailto:support@nexusverse.org" style="color:#d4a935;text-decoration:none;">support@nexusverse.org</a>
+              For support or queries, reply directly to this email or reach out to <a href="mailto:kattaguravaiah39@gmail.com" style="color:#d4a935;text-decoration:none;">kattaguravaiah39@gmail.com</a>
             </td>
           </tr>
 
@@ -214,8 +270,9 @@ export async function sendTicketConfirmationEmail(payload: EmailTicketPayload): 
     return { success: false, error: 'Invalid recipient email address.' };
   }
 
-  const appUrl = (process.env.APP_URL || 'http://localhost:3000').replace(/\/$/, '');
-  const passUrl = `${appUrl}/register?lookup=${encodeURIComponent(payload.roll)}`;
+  const rawAppUrl = (process.env.APP_URL || '').trim();
+  const appUrl = (rawAppUrl && !rawAppUrl.includes('localhost') ? rawAppUrl : 'https://www.nbkristieee.in').replace(/\/$/, '');
+  const passUrl = `${appUrl}/register.html?passId=${encodeURIComponent(payload.regId)}&roll=${encodeURIComponent(payload.roll)}`;
 
   // If SMTP is NOT configured, print clean receipt summary and dev link
   if (!isEmailConfigured()) {
@@ -231,16 +288,48 @@ export async function sendTicketConfirmationEmail(payload: EmailTicketPayload): 
 
   try {
     const transporter = getTransporter();
-    const fromAddress = process.env.EMAIL_FROM || `"NexusVerse 2K26" <${process.env.SMTP_USER}>`;
+    const fromAddress = process.env.EMAIL_FROM || `"NexusVerse 2K26" <${process.env.SMTP_USER || DEFAULT_SMTP_USER}>`;
 
     const info = await transporter.sendMail({
       from: fromAddress,
       to: payload.email,
-      subject: `🎟️ NexusVerse 2K26 Pass Confirmed [${payload.regId}] · IEEE-SB NBKRIST`,
+      replyTo: process.env.SMTP_USER || DEFAULT_SMTP_USER,
+      subject: `NexusVerse 2K26 Pass Confirmed [${payload.regId}] · IEEE-SB NBKRIST`,
+      text: generateTicketEmailText(payload, passUrl),
       html: generateTicketEmailHtml(payload, passUrl),
+      headers: {
+        'X-Priority': '1',
+        'Importance': 'high',
+      }
     });
 
     console.log(`[EMAIL SUCCESS] Ticket pass email sent to ${payload.email} (ID: ${info.messageId})`);
+
+    // Also dispatch to teammates with valid distinct emails
+    if (Array.isArray(payload.teammates)) {
+      for (const mate of payload.teammates) {
+        if (mate.email && mate.email.includes('@') && mate.email.toLowerCase() !== payload.email.toLowerCase()) {
+          try {
+            await transporter.sendMail({
+              from: fromAddress,
+              to: mate.email,
+              replyTo: process.env.SMTP_USER || DEFAULT_SMTP_USER,
+              subject: `NexusVerse 2K26 Pass Confirmed [${payload.regId}] · IEEE-SB NBKRIST`,
+              text: generateTicketEmailText({ ...payload, name: mate.name || payload.name, roll: mate.roll || payload.roll }, passUrl),
+              html: generateTicketEmailHtml({ ...payload, name: mate.name || payload.name, roll: mate.roll || payload.roll }, passUrl),
+              headers: {
+                'X-Priority': '1',
+                'Importance': 'high'
+              }
+            });
+            console.log(`[EMAIL SUCCESS] Team pass sent to teammate ${mate.email}`);
+          } catch (mErr) {
+            console.warn(`[EMAIL WARNING] Could not send to teammate ${mate.email}:`, mErr);
+          }
+        }
+      }
+    }
+
     return {
       success: true,
       messageId: info.messageId

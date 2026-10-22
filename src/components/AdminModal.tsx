@@ -643,8 +643,8 @@ export const AdminModal: React.FC<AdminModalProps> = ({
     try {
       const res = await sendTicketEmailApi(record);
       if (res.success) {
-        setEmailSendToast(`Ticket pass email dispatched to ${record.email}!`);
-        setTimeout(() => setEmailSendToast(null), 3500);
+        setEmailSendToast(`✅ Ticket pass email dispatched to ${record.email}! (Advise attendee to check Inbox / Spam folder)`);
+        setTimeout(() => setEmailSendToast(null), 5000);
       } else {
         alert(res.error || 'Failed to dispatch ticket email.');
       }
@@ -676,8 +676,8 @@ export const AdminModal: React.FC<AdminModalProps> = ({
       }
     }
     setIsSendingUpiBatch(false);
-    setEmailSendToast(`Successfully dispatched 8 PM ticket emails to ${sentCount} UPI delegates!`);
-    setTimeout(() => setEmailSendToast(null), 4000);
+    setEmailSendToast(`✅ Successfully dispatched 8 PM ticket emails to ${sentCount} UPI delegates! (Check Inbox/Spam)`);
+    setTimeout(() => setEmailSendToast(null), 5000);
   };
 
   const handlePurgeTestRegistrations = async () => {
