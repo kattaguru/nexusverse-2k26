@@ -40,6 +40,18 @@
       "destination": "/register.html"
     },
     {
+      "source": "/nexusverify",
+      "destination": "/register.html"
+    },
+    {
+      "source": "/nexusverify.html",
+      "destination": "/register.html"
+    },
+    {
+      "source": "/nexusverify/(.*)",
+      "destination": "/register.html"
+    },
+    {
       "source": "/scan",
       "destination": "/register.html"
     },

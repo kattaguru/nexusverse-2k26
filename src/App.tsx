@@ -9,6 +9,7 @@ import { TicketPass, RegistrationRecord, TeamMemberInfo } from './components/Tic
 import { UpiConfirmationView } from './components/UpiConfirmationView';
 import { PassLookupModal } from './components/PassLookupModal';
 import { AdminModal } from './components/AdminModal';
+import { VerifyPortal } from './components/VerifyPortal';
 import { ParticipantSpaceModal } from './components/ParticipantSpaceModal';
 import { PreRegistrationEventsShowcase } from './components/PreRegistrationEventsShowcase';
 import { 
@@ -467,19 +468,20 @@ export default function App() {
     if (el) el.scrollIntoView({ behavior: 'smooth' });
   };
 
-  // Dedicated Secure Admin Route & Tab Detection (/nexusadmin for All Registrations, /nexusadmin/scan or /nexusscan for Scanner)
+  // Dedicated Secure Admin Route & Tab Detection (/nexusadmin for All Registrations, /nexusadmin/scan for Scanner, /nexusverify for Verification Desk)
   const getAdminRouteState = () => {
-    if (typeof window === 'undefined') return { isAdmin: false, tab: 'registrations' as const };
+    if (typeof window === 'undefined') return { isAdmin: false, isVerify: false, tab: 'registrations' as const };
     const p = window.location.pathname.toLowerCase().replace(/\/+$/, '');
     if (p === '/admin' || p === '/admin.html' || p.endsWith('/admin') || p.endsWith('/admin.html')) {
       window.location.replace('/');
-      return { isAdmin: false, tab: 'registrations' as const };
+      return { isAdmin: false, isVerify: false, tab: 'registrations' as const };
     }
     const search = new URLSearchParams(window.location.search);
     const tabParam = search.get('tab') || search.get('page');
 
+    const isVerify = p === '/nexusverify' || p.startsWith('/nexusverify') || p.endsWith('/nexusverify.html') || search.has('nexusverify') || window.location.hash.includes('nexusverify');
     const isScanRoute = p === '/nexusadmin/scan' || p.endsWith('/nexusadmin/scan') || p === '/nexusscan' || p === '/scan' || tabParam === 'scan';
-    const isAdmin = p === '/nexusadmin' || p.startsWith('/nexusadmin') || p.endsWith('/nexusadmin') || p.endsWith('/nexusadmin.html') || p === '/nexusscan' || p === '/scan' || search.has('nexusadmin') || window.location.hash.includes('nexusadmin');
+    const isAdmin = !isVerify && (p === '/nexusadmin' || p.startsWith('/nexusadmin') || p.endsWith('/nexusadmin') || p.endsWith('/nexusadmin.html') || p === '/nexusscan' || p === '/scan' || search.has('nexusadmin') || window.location.hash.includes('nexusadmin'));
 
     let tab: 'registrations' | 'scan' | 'manual' | 'status' | 'photos' | 'settings' | 'cache' = 'registrations';
     if (isScanRoute) {
@@ -498,16 +500,18 @@ export default function App() {
       tab = 'registrations';
     }
 
-    return { isAdmin, tab };
+    return { isAdmin, isVerify, tab };
   };
 
   const [isAdminRoute, setIsAdminRoute] = useState(() => getAdminRouteState().isAdmin);
+  const [isVerifyRoute, setIsVerifyRoute] = useState(() => getAdminRouteState().isVerify);
   const [adminInitialTab, setAdminInitialTab] = useState<'registrations' | 'scan' | 'manual' | 'status' | 'photos' | 'settings' | 'cache'>(() => getAdminRouteState().tab);
 
   useEffect(() => {
     const handleLocationChange = () => {
       const state = getAdminRouteState();
       setIsAdminRoute(state.isAdmin);
+      setIsVerifyRoute(state.isVerify);
       setAdminInitialTab(state.tab);
     };
 
@@ -1348,6 +1352,25 @@ export default function App() {
 
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
+
+  // Dedicated Full-Page Payment Verification Desk (/nexusverify) - password: nexusk26
+  if (isVerifyRoute) {
+    return (
+      <VerifyPortal
+        savedRecords={savedRecords}
+        onRefreshRecords={refreshAllAdminData}
+        onUpdateRecord={handleUpdateRecord}
+        onViewPass={(rec) => {
+          setConfirmedRecord(rec);
+          window.location.href = '/register.html';
+        }}
+        theme={theme}
+        onToggleTheme={handleToggleTheme}
+        leftLogo={leftLogo}
+        rightLogo={rightLogo}
+      />
+    );
+  }
 
   // Dedicated Full-Page Admin Portal: ONLY opens when user navigates to /nexusadmin or /nexusadmin.html
   if (isAdminRoute) {

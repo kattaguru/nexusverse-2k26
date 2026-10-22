@@ -25,7 +25,10 @@ function adminRoutePlugin() {
           pathname.startsWith('/nexusadmin/') || 
           pathname === '/nexusadmin.html' ||
           pathname === '/nexusscan' ||
-          pathname === '/scan'
+          pathname === '/scan' ||
+          pathname === '/nexusverify' ||
+          pathname.startsWith('/nexusverify/') ||
+          pathname === '/nexusverify.html'
         ) {
           const query = req.url.includes('?') ? req.url.slice(req.url.indexOf('?')) : '';
           req.url = '/register.html' + query;

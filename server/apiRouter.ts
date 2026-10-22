@@ -737,6 +737,46 @@ apiRouter.post('/admin/verify-password', async (req: Request, res: Response) => 
   }
 });
 
+// Verification Desk Authentication Endpoint (nbkristieee.in/nexusverify)
+apiRouter.post('/verify/verify-password', async (req: Request, res: Response) => {
+  try {
+    const rawIp = (req.headers['x-forwarded-for'] as string || req.ip || req.socket.remoteAddress || 'unknown');
+    const ip = rawIp.split(',')[0].trim();
+    const deviceId = (req.headers['x-device-id'] as string) || '';
+    const lockKey = `verify:${deviceId ? `${ip}:${deviceId}` : ip}`;
+    const now = Date.now();
+    const tracker = adminVerifyRateLimit.get(lockKey) || { count: 0, lockedUntil: 0 };
+
+    if (tracker.lockedUntil > now) {
+      const waitSec = Math.ceil((tracker.lockedUntil - now) / 1000);
+      return res.status(429).json({ success: false, error: `Too many failed attempts. Security cooldown active: please wait ${waitSec}s.` });
+    }
+
+    const { password } = req.body;
+    if (!password) {
+      return res.status(400).json({ success: false, error: 'Password is required' });
+    }
+
+    const cleanInput = password.trim();
+    // Valid passwords: 'nexusk26' or admin master key 'kgr@2005'
+    const isMatch = (cleanInput === 'nexusk26' || cleanInput === 'kgr@2005');
+
+    if (isMatch) {
+      adminVerifyRateLimit.delete(lockKey);
+      return res.json({ success: true });
+    } else {
+      tracker.count += 1;
+      if (tracker.count >= 5) {
+        tracker.lockedUntil = now + 60000;
+      }
+      adminVerifyRateLimit.set(lockKey, tracker);
+      return res.status(401).json({ success: false, error: 'Invalid verification credentials.' });
+    }
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
 apiRouter.post('/admin/change-password', async (req: Request, res: Response) => {
   try {
     if (!isAdminAuthorized(req)) {

@@ -62,13 +62,16 @@ app.get('/register', (_req, res) => {
   res.sendFile(path.resolve(distPath, 'register.html'));
 });
 
-// Secure executive portal (nbkristieee.in/nexusadmin & /nexusadmin/scan)
+// Secure executive portal (nbkristieee.in/nexusadmin & /nexusadmin/scan & /nexusverify)
 app.get([
   '/nexusadmin', 
   '/nexusadmin/*', 
   '/nexusadmin.html', 
   '/nexusscan', 
-  '/scan'
+  '/scan',
+  '/nexusverify',
+  '/nexusverify/*',
+  '/nexusverify.html'
 ], (_req, res) => {
   res.sendFile(path.resolve(distPath, 'register.html'));
 });
