@@ -51,6 +51,11 @@ import {
   Cpu
 } from 'lucide-react';
 import { TicketPass, RegistrationRecord, TeamMemberInfo } from './TicketPass';
+import { 
+  getRecordTeammates, 
+  getRecordMemberCount, 
+  computeDelegatesStats 
+} from '../utils/delegateStats';
 import { AdminTicketScanner } from './AdminTicketScanner';
 import { AdminCacheManager } from './AdminCacheManager';
 import { EVENTS, ALL_EVENTS, SYMPOSIUM_CONFIG } from '../data/symposiumData';
@@ -364,17 +369,35 @@ export const AdminModal: React.FC<AdminModalProps> = ({
   const [pwdChangeSuccess, setPwdChangeSuccess] = useState(false);
 
   // Slot Quotas & Capacity Limits State (IEEE, Non-IEEE, Total)
-  const [inputTotalSlots, setInputTotalSlots] = useState<number | string>(totalSlotsLimit || 0);
-  const [inputIeeeSlots, setInputIeeeSlots] = useState<number | string>(ieeeSlotsLimit || 0);
-  const [inputNonIeeeSlots, setInputNonIeeeSlots] = useState<number | string>(nonIeeeSlotsLimit || 0);
+  const [inputTotalSlots, setInputTotalSlots] = useState<number | string>(() => {
+    try {
+      const v = localStorage.getItem('nexusverse_total_slots_limit');
+      return v ? Number(v) : (totalSlotsLimit || 0);
+    } catch (e) { return totalSlotsLimit || 0; }
+  });
+  const [inputIeeeSlots, setInputIeeeSlots] = useState<number | string>(() => {
+    try {
+      const v = localStorage.getItem('nexusverse_ieee_slots_limit');
+      return v ? Number(v) : (ieeeSlotsLimit || 0);
+    } catch (e) { return ieeeSlotsLimit || 0; }
+  });
+  const [inputNonIeeeSlots, setInputNonIeeeSlots] = useState<number | string>(() => {
+    try {
+      const v = localStorage.getItem('nexusverse_non_ieee_slots_limit');
+      return v ? Number(v) : (nonIeeeSlotsLimit || 0);
+    } catch (e) { return nonIeeeSlotsLimit || 0; }
+  });
   const [isSavingLimits, setIsSavingLimits] = useState(false);
   const [limitsSaveMsg, setLimitsSaveMsg] = useState('');
+  const [isUserEditingQuota, setIsUserEditingQuota] = useState(false);
 
   useEffect(() => {
+    // Never let 3-second background polling overwrite the inputs while user is typing or saving
+    if (isUserEditingQuota || isSavingLimits) return;
     if (typeof totalSlotsLimit === 'number') setInputTotalSlots(totalSlotsLimit);
     if (typeof ieeeSlotsLimit === 'number') setInputIeeeSlots(ieeeSlotsLimit);
     if (typeof nonIeeeSlotsLimit === 'number') setInputNonIeeeSlots(nonIeeeSlotsLimit);
-  }, [totalSlotsLimit, ieeeSlotsLimit, nonIeeeSlotsLimit]);
+  }, [totalSlotsLimit, ieeeSlotsLimit, nonIeeeSlotsLimit, isUserEditingQuota, isSavingLimits]);
 
   const handleSaveSlotLimits = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
@@ -385,13 +408,24 @@ export const AdminModal: React.FC<AdminModalProps> = ({
     setIsSavingLimits(true);
     setLimitsSaveMsg('');
     try {
+      // 1. Immediately cache in localStorage so refreshing or polling doesn't reset it
+      try {
+        localStorage.setItem('nexusverse_total_slots_limit', String(tSlots));
+        localStorage.setItem('nexusverse_ieee_slots_limit', String(iSlots));
+        localStorage.setItem('nexusverse_non_ieee_slots_limit', String(niSlots));
+      } catch (err) {}
+
+      // 2. Update state in parent App.tsx
       if (onUpdateSlotLimits) {
         onUpdateSlotLimits({ totalSlotsLimit: tSlots, ieeeSlotsLimit: iSlots, nonIeeeSlotsLimit: niSlots });
-      } else {
-        await updateSettingsApi({ totalSlotsLimit: tSlots, ieeeSlotsLimit: iSlots, nonIeeeSlotsLimit: niSlots });
       }
-      setLimitsSaveMsg('Slot capacity limits updated & active on registration portal!');
-      setTimeout(() => setLimitsSaveMsg(''), 4000);
+
+      // 3. Persist to Supabase and backend Express API
+      await updateSettingsApi({ totalSlotsLimit: tSlots, ieeeSlotsLimit: iSlots, nonIeeeSlotsLimit: niSlots });
+
+      setIsUserEditingQuota(false);
+      setLimitsSaveMsg('Slot capacity limits successfully saved & permanently locked!');
+      setTimeout(() => setLimitsSaveMsg(''), 4500);
     } catch (err: any) {
       alert('Failed to save slot limits: ' + (err.message || 'Unknown error'));
     } finally {
@@ -1046,7 +1080,7 @@ export const AdminModal: React.FC<AdminModalProps> = ({
       const eventName = r.eventIds.map(id => ALL_EVENTS.find(e => e.id === id)?.name).filter(Boolean).join('; ');
       const primaryEventId = r.eventIds[0] || '';
       const team = r.teamDetails?.[primaryEventId];
-      const members = team?.teamMembers || [];
+      const members = getRecordTeammates(r);
 
       const m1 = members[0] || {};
       const m2 = members[1] || {};
@@ -1257,11 +1291,14 @@ export const AdminModal: React.FC<AdminModalProps> = ({
       // Event filter
       const matchesEvent = selectedEventFilter === 'all' || r.eventIds.includes(selectedEventFilter);
       
-      // IEEE membership filter
+      // IEEE membership filter (checks lead and all registered teammates)
+      const teammates = getRecordTeammates(r);
+      const hasIeee = r.isIeeeMember || teammates.some(m => !!m.isIeeeMember);
+      const hasNonIeee = !r.isIeeeMember || teammates.some(m => !m.isIeeeMember);
       const matchesIeee = 
         ieeeFilter === 'all' || 
-        (ieeeFilter === 'ieee' && r.isIeeeMember) || 
-        (ieeeFilter === 'non-ieee' && !r.isIeeeMember);
+        (ieeeFilter === 'ieee' && hasIeee) || 
+        (ieeeFilter === 'non-ieee' && hasNonIeee);
 
       // Payment verification filter (UPI verified vs pending, Razorpay auto verified)
       const isAutoVerified = r.paymentMode !== 'upi';
@@ -1279,7 +1316,7 @@ export const AdminModal: React.FC<AdminModalProps> = ({
 
       const primaryEventId = r.eventIds[0] || '';
       const team = r.teamDetails?.[primaryEventId];
-      const teammateMatch = (team?.teamMembers || []).some(m => 
+      const teammateMatch = teammates.some(m => 
         m.name.toLowerCase().includes(q) ||
         m.roll.toLowerCase().includes(q) ||
         (m.ieeeId && m.ieeeId.toLowerCase().includes(q)) ||
@@ -1336,17 +1373,20 @@ export const AdminModal: React.FC<AdminModalProps> = ({
       }
     });
 
-  // KPI Stats
-  const totalRegistrations = savedRecords.length;
-  const totalRevenue = savedRecords.reduce((sum, r) => sum + (r.totalPaid || 0), 0);
-  const totalIeeeMembers = savedRecords.filter(r => r.isIeeeMember).length;
-  const totalNonIeeeMembers = totalRegistrations - totalIeeeMembers;
-  const upiPendingCount = savedRecords.filter(r => r.paymentMode === 'upi' && !r.isVerified).length;
-  const verifiedCount = savedRecords.filter(r => r.paymentMode !== 'upi' || r.isVerified).length;
-  const upiTotalCount = savedRecords.filter(r => r.paymentMode === 'upi').length;
-  const razorpayTotalCount = savedRecords.filter(r => r.paymentMode !== 'upi').length;
-  const checkedInCount = savedRecords.filter(r => r.checkedIn).length;
-  const checkInPercent = totalRegistrations > 0 ? Math.round((checkedInCount / totalRegistrations) * 100) : 0;
+  // KPI Stats - accurately counting individual members & delegates across all registrations
+  const stats = computeDelegatesStats(savedRecords);
+  const totalRegistrations = stats.totalRegistrations;
+  const totalDelegates = stats.totalDelegates;
+  const totalRevenue = stats.totalRevenue;
+  const totalIeeeMembers = stats.totalIeeeDelegates;
+  const totalNonIeeeMembers = stats.totalNonIeeeDelegates;
+  const upiPendingCount = stats.upiPendingCount;
+  const verifiedCount = stats.verifiedCount;
+  const upiTotalCount = stats.upiTotalCount;
+  const razorpayTotalCount = stats.razorpayTotalCount;
+  const checkedInCount = stats.checkedInRegistrations;
+  const checkedInDelegates = stats.checkedInDelegates;
+  const checkInPercent = totalDelegates > 0 ? Math.round((checkedInDelegates / totalDelegates) * 100) : 0;
 
   const handleToggleCheckIn = (record: RegistrationRecord) => {
     const isNowChecked = !record.checkedIn;
@@ -1555,7 +1595,7 @@ export const AdminModal: React.FC<AdminModalProps> = ({
                 }`}
               >
                 <Users className="w-3.5 h-3.5" />
-                <span>All Registrations ({totalRegistrations})</span>
+                <span>All Registrations ({totalRegistrations} Teams · {totalDelegates} Delegates)</span>
               </button>
 
               <button
@@ -1570,7 +1610,7 @@ export const AdminModal: React.FC<AdminModalProps> = ({
                 <QrCode className="w-3.5 h-3.5 text-[#f2c14e]" />
                 <span className="font-bold">Scan & Check-In</span>
                 <span className="text-[10px] font-mono px-1.5 py-0.2 rounded bg-[#4cc38a]/20 text-[#4cc38a] border border-[#4cc38a]/30">
-                  {checkedInCount}/{totalRegistrations}
+                  {checkedInDelegates}/{totalDelegates}
                 </span>
               </button>
 
@@ -1672,11 +1712,11 @@ export const AdminModal: React.FC<AdminModalProps> = ({
                         <span className="admin-kpi-title text-[10px] text-[#a79f8b] uppercase block font-semibold">Total Delegates</span>
                         {Number(inputTotalSlots) > 0 ? (
                           <span className={`text-[9px] px-1.5 py-0.2 rounded font-semibold ${
-                            totalRegistrations >= Number(inputTotalSlots)
+                            totalDelegates >= Number(inputTotalSlots)
                               ? 'bg-[#ff8a80]/20 text-[#ff8a80]'
                               : 'bg-[#d4a935]/20 text-[#f2c14e]'
                           }`}>
-                            {totalRegistrations >= Number(inputTotalSlots) ? 'FULL' : `${Number(inputTotalSlots) - totalRegistrations} left`}
+                            {totalDelegates >= Number(inputTotalSlots) ? 'FULL' : `${Number(inputTotalSlots) - totalDelegates} left`}
                           </span>
                         ) : (
                           ieeeFilter === 'all' && verificationFilter === 'all' && (
@@ -1685,10 +1725,13 @@ export const AdminModal: React.FC<AdminModalProps> = ({
                         )}
                       </div>
                       <div className="flex items-baseline gap-1.5">
-                        <span className="admin-kpi-value text-lg sm:text-xl font-bold font-mono text-white">{totalRegistrations}</span>
+                        <span className="admin-kpi-value text-lg sm:text-xl font-bold font-mono text-white">{totalDelegates}</span>
                         {Number(inputTotalSlots) > 0 && (
                           <span className="text-xs font-mono text-[#a79f8b]">/ {inputTotalSlots}</span>
                         )}
+                        <span className="text-[10px] font-mono text-[#a79f8b] ml-auto">
+                          ({totalRegistrations} {totalRegistrations === 1 ? 'team' : 'teams'})
+                        </span>
                       </div>
                     </button>
 
@@ -1812,9 +1855,9 @@ export const AdminModal: React.FC<AdminModalProps> = ({
                           className="px-2.5 py-2 text-xs rounded-lg bg-[#131318] border border-[#2e2b22] text-[#f3ecd9] focus:outline-none focus:border-[#d4a935] cursor-pointer font-medium"
                           aria-label="Filter by IEEE Membership"
                         >
-                          <option value="all">All Memberships ({totalRegistrations})</option>
-                          <option value="ieee">IEEE Members Only ({totalIeeeMembers})</option>
-                          <option value="non-ieee">Non-IEEE Delegates Only ({totalNonIeeeMembers})</option>
+                          <option value="all">All Memberships ({totalDelegates} Delegates · {totalRegistrations} Teams)</option>
+                          <option value="ieee">IEEE Members Only ({totalIeeeMembers} Delegates)</option>
+                          <option value="non-ieee">Non-IEEE Delegates Only ({totalNonIeeeMembers} Delegates)</option>
                         </select>
 
                         {/* Verification & Payment Filter */}
@@ -1869,7 +1912,7 @@ export const AdminModal: React.FC<AdminModalProps> = ({
                             : 'bg-[#181820] text-[#a79f8b] hover:text-[#f3ecd9] border border-[#2e2b22]'
                         }`}
                       >
-                        All ({totalRegistrations})
+                        All ({totalDelegates} Delegates)
                       </button>
 
                       <button
@@ -1881,7 +1924,7 @@ export const AdminModal: React.FC<AdminModalProps> = ({
                             : 'bg-[#181820] text-[#a79f8b] hover:text-[#4cc38a] border border-[#2e2b22]'
                         }`}
                       >
-                        Checked In ({checkedInCount})
+                        Checked In ({checkedInDelegates})
                       </button>
 
                       <button
@@ -1963,7 +2006,7 @@ export const AdminModal: React.FC<AdminModalProps> = ({
                           <option value="event">Technical Event Name</option>
                         </select>
                         <span className="text-[11px] text-[#a79f8b] font-mono">
-                          ({filteredAndSortedRecords.length} matched)
+                          ({filteredAndSortedRecords.length} {filteredAndSortedRecords.length === 1 ? 'record' : 'records'} · {filteredAndSortedRecords.reduce((sum, r) => sum + getRecordMemberCount(r), 0)} delegates)
                         </span>
                       </div>
 
@@ -2043,7 +2086,7 @@ export const AdminModal: React.FC<AdminModalProps> = ({
                         const eventName = record.eventIds.map(id => ALL_EVENTS.find(e => e.id === id)?.name).filter(Boolean).join(', ');
                         const primaryEventId = record.eventIds[0] || '';
                         const team = record.teamDetails?.[primaryEventId];
-                        const teammates = team?.teamMembers || [];
+                        const teammates = getRecordTeammates(record);
 
                         return (
                           <div
@@ -2870,14 +2913,14 @@ export const AdminModal: React.FC<AdminModalProps> = ({
                             <span>Total Slots Limit</span>
                           </span>
                           <span className={`text-[10px] font-mono px-1.5 py-0.5 rounded font-semibold ${
-                            Number(inputTotalSlots) > 0 && totalRegistrations >= Number(inputTotalSlots)
+                            Number(inputTotalSlots) > 0 && totalDelegates >= Number(inputTotalSlots)
                               ? 'bg-[#ff8a80]/20 text-[#ff8a80]'
                               : Number(inputTotalSlots) > 0
                               ? 'bg-[#d4a935]/20 text-[#f2c14e]'
                               : 'bg-white/10 text-[#a79f8b]'
                           }`}>
                             {Number(inputTotalSlots) > 0 
-                              ? (totalRegistrations >= Number(inputTotalSlots) ? 'FULL' : `${Number(inputTotalSlots) - totalRegistrations} left`)
+                              ? (totalDelegates >= Number(inputTotalSlots) ? 'FULL' : `${Number(inputTotalSlots) - totalDelegates} left`)
                               : 'UNLIMITED'}
                           </span>
                         </div>
@@ -2888,18 +2931,18 @@ export const AdminModal: React.FC<AdminModalProps> = ({
                             <div className="w-full bg-[#0a0a0d] h-2 rounded-full overflow-hidden border border-[#2e2b22]">
                               <div 
                                 className={`h-full transition-all duration-500 rounded-full ${
-                                  totalRegistrations >= Number(inputTotalSlots)
+                                  totalDelegates >= Number(inputTotalSlots)
                                     ? 'bg-[#ff8a80]'
-                                    : (totalRegistrations / Number(inputTotalSlots)) > 0.8
+                                    : (totalDelegates / Number(inputTotalSlots)) > 0.8
                                     ? 'bg-[#f59e0b]'
                                     : 'bg-gradient-to-r from-[#f2c14e] to-[#d4a935]'
                                 }`}
-                                style={{ width: `${Math.min(100, Math.round((totalRegistrations / Number(inputTotalSlots)) * 100))}%` }}
+                                style={{ width: `${Math.min(100, Math.round((totalDelegates / Number(inputTotalSlots)) * 100))}%` }}
                               />
                             </div>
                             <div className="flex justify-between text-[10px] text-[#a79f8b] font-mono">
-                              <span>Occupied: {totalRegistrations}</span>
-                              <span>{Math.min(100, Math.round((totalRegistrations / Number(inputTotalSlots)) * 100))}%</span>
+                              <span>Occupied: {totalDelegates} delegates ({totalRegistrations} teams)</span>
+                              <span>{Math.min(100, Math.round((totalDelegates / Number(inputTotalSlots)) * 100))}%</span>
                             </div>
                           </div>
                         )}
@@ -2910,7 +2953,7 @@ export const AdminModal: React.FC<AdminModalProps> = ({
                             type="number"
                             min="0"
                             value={inputTotalSlots}
-                            onChange={(e) => setInputTotalSlots(e.target.value)}
+                            onChange={(e) => { setIsUserEditingQuota(true); setInputTotalSlots(e.target.value); }}
                             placeholder="0 (Unlimited)"
                             className="w-full px-3 py-2 text-xs rounded-lg bg-[#0a0a0d] border border-[#2e2b22] text-[#f3ecd9] font-mono focus:outline-none focus:border-[#d4a935]"
                           />
@@ -2953,7 +2996,7 @@ export const AdminModal: React.FC<AdminModalProps> = ({
                               />
                             </div>
                             <div className="flex justify-between text-[10px] text-[#a79f8b] font-mono">
-                              <span>Occupied: {totalIeeeMembers}</span>
+                              <span>Occupied: {totalIeeeMembers} delegates</span>
                               <span>{Math.min(100, Math.round((totalIeeeMembers / Number(inputIeeeSlots)) * 100))}%</span>
                             </div>
                           </div>
@@ -2965,7 +3008,7 @@ export const AdminModal: React.FC<AdminModalProps> = ({
                             type="number"
                             min="0"
                             value={inputIeeeSlots}
-                            onChange={(e) => setInputIeeeSlots(e.target.value)}
+                            onChange={(e) => { setIsUserEditingQuota(true); setInputIeeeSlots(e.target.value); }}
                             placeholder="0 (Unlimited)"
                             className="w-full px-3 py-2 text-xs rounded-lg bg-[#0a0a0d] border border-[#2e2b22] text-[#f3ecd9] font-mono focus:outline-none focus:border-[#4cc38a]"
                           />
@@ -3008,7 +3051,7 @@ export const AdminModal: React.FC<AdminModalProps> = ({
                               />
                             </div>
                             <div className="flex justify-between text-[10px] text-[#a79f8b] font-mono">
-                              <span>Occupied: {totalNonIeeeMembers}</span>
+                              <span>Occupied: {totalNonIeeeMembers} delegates</span>
                               <span>{Math.min(100, Math.round((totalNonIeeeMembers / Number(inputNonIeeeSlots)) * 100))}%</span>
                             </div>
                           </div>
@@ -3020,7 +3063,7 @@ export const AdminModal: React.FC<AdminModalProps> = ({
                             type="number"
                             min="0"
                             value={inputNonIeeeSlots}
-                            onChange={(e) => setInputNonIeeeSlots(e.target.value)}
+                            onChange={(e) => { setIsUserEditingQuota(true); setInputNonIeeeSlots(e.target.value); }}
                             placeholder="0 (Unlimited)"
                             className="w-full px-3 py-2 text-xs rounded-lg bg-[#0a0a0d] border border-[#2e2b22] text-[#f3ecd9] font-mono focus:outline-none focus:border-[#70baff]"
                           />
@@ -3033,28 +3076,28 @@ export const AdminModal: React.FC<AdminModalProps> = ({
                       <span className="text-[11px] text-[#a79f8b] font-semibold">Quick Quota Presets:</span>
                       <button
                         type="button"
-                        onClick={() => { setInputTotalSlots(0); setInputIeeeSlots(0); setInputNonIeeeSlots(0); }}
+                        onClick={() => { setIsUserEditingQuota(true); setInputTotalSlots(0); setInputIeeeSlots(0); setInputNonIeeeSlots(0); }}
                         className="px-2.5 py-1 text-[11px] rounded-lg bg-[#131318] hover:bg-[#1f1f28] border border-[#2e2b22] text-[#f3ecd9] transition-colors cursor-pointer"
                       >
                         All Unlimited (0)
                       </button>
                       <button
                         type="button"
-                        onClick={() => { setInputTotalSlots(500); setInputIeeeSlots(200); setInputNonIeeeSlots(300); }}
+                        onClick={() => { setIsUserEditingQuota(true); setInputTotalSlots(500); setInputIeeeSlots(200); setInputNonIeeeSlots(300); }}
                         className="px-2.5 py-1 text-[11px] rounded-lg bg-[#131318] hover:bg-[#1f1f28] border border-[#2e2b22] text-[#f3ecd9] transition-colors cursor-pointer"
                       >
                         500 Symposium (200 IEEE / 300 Non-IEEE)
                       </button>
                       <button
                         type="button"
-                        onClick={() => { setInputTotalSlots(300); setInputIeeeSlots(100); setInputNonIeeeSlots(200); }}
+                        onClick={() => { setIsUserEditingQuota(true); setInputTotalSlots(300); setInputIeeeSlots(100); setInputNonIeeeSlots(200); }}
                         className="px-2.5 py-1 text-[11px] rounded-lg bg-[#131318] hover:bg-[#1f1f28] border border-[#2e2b22] text-[#f3ecd9] transition-colors cursor-pointer"
                       >
                         300 Slots (100 IEEE / 200 Non-IEEE)
                       </button>
                       <button
                         type="button"
-                        onClick={() => { setInputTotalSlots(150); setInputIeeeSlots(50); setInputNonIeeeSlots(100); }}
+                        onClick={() => { setIsUserEditingQuota(true); setInputTotalSlots(150); setInputIeeeSlots(50); setInputNonIeeeSlots(100); }}
                         className="px-2.5 py-1 text-[11px] rounded-lg bg-[#131318] hover:bg-[#1f1f28] border border-[#2e2b22] text-[#f3ecd9] transition-colors cursor-pointer"
                       >
                         150 Slots (50 IEEE / 100 Non-IEEE)

@@ -44,6 +44,7 @@ import {
   ShieldAlert
 } from 'lucide-react';
 import { RegistrationRecord } from './TicketPass';
+import { computeDelegatesStats } from '../utils/delegateStats';
 import { EVENTS, SPOT_EVENT, ALL_EVENTS, SYMPOSIUM_CONFIG } from '../data/symposiumData';
 
 interface AdminTicketScannerProps {
@@ -606,9 +607,12 @@ export const AdminTicketScanner: React.FC<AdminTicketScannerProps> = ({
     : [];
 
   // Metrics
-  const totalDelegates = records.length;
-  const checkedInCount = records.filter(r => r.checkedIn).length;
-  const checkInPercent = totalDelegates > 0 ? Math.round((checkedInCount / totalDelegates) * 100) : 0;
+  const scannerStats = computeDelegatesStats(records);
+  const totalDelegates = scannerStats.totalDelegates;
+  const totalRegistrations = scannerStats.totalRegistrations;
+  const checkedInDelegates = scannerStats.checkedInDelegates;
+  const checkedInCount = scannerStats.checkedInRegistrations;
+  const checkInPercent = totalDelegates > 0 ? Math.round((checkedInDelegates / totalDelegates) * 100) : 0;
   const techAttendedCount = records.filter(r => r.attendedEvents?.some(id => id !== 'spot')).length;
   const spotAttendedCount = records.filter(r => r.attendedEvents?.includes('spot')).length;
   const kitsIssuedCount = records.filter(r => r.kitIssued).length;
@@ -755,8 +759,8 @@ export const AdminTicketScanner: React.FC<AdminTicketScannerProps> = ({
           }`}>
             <span className={`text-[11px] font-medium block ${isLight ? 'text-[#425d78]' : 'text-[#9fc7e8]'}`}>Total Check-Ins</span>
             <div className="flex items-baseline gap-2">
-              <span className="text-xl sm:text-2xl font-bold font-mono text-[#4cc38a]">{checkedInCount}</span>
-              <span className={`text-xs ${isLight ? 'text-[#6b6250]' : 'text-[#a79f8b]'}`}>/ {totalDelegates}</span>
+              <span className="text-xl sm:text-2xl font-bold font-mono text-[#4cc38a]">{checkedInDelegates}</span>
+              <span className={`text-xs ${isLight ? 'text-[#6b6250]' : 'text-[#a79f8b]'}`}>/ {totalDelegates} ({checkedInCount}/{totalRegistrations} teams)</span>
               <span className="text-[10px] font-bold font-mono text-[#4cc38a] bg-[#4cc38a]/15 px-1.5 py-0.5 rounded ml-auto">
                 {checkInPercent}%
               </span>

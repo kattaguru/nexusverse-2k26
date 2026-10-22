@@ -20,9 +20,48 @@ function sanitizeUser(user: ParticipantUser) {
   const { passwordHash, ...safe } = user;
   return safe;
 }
+function extractQuotaFromMessage(message: string): {
+  cleanMessage: string;
+  totalSlotsLimit?: number;
+  ieeeSlotsLimit?: number;
+  nonIeeeSlotsLimit?: number;
+} {
+  if (!message) return { cleanMessage: '' };
+  const match = message.match(/<!--NEXUS_QUOTA:(.*?)-->/);
+  let totalSlotsLimit: number | undefined;
+  let ieeeSlotsLimit: number | undefined;
+  let nonIeeeSlotsLimit: number | undefined;
+  if (match) {
+    try {
+      const parsed = JSON.parse(match[1]);
+      if (typeof parsed.totalSlotsLimit === 'number') totalSlotsLimit = parsed.totalSlotsLimit;
+      if (typeof parsed.ieeeSlotsLimit === 'number') ieeeSlotsLimit = parsed.ieeeSlotsLimit;
+      if (typeof parsed.nonIeeeSlotsLimit === 'number') nonIeeeSlotsLimit = parsed.nonIeeeSlotsLimit;
+    } catch (e) {}
+  }
+  const cleanMessage = message.replace(/<!--NEXUS_QUOTA:(.*?)-->/g, '').trim();
+  return { cleanMessage, totalSlotsLimit, ieeeSlotsLimit, nonIeeeSlotsLimit };
+}
+
+function embedQuotaInMessage(
+  cleanMessage: string,
+  quotas: { totalSlotsLimit?: number; ieeeSlotsLimit?: number; nonIeeeSlotsLimit?: number }
+): string {
+  const base = (cleanMessage || '').replace(/<!--NEXUS_QUOTA:(.*?)-->/g, '').trim();
+  const payload = JSON.stringify({
+    totalSlotsLimit: typeof quotas.totalSlotsLimit === 'number' ? Math.max(0, quotas.totalSlotsLimit) : 0,
+    ieeeSlotsLimit: typeof quotas.ieeeSlotsLimit === 'number' ? Math.max(0, quotas.ieeeSlotsLimit) : 0,
+    nonIeeeSlotsLimit: typeof quotas.nonIeeeSlotsLimit === 'number' ? Math.max(0, quotas.nonIeeeSlotsLimit) : 0,
+  });
+  return `${base}<!--NEXUS_QUOTA:${payload}-->`;
+}
+
 function sanitizeSettings(settings: any) {
   if (!settings) return {};
   const { adminPassword, ...safeSettings } = settings;
+  if (safeSettings.closedMessage && typeof safeSettings.closedMessage === 'string') {
+    safeSettings.closedMessage = safeSettings.closedMessage.replace(/<!--NEXUS_QUOTA:(.*?)-->/g, '').trim();
+  }
   return safeSettings;
 }
 
@@ -432,10 +471,13 @@ apiRouter.post('/admin/purge-test-registrations', (req: Request, res: Response) 
   }
 });
 
-// 6. Get portal settings (open/closed status, banner)
-apiRouter.get('/settings', (_req: Request, res: Response) => {
+// 6. Get portal settings (open/closed status, banner, slot quotas)
+apiRouter.get('/settings', async (_req: Request, res: Response) => {
   try {
-    res.setHeader('Cache-Control', 'public, max-age=10, stale-while-revalidate=60');
+    res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+    res.setHeader('Pragma', 'no-cache');
+    res.setHeader('Expires', '0');
+
     const cached = serverCache.get<any>('api:settings');
     if (cached) {
       res.setHeader('X-Cache', 'HIT');
@@ -446,8 +488,47 @@ apiRouter.get('/settings', (_req: Request, res: Response) => {
     }
 
     const db = readDatabase();
+
+    // If Supabase is available and not in test mode, sync latest settings so stateless lambdas stay synchronized
+    if (supabaseServer && !(process.env.NODE_ENV === 'test' || process.env.TEST_DB_FILE)) {
+      try {
+        const { data: supaSettings, error: supaErr } = await supabaseServer
+          .from('portal_settings')
+          .select('*')
+          .eq('id', 'current')
+          .single();
+
+        if (!supaErr && supaSettings) {
+          const rawMsg = supaSettings.closed_message || '';
+          const { cleanMessage, totalSlotsLimit: metaTotal, ieeeSlotsLimit: metaIeee, nonIeeeSlotsLimit: metaNonIeee } = extractQuotaFromMessage(rawMsg);
+
+          if (typeof supaSettings.is_reg_closed === 'boolean') {
+            db.settings.isRegClosed = supaSettings.is_reg_closed;
+          }
+          if (cleanMessage) {
+            db.settings.closedMessage = cleanMessage;
+          }
+          if (typeof supaSettings.total_slots_limit === 'number') {
+            db.settings.totalSlotsLimit = supaSettings.total_slots_limit;
+          } else if (typeof metaTotal === 'number') {
+            db.settings.totalSlotsLimit = metaTotal;
+          }
+          if (typeof supaSettings.ieee_slots_limit === 'number') {
+            db.settings.ieeeSlotsLimit = supaSettings.ieee_slots_limit;
+          } else if (typeof metaIeee === 'number') {
+            db.settings.ieeeSlotsLimit = metaIeee;
+          }
+          if (typeof supaSettings.non_ieee_slots_limit === 'number') {
+            db.settings.nonIeeeSlotsLimit = supaSettings.non_ieee_slots_limit;
+          } else if (typeof metaNonIeee === 'number') {
+            db.settings.nonIeeeSlotsLimit = metaNonIeee;
+          }
+        }
+      } catch (e) {}
+    }
+
     const safeData = sanitizeSettings(db.settings);
-    serverCache.set('api:settings', safeData, 60000);
+    serverCache.set('api:settings', safeData, 3000);
     res.setHeader('X-Cache', 'MISS');
     res.json({
       success: true,
@@ -479,7 +560,8 @@ apiRouter.post('/settings', (req: Request, res: Response) => {
       db.settings.isRegClosed = isRegClosed;
     }
     if (typeof closedMessage === 'string') {
-      db.settings.closedMessage = closedMessage;
+      const { cleanMessage } = extractQuotaFromMessage(closedMessage);
+      db.settings.closedMessage = cleanMessage;
     }
     if (typeof razorpayMeLink === 'string') {
       db.settings.razorpayMeLink = razorpayMeLink.trim();
@@ -510,18 +592,40 @@ apiRouter.post('/settings', (req: Request, res: Response) => {
     serverCache.delete('api:settings');
     serverCache.delete('api:razorpay:config');
 
-    // Sync portal open/closed settings to Supabase Cloud PostgreSQL
-    const supabasePayload: Record<string, any> = {
+    // Sync portal settings & slot quotas to Supabase Cloud PostgreSQL
+    const cleanMsg = (db.settings.closedMessage || 'Registration is currently closed.').replace(/<!--NEXUS_QUOTA:(.*?)-->/g, '').trim();
+    const curTotal = db.settings.totalSlotsLimit || 0;
+    const curIeee = db.settings.ieeeSlotsLimit || 0;
+    const curNonIeee = db.settings.nonIeeeSlotsLimit || 0;
+
+    const msgWithMeta = embedQuotaInMessage(cleanMsg, {
+      totalSlotsLimit: curTotal,
+      ieeeSlotsLimit: curIeee,
+      nonIeeeSlotsLimit: curNonIeee
+    });
+
+    const fullPayload: Record<string, any> = {
       id: 'current',
       is_reg_closed: Boolean(db.settings.isRegClosed),
-      closed_message: db.settings.closedMessage || 'Registration is currently closed.',
+      closed_message: msgWithMeta,
+      total_slots_limit: curTotal,
+      ieee_slots_limit: curIeee,
+      non_ieee_slots_limit: curNonIeee,
       updated_at: new Date().toISOString()
     };
-    if (typeof db.settings.totalSlotsLimit === 'number') supabasePayload.total_slots_limit = db.settings.totalSlotsLimit;
-    if (typeof db.settings.ieeeSlotsLimit === 'number') supabasePayload.ieee_slots_limit = db.settings.ieeeSlotsLimit;
-    if (typeof db.settings.nonIeeeSlotsLimit === 'number') supabasePayload.non_ieee_slots_limit = db.settings.nonIeeeSlotsLimit;
 
-    syncToSupabaseAsync((client) => client.from('portal_settings').upsert(supabasePayload, { onConflict: 'id' }));
+    syncToSupabaseAsync(async (client) => {
+      const { error } = await client.from('portal_settings').upsert(fullPayload, { onConflict: 'id' });
+      if (error && (error.code === '42703' || error.code === 'PGRST204')) {
+        // Fallback if schema doesn't have slot limit columns yet: safe metadata in closed_message
+        await client.from('portal_settings').upsert({
+          id: 'current',
+          is_reg_closed: Boolean(db.settings.isRegClosed),
+          closed_message: msgWithMeta,
+          updated_at: new Date().toISOString()
+        }, { onConflict: 'id' });
+      }
+    });
 
     res.json({
       success: true,

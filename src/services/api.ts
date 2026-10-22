@@ -265,6 +265,42 @@ export interface PortalSettingsData {
   nonIeeeSlotsLimit?: number;
 }
 
+export function extractQuotaFromMessage(message: string): {
+  cleanMessage: string;
+  totalSlotsLimit?: number;
+  ieeeSlotsLimit?: number;
+  nonIeeeSlotsLimit?: number;
+} {
+  if (!message) return { cleanMessage: '' };
+  const match = message.match(/<!--NEXUS_QUOTA:(.*?)-->/);
+  let totalSlotsLimit: number | undefined;
+  let ieeeSlotsLimit: number | undefined;
+  let nonIeeeSlotsLimit: number | undefined;
+  if (match) {
+    try {
+      const parsed = JSON.parse(match[1]);
+      if (typeof parsed.totalSlotsLimit === 'number') totalSlotsLimit = parsed.totalSlotsLimit;
+      if (typeof parsed.ieeeSlotsLimit === 'number') ieeeSlotsLimit = parsed.ieeeSlotsLimit;
+      if (typeof parsed.nonIeeeSlotsLimit === 'number') nonIeeeSlotsLimit = parsed.nonIeeeSlotsLimit;
+    } catch (e) {}
+  }
+  const cleanMessage = message.replace(/<!--NEXUS_QUOTA:(.*?)-->/g, '').trim();
+  return { cleanMessage, totalSlotsLimit, ieeeSlotsLimit, nonIeeeSlotsLimit };
+}
+
+export function embedQuotaInMessage(
+  cleanMessage: string,
+  quotas: { totalSlotsLimit?: number; ieeeSlotsLimit?: number; nonIeeeSlotsLimit?: number }
+): string {
+  const base = (cleanMessage || '').replace(/<!--NEXUS_QUOTA:(.*?)-->/g, '').trim();
+  const payload = JSON.stringify({
+    totalSlotsLimit: typeof quotas.totalSlotsLimit === 'number' ? Math.max(0, quotas.totalSlotsLimit) : 0,
+    ieeeSlotsLimit: typeof quotas.ieeeSlotsLimit === 'number' ? Math.max(0, quotas.ieeeSlotsLimit) : 0,
+    nonIeeeSlotsLimit: typeof quotas.nonIeeeSlotsLimit === 'number' ? Math.max(0, quotas.nonIeeeSlotsLimit) : 0,
+  });
+  return `${base}<!--NEXUS_QUOTA:${payload}-->`;
+}
+
 /**
  * Fetch portal settings (open/closed status, banner message, and slot capacity limits).
  */
@@ -274,17 +310,32 @@ export async function fetchSettingsApi(): Promise<PortalSettingsData> {
     try {
       const { data, error } = await supabase
         .from('portal_settings')
-        .select('id, is_reg_closed, closed_message, total_slots_limit, ieee_slots_limit, non_ieee_slots_limit')
+        .select('*')
         .eq('id', 'current')
         .single();
 
       if (!error && data) {
+        const rawMsg = data.closed_message || 'Registration is currently closed.';
+        const { cleanMessage, totalSlotsLimit: metaTotal, ieeeSlotsLimit: metaIeee, nonIeeeSlotsLimit: metaNonIeee } = extractQuotaFromMessage(rawMsg);
+
+        const totalSlots = typeof data.total_slots_limit === 'number'
+          ? data.total_slots_limit
+          : (typeof metaTotal === 'number' ? metaTotal : (Number(localStorage.getItem('nexusverse_total_slots_limit')) || 0));
+
+        const ieeeSlots = typeof data.ieee_slots_limit === 'number'
+          ? data.ieee_slots_limit
+          : (typeof metaIeee === 'number' ? metaIeee : (Number(localStorage.getItem('nexusverse_ieee_slots_limit')) || 0));
+
+        const nonIeeeSlots = typeof data.non_ieee_slots_limit === 'number'
+          ? data.non_ieee_slots_limit
+          : (typeof metaNonIeee === 'number' ? metaNonIeee : (Number(localStorage.getItem('nexusverse_non_ieee_slots_limit')) || 0));
+
         const result: PortalSettingsData = {
           isRegClosed: Boolean(data.is_reg_closed),
-          closedMessage: data.closed_message || 'Registration is currently closed.',
-          totalSlotsLimit: typeof data.total_slots_limit === 'number' ? data.total_slots_limit : 0,
-          ieeeSlotsLimit: typeof data.ieee_slots_limit === 'number' ? data.ieee_slots_limit : 0,
-          nonIeeeSlotsLimit: typeof data.non_ieee_slots_limit === 'number' ? data.non_ieee_slots_limit : 0
+          closedMessage: cleanMessage || 'Registration is currently closed.',
+          totalSlotsLimit: totalSlots,
+          ieeeSlotsLimit: ieeeSlots,
+          nonIeeeSlotsLimit: nonIeeeSlots
         };
         try {
           localStorage.setItem('nexusverse_reg_closed', String(result.isRegClosed));
@@ -300,21 +351,24 @@ export async function fetchSettingsApi(): Promise<PortalSettingsData> {
 
   // 2. Express API
   try {
-    const res = await fetch(`${API_BASE}/settings`);
+    const res = await fetch(`${API_BASE}/settings`, {
+      headers: { 'Cache-Control': 'no-cache', 'Pragma': 'no-cache' }
+    });
     if (res.ok) {
       const json = await res.json();
       if (json.success && json.data) {
         const { isRegClosed, closedMessage, totalSlotsLimit, ieeeSlotsLimit, nonIeeeSlotsLimit } = json.data;
+        const { cleanMessage } = extractQuotaFromMessage(closedMessage || '');
         const result: PortalSettingsData = {
           isRegClosed: Boolean(isRegClosed),
-          closedMessage: closedMessage || 'Registration is currently closed.',
+          closedMessage: cleanMessage || 'Registration is currently closed.',
           totalSlotsLimit: Number(totalSlotsLimit) || 0,
           ieeeSlotsLimit: Number(ieeeSlotsLimit) || 0,
           nonIeeeSlotsLimit: Number(nonIeeeSlotsLimit) || 0
         };
         try {
           localStorage.setItem('nexusverse_reg_closed', String(result.isRegClosed));
-          if (closedMessage) localStorage.setItem('nexusverse_closed_msg', closedMessage);
+          if (result.closedMessage) localStorage.setItem('nexusverse_closed_msg', result.closedMessage);
           localStorage.setItem('nexusverse_total_slots_limit', String(result.totalSlotsLimit));
           localStorage.setItem('nexusverse_ieee_slots_limit', String(result.ieeeSlotsLimit));
           localStorage.setItem('nexusverse_non_ieee_slots_limit', String(result.nonIeeeSlotsLimit));
@@ -325,9 +379,11 @@ export async function fetchSettingsApi(): Promise<PortalSettingsData> {
   } catch (err) {}
 
   // 3. Local fallback
+  const rawLocalMsg = localStorage.getItem('nexusverse_closed_msg') || 'Registration is currently closed.';
+  const { cleanMessage: cleanLocalMsg } = extractQuotaFromMessage(rawLocalMsg);
   return {
     isRegClosed: localStorage.getItem('nexusverse_reg_closed') === 'true',
-    closedMessage: localStorage.getItem('nexusverse_closed_msg') || 'Registration is currently closed.',
+    closedMessage: cleanLocalMsg || 'Registration is currently closed.',
     totalSlotsLimit: Number(localStorage.getItem('nexusverse_total_slots_limit')) || 0,
     ieeeSlotsLimit: Number(localStorage.getItem('nexusverse_ieee_slots_limit')) || 0,
     nonIeeeSlotsLimit: Number(localStorage.getItem('nexusverse_non_ieee_slots_limit')) || 0
@@ -344,14 +400,16 @@ export async function updateSettingsApi(settings: {
   ieeeSlotsLimit?: number;
   nonIeeeSlotsLimit?: number;
 }): Promise<boolean> {
+  // Always update local cache immediately so UI feels instantaneous
   if (typeof settings.isRegClosed === 'boolean') {
     try {
       localStorage.setItem('nexusverse_reg_closed', String(settings.isRegClosed));
     } catch (e) {}
   }
   if (settings.closedMessage) {
+    const { cleanMessage } = extractQuotaFromMessage(settings.closedMessage);
     try {
-      localStorage.setItem('nexusverse_closed_msg', settings.closedMessage);
+      localStorage.setItem('nexusverse_closed_msg', cleanMessage);
     } catch (e) {}
   }
   if (typeof settings.totalSlotsLimit === 'number') {
@@ -372,24 +430,64 @@ export async function updateSettingsApi(settings: {
 
   let supabaseSuccess = false;
 
-  // Supabase update
+  // Supabase update (with metadata fallback if dedicated columns don't exist yet)
   if (isSupabaseConfigured() && supabase) {
     try {
-      const payload: Record<string, any> = {
+      const curTotal = typeof settings.totalSlotsLimit === 'number'
+        ? settings.totalSlotsLimit
+        : (Number(localStorage.getItem('nexusverse_total_slots_limit')) || 0);
+
+      const curIeee = typeof settings.ieeeSlotsLimit === 'number'
+        ? settings.ieeeSlotsLimit
+        : (Number(localStorage.getItem('nexusverse_ieee_slots_limit')) || 0);
+
+      const curNonIeee = typeof settings.nonIeeeSlotsLimit === 'number'
+        ? settings.nonIeeeSlotsLimit
+        : (Number(localStorage.getItem('nexusverse_non_ieee_slots_limit')) || 0);
+
+      const rawMsg = settings.closedMessage || localStorage.getItem('nexusverse_closed_msg') || 'Registration is currently closed.';
+      const { cleanMessage } = extractQuotaFromMessage(rawMsg);
+      const msgWithMeta = embedQuotaInMessage(cleanMessage, {
+        totalSlotsLimit: curTotal,
+        ieeeSlotsLimit: curIeee,
+        nonIeeeSlotsLimit: curNonIeee
+      });
+
+      const isClosed = typeof settings.isRegClosed === 'boolean'
+        ? settings.isRegClosed
+        : (localStorage.getItem('nexusverse_reg_closed') === 'true');
+
+      // Attempt 1: Upsert with dedicated columns
+      const fullPayload: Record<string, any> = {
         id: 'current',
+        is_reg_closed: isClosed,
+        closed_message: msgWithMeta,
+        total_slots_limit: curTotal,
+        ieee_slots_limit: curIeee,
+        non_ieee_slots_limit: curNonIeee,
         updated_at: new Date().toISOString()
       };
-      if (typeof settings.isRegClosed === 'boolean') payload.is_reg_closed = settings.isRegClosed;
-      if (settings.closedMessage) payload.closed_message = settings.closedMessage;
-      if (typeof settings.totalSlotsLimit === 'number') payload.total_slots_limit = settings.totalSlotsLimit;
-      if (typeof settings.ieeeSlotsLimit === 'number') payload.ieee_slots_limit = settings.ieeeSlotsLimit;
-      if (typeof settings.nonIeeeSlotsLimit === 'number') payload.non_ieee_slots_limit = settings.nonIeeeSlotsLimit;
 
-      const { error } = await supabase
+      const { error: fullError } = await supabase
         .from('portal_settings')
-        .upsert(payload, { onConflict: 'id' });
+        .upsert(fullPayload, { onConflict: 'id' });
 
-      if (!error) supabaseSuccess = true;
+      if (!fullError) {
+        supabaseSuccess = true;
+      } else {
+        // Attempt 2: Fallback without dedicated columns - metadata safely embedded in closed_message
+        const fallbackPayload = {
+          id: 'current',
+          is_reg_closed: isClosed,
+          closed_message: msgWithMeta,
+          updated_at: new Date().toISOString()
+        };
+        const { error: fallbackError } = await supabase
+          .from('portal_settings')
+          .upsert(fallbackPayload, { onConflict: 'id' });
+
+        if (!fallbackError) supabaseSuccess = true;
+      }
     } catch (err) {}
   }
 

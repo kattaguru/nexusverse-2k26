@@ -28,6 +28,7 @@ import {
   formatDraftAge 
 } from './utils/formCache';
 import { registerServiceWorker } from './utils/cacheManager';
+import { computeDelegatesStats } from './utils/delegateStats';
 import { TimelineSection } from './components/TimelineSection';
 import { FaqSection } from './components/FaqSection';
 import { ContactSection } from './components/ContactSection';
@@ -746,16 +747,22 @@ export default function App() {
   };
 
   const handleUpdateSlotLimits = async (limits: { totalSlotsLimit: number; ieeeSlotsLimit: number; nonIeeeSlotsLimit: number }) => {
+    try {
+      localStorage.setItem('nexusverse_total_slots_limit', String(limits.totalSlotsLimit));
+      localStorage.setItem('nexusverse_ieee_slots_limit', String(limits.ieeeSlotsLimit));
+      localStorage.setItem('nexusverse_non_ieee_slots_limit', String(limits.nonIeeeSlotsLimit));
+    } catch (e) {}
     setTotalSlotsLimit(limits.totalSlotsLimit);
     setIeeeSlotsLimit(limits.ieeeSlotsLimit);
     setNonIeeeSlotsLimit(limits.nonIeeeSlotsLimit);
     await updateSettingsApi(limits);
   };
 
-  // Quota Calculations
-  const totalDelegatesCount = savedRecords.length;
-  const ieeeMembersCount = savedRecords.filter(r => r.isIeeeMember).length;
-  const nonIeeeDelegatesCount = totalDelegatesCount - ieeeMembersCount;
+  // Quota Calculations - counting all individual team members across registrations
+  const delegateStats = computeDelegatesStats(savedRecords);
+  const totalDelegatesCount = delegateStats.totalDelegates;
+  const ieeeMembersCount = delegateStats.totalIeeeDelegates;
+  const nonIeeeDelegatesCount = delegateStats.totalNonIeeeDelegates;
 
   const isTotalSlotsFull = totalSlotsLimit > 0 && totalDelegatesCount >= totalSlotsLimit;
   const isIeeeSlotsFull = ieeeSlotsLimit > 0 && ieeeMembersCount >= ieeeSlotsLimit;
@@ -1144,6 +1151,11 @@ export default function App() {
     }
     if (isRegClosed) {
       alert(closedMessage || 'Registration is currently closed.');
+      return;
+    }
+    const currentRegistrationMemberCount = 1 + (teamMembersList?.length || 0);
+    if (totalSlotsLimit > 0 && totalDelegatesCount + currentRegistrationMemberCount > totalSlotsLimit) {
+      alert(`Registration Closed: Total symposium capacity of ${totalSlotsLimit} slots would be exceeded. Only ${Math.max(0, totalSlotsLimit - totalDelegatesCount)} slot(s) remaining for this registration of ${currentRegistrationMemberCount} member(s).`);
       return;
     }
     if (isTotalSlotsFull) {

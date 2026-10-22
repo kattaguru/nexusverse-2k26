@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { X, Search, Ticket, ArrowRight, AlertCircle, Loader2 } from 'lucide-react';
 import { RegistrationRecord } from './TicketPass';
+import { getRecordTeammates } from '../utils/delegateStats';
 
 interface PassLookupModalProps {
   isOpen: boolean;
@@ -31,14 +32,25 @@ export const PassLookupModal: React.FC<PassLookupModalProps> = ({
 
     const cleanNum = clean.replace(/\s+/g, '');
     
-    // 1. Check local device records
-    let found = savedRecords.find(
-      (r) => 
+    const matchesQuery = (r: RegistrationRecord) => {
+      if (
         r.regId.toLowerCase() === clean || 
         r.email.toLowerCase() === clean ||
         (r.roll && r.roll.toLowerCase() === clean) ||
         (r.phone && r.phone.replace(/\s+/g, '') === cleanNum)
-    );
+      ) {
+        return true;
+      }
+      const teammates = getRecordTeammates(r);
+      return teammates.some(m => 
+        (m.roll && m.roll.toLowerCase() === clean) ||
+        (m.phone && m.phone.replace(/\s+/g, '') === cleanNum) ||
+        (m.name && m.name.toLowerCase() === clean)
+      );
+    };
+
+    // 1. Check local device records
+    let found = savedRecords.find(matchesQuery);
 
     // 2. If not found locally, query backend server records
     if (!found) {
@@ -49,13 +61,7 @@ export const PassLookupModal: React.FC<PassLookupModalProps> = ({
         if (res.ok) {
           const json = await res.json();
           const remoteRecords: RegistrationRecord[] = json.data || [];
-          found = remoteRecords.find(
-            (r) => 
-              r.regId.toLowerCase() === clean || 
-              r.email.toLowerCase() === clean ||
-              (r.roll && r.roll.toLowerCase() === clean) ||
-              (r.phone && r.phone.replace(/\s+/g, '') === cleanNum)
-          );
+          found = remoteRecords.find(matchesQuery);
         }
       } catch (err) {
         console.warn('Pass lookup network notice:', err);
