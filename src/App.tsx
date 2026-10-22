@@ -1718,59 +1718,6 @@ export default function App() {
                   </p>
                 </div>
 
-                {/* Live Slot Availability Bar (Visible when quotas are set) */}
-                {(totalSlotsLimit > 0 || ieeeSlotsLimit > 0 || nonIeeeSlotsLimit > 0) && (
-                  <div className="p-4 rounded-2xl bg-gradient-to-r from-[#121218] via-[#161622] to-[#121218] border border-[#d4a935]/40 shadow-xl">
-                    <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
-                      <div className="flex items-center gap-2">
-                        <span className="w-2.5 h-2.5 rounded-full bg-[#4cc38a] animate-pulse" />
-                        <span className="text-xs font-bold text-white uppercase tracking-wider">Live Symposium Slot Availability</span>
-                      </div>
-                      <div className="flex flex-wrap items-center gap-2">
-                        {totalSlotsLimit > 0 && (
-                          <div className={`px-3 py-1.5 rounded-xl border text-xs font-mono flex items-center gap-2 ${
-                            isTotalSlotsFull ? 'bg-[#2a1315] border-[#ff8a80]/50 text-[#ffb4ab]' : 'bg-[#181824] border-[#2e2b22] text-[#f2c14e]'
-                          }`}>
-                            <span className="text-[#a79f8b]">Total Capacity:</span>
-                            <span className="font-bold text-white">{totalDelegatesCount} / {totalSlotsLimit}</span>
-                            <span className={`px-1.5 py-0.2 rounded text-[10px] font-bold ${
-                              isTotalSlotsFull ? 'bg-[#ff8a80] text-black' : 'bg-[#d4a935]/30 text-[#f2c14e]'
-                            }`}>
-                              {isTotalSlotsFull ? 'SOLD OUT' : `${totalSlotsLimit - totalDelegatesCount} left`}
-                            </span>
-                          </div>
-                        )}
-                        {ieeeSlotsLimit > 0 && (
-                          <div className={`px-3 py-1.5 rounded-xl border text-xs font-mono flex items-center gap-2 ${
-                            isIeeeSlotsFull ? 'bg-[#2a1315] border-[#ff8a80]/50 text-[#ffb4ab]' : 'bg-[#0f2419] border-[#4cc38a]/40 text-[#86efac]'
-                          }`}>
-                            <span className="text-[#a79f8b]">IEEE:</span>
-                            <span className="font-bold text-white">{ieeeMembersCount} / {ieeeSlotsLimit}</span>
-                            <span className={`px-1.5 py-0.2 rounded text-[10px] font-bold ${
-                              isIeeeSlotsFull ? 'bg-[#ff8a80] text-black' : 'bg-[#4cc38a]/30 text-[#86efac]'
-                            }`}>
-                              {isIeeeSlotsFull ? 'FULL' : `${ieeeSlotsLimit - ieeeMembersCount} left`}
-                            </span>
-                          </div>
-                        )}
-                        {nonIeeeSlotsLimit > 0 && (
-                          <div className={`px-3 py-1.5 rounded-xl border text-xs font-mono flex items-center gap-2 ${
-                            isNonIeeeSlotsFull ? 'bg-[#2a1315] border-[#ff8a80]/50 text-[#ffb4ab]' : 'bg-[#0d1e2e] border-[#70baff]/40 text-[#9fc7e8]'
-                          }`}>
-                            <span className="text-[#a79f8b]">Non-IEEE:</span>
-                            <span className="font-bold text-white">{nonIeeeDelegatesCount} / {nonIeeeSlotsLimit}</span>
-                            <span className={`px-1.5 py-0.2 rounded text-[10px] font-bold ${
-                              isNonIeeeSlotsFull ? 'bg-[#ff8a80] text-black' : 'bg-[#70baff]/30 text-[#9fc7e8]'
-                            }`}>
-                              {isNonIeeeSlotsFull ? 'FULL' : `${nonIeeeSlotsLimit - nonIeeeDelegatesCount} left`}
-                            </span>
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                )}
-
                 {/* AUTHENTICATION GATE: Required before registration */}
                 {!currentUser ? (
                   <div className="space-y-8">
