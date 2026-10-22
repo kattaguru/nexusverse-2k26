@@ -77,6 +77,10 @@ export function mapDbToRegistrationRecord(row: any): RegistrationRecord {
     memberLunchStatus: row.member_lunch_status || row.memberLunchStatus || row.team_details?._memberLunchStatus || {},
     memberCheckInStatus: row.member_check_in_status || row.memberCheckInStatus || row.team_details?._memberCheckInStatus || {},
     memberCheckInTimes: row.member_check_in_times || row.memberCheckInTimes || row.team_details?._memberCheckInTimes || {},
+    memberTechStatus: row.member_tech_status || row.memberTechStatus || row.team_details?._memberTechStatus || {},
+    memberTechTimes: row.member_tech_times || row.memberTechTimes || row.team_details?._memberTechTimes || {},
+    memberSpotStatus: row.member_spot_status || row.memberSpotStatus || row.team_details?._memberSpotStatus || {},
+    memberSpotTimes: row.member_spot_times || row.memberSpotTimes || row.team_details?._memberSpotTimes || {},
   };
 }
 
@@ -103,7 +107,11 @@ export function mapRegistrationRecordToDb(record: RegistrationRecord): Record<st
     ...(record.lunchCollectedCount !== undefined ? { _lunchCollectedCount: record.lunchCollectedCount } : {}),
     ...(record.memberLunchStatus ? { _memberLunchStatus: record.memberLunchStatus } : {}),
     ...(record.memberCheckInStatus ? { _memberCheckInStatus: record.memberCheckInStatus } : {}),
-    ...(record.memberCheckInTimes ? { _memberCheckInTimes: record.memberCheckInTimes } : {})
+    ...(record.memberCheckInTimes ? { _memberCheckInTimes: record.memberCheckInTimes } : {}),
+    ...(record.memberTechStatus ? { _memberTechStatus: record.memberTechStatus } : {}),
+    ...(record.memberTechTimes ? { _memberTechTimes: record.memberTechTimes } : {}),
+    ...(record.memberSpotStatus ? { _memberSpotStatus: record.memberSpotStatus } : {}),
+    ...(record.memberSpotTimes ? { _memberSpotTimes: record.memberSpotTimes } : {})
   };
   return {
     reg_id: record.regId,

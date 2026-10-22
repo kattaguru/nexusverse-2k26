@@ -1,4 +1,5 @@
 import { RegistrationRecord, TeamMemberInfo } from '../components/TicketPass';
+import { ALL_EVENTS } from '../data/symposiumData';
 
 /**
  * Extracts all teammates from a registration record, handling different
@@ -189,6 +190,107 @@ export function getRecordCheckInStats(record: RegistrationRecord | undefined | n
   };
 }
 
+export interface RecordTrackAttendanceStats {
+  hasTech: boolean;
+  hasSpot: boolean;
+  techEventName: string;
+  totalMembers: number;
+  techAttendedCount: number;
+  techMemberStatus: Record<string, boolean>;
+  techMemberTimes: Record<string, string>;
+  isFullyTechAttended: boolean;
+  spotAttendedCount: number;
+  spotMemberStatus: Record<string, boolean>;
+  spotMemberTimes: Record<string, string>;
+  isFullySpotAttended: boolean;
+}
+
+/**
+ * Computes individual and team-level attendance states specifically for
+ * Technical Events (Track 1) vs Spot Events (Track 2).
+ */
+export function getRecordTrackAttendanceStats(record: RegistrationRecord | undefined | null): RecordTrackAttendanceStats {
+  if (!record) {
+    return {
+      hasTech: false,
+      hasSpot: false,
+      techEventName: 'Technical Event',
+      totalMembers: 0,
+      techAttendedCount: 0,
+      techMemberStatus: {},
+      techMemberTimes: {},
+      isFullyTechAttended: false,
+      spotAttendedCount: 0,
+      spotMemberStatus: {},
+      spotMemberTimes: {},
+      isFullySpotAttended: false
+    };
+  }
+
+  const teammates = getRecordTeammates(record);
+  const totalMembers = 1 + teammates.length;
+  const memberKeys = ['lead', ...teammates.map((_, i) => `teammate_${i}`)];
+
+  const eventIds = record.eventIds || [];
+  const techEvents = eventIds.filter(id => id !== 'spot' && id !== 'spot-pass');
+  const hasTech = techEvents.length > 0;
+  const hasSpot = eventIds.some(id => id === 'spot' || id === 'spot-pass');
+
+  const primaryTechId = techEvents[0] || '';
+  const techEventName = ALL_EVENTS.find(e => e.id === primaryTechId)?.name || (hasTech ? 'Technical Event' : 'None');
+
+  // Tech status map
+  const techStatus: Record<string, boolean> = { ...(record.memberTechStatus || {}) };
+  const techTimes: Record<string, string> = { ...(record.memberTechTimes || {}) };
+
+  // Fallback: if record.attendedEvents has tech event and empty map
+  if (hasTech && record.attendedEvents?.some(id => id !== 'spot' && id !== 'spot-pass') && Object.keys(techStatus).length === 0) {
+    techStatus['lead'] = true;
+    if (record.checkInTime) techTimes['lead'] = record.checkInTime;
+    teammates.forEach((_, i) => {
+      const k = `teammate_${i}`;
+      techStatus[k] = true;
+      if (record.checkInTime) techTimes[k] = record.checkInTime;
+    });
+  }
+
+  const techAttendedCount = hasTech ? memberKeys.filter(k => Boolean(techStatus[k])).length : 0;
+  const isFullyTechAttended = hasTech && techAttendedCount >= totalMembers && totalMembers > 0;
+
+  // Spot status map
+  const spotStatus: Record<string, boolean> = { ...(record.memberSpotStatus || {}) };
+  const spotTimes: Record<string, string> = { ...(record.memberSpotTimes || {}) };
+
+  // Fallback: if record.attendedEvents has 'spot' and empty map
+  if (hasSpot && record.attendedEvents?.some(id => id === 'spot' || id === 'spot-pass') && Object.keys(spotStatus).length === 0) {
+    spotStatus['lead'] = true;
+    if (record.checkInTime) spotTimes['lead'] = record.checkInTime;
+    teammates.forEach((_, i) => {
+      const k = `teammate_${i}`;
+      spotStatus[k] = true;
+      if (record.checkInTime) spotTimes[k] = record.checkInTime;
+    });
+  }
+
+  const spotAttendedCount = hasSpot ? memberKeys.filter(k => Boolean(spotStatus[k])).length : 0;
+  const isFullySpotAttended = hasSpot && spotAttendedCount >= totalMembers && totalMembers > 0;
+
+  return {
+    hasTech,
+    hasSpot,
+    techEventName,
+    totalMembers,
+    techAttendedCount,
+    techMemberStatus: techStatus,
+    techMemberTimes: techTimes,
+    isFullyTechAttended,
+    spotAttendedCount,
+    spotMemberStatus: spotStatus,
+    spotMemberTimes: spotTimes,
+    isFullySpotAttended
+  };
+}
+
 export interface IndividualParticipant {
   id: string;
   regId: string;
@@ -210,6 +312,13 @@ export interface IndividualParticipant {
   teamName?: string;
   totalTeamMembers: number;
   eventIds: string[];
+  isTechRegistered: boolean;
+  techEventName: string;
+  isTechAttended: boolean;
+  techAttendedTime?: string;
+  isSpotRegistered: boolean;
+  isSpotAttended: boolean;
+  spotAttendedTime?: string;
   paymentMode?: string;
   totalPaid: number;
   isVerified?: boolean;
@@ -230,6 +339,7 @@ export function flattenToIndividualParticipants(records: RegistrationRecord[]): 
     const teammates = getRecordTeammates(record);
     const totalMembers = 1 + teammates.length;
     const checkInStats = getRecordCheckInStats(record);
+    const trackStats = getRecordTrackAttendanceStats(record);
     const lunchStats = getRecordLunchStats(record);
     const primaryEventId = record.eventIds?.[0] || '';
     const teamName = record.teamDetails?.[primaryEventId]?.teamName || 
@@ -238,6 +348,11 @@ export function flattenToIndividualParticipants(records: RegistrationRecord[]): 
     // 1. Lead / Solo Participant
     const leadCheckedIn = Boolean(checkInStats.memberStatus['lead']);
     const leadCheckInTime = checkInStats.memberTimes['lead'] || (leadCheckedIn ? record.checkInTime : undefined);
+    const leadTechAttended = Boolean(trackStats.techMemberStatus['lead']);
+    const leadTechTime = trackStats.techMemberTimes['lead'];
+    const leadSpotAttended = Boolean(trackStats.spotMemberStatus['lead']);
+    const leadSpotTime = trackStats.spotMemberTimes['lead'];
+
     participants.push({
       id: `${record.regId}-lead`,
       regId: record.regId,
@@ -259,11 +374,18 @@ export function flattenToIndividualParticipants(records: RegistrationRecord[]): 
       teamName: teamName || undefined,
       totalTeamMembers: totalMembers,
       eventIds: record.eventIds || [],
+      isTechRegistered: trackStats.hasTech,
+      techEventName: trackStats.techEventName,
+      isTechAttended: leadTechAttended,
+      techAttendedTime: leadTechTime,
+      isSpotRegistered: trackStats.hasSpot,
+      isSpotAttended: leadSpotAttended,
+      spotAttendedTime: leadSpotTime,
       paymentMode: record.paymentMode,
       totalPaid: record.totalPaid,
       isVerified: Boolean(record.isVerified),
-      isCheckedIn: leadCheckedIn,
-      checkInTime: leadCheckInTime,
+      isCheckedIn: leadCheckedIn || leadTechAttended || leadSpotAttended,
+      checkInTime: leadCheckInTime || leadTechTime || leadSpotTime,
       isLunchCollected: Boolean(lunchStats.memberStatus['lead'] || lunchStats.isFullyCollected),
       record
     });
@@ -274,6 +396,10 @@ export function flattenToIndividualParticipants(records: RegistrationRecord[]): 
       const key = `teammate_${idx}`;
       const isCheckedIn = Boolean(checkInStats.memberStatus[key]);
       const checkInTime = checkInStats.memberTimes[key] || (isCheckedIn ? record.checkInTime : undefined);
+      const isTechAttended = Boolean(trackStats.techMemberStatus[key]);
+      const techAttendedTime = trackStats.techMemberTimes[key];
+      const isSpotAttended = Boolean(trackStats.spotMemberStatus[key]);
+      const spotAttendedTime = trackStats.spotMemberTimes[key];
 
       participants.push({
         id: `${record.regId}-${key}`,
@@ -296,11 +422,18 @@ export function flattenToIndividualParticipants(records: RegistrationRecord[]): 
         teamName: teamName || undefined,
         totalTeamMembers: totalMembers,
         eventIds: record.eventIds || [],
+        isTechRegistered: trackStats.hasTech,
+        techEventName: trackStats.techEventName,
+        isTechAttended,
+        techAttendedTime,
+        isSpotRegistered: trackStats.hasSpot,
+        isSpotAttended,
+        spotAttendedTime,
         paymentMode: record.paymentMode,
         totalPaid: record.totalPaid,
         isVerified: Boolean(record.isVerified),
-        isCheckedIn,
-        checkInTime,
+        isCheckedIn: isCheckedIn || isTechAttended || isSpotAttended,
+        checkInTime: checkInTime || techAttendedTime || spotAttendedTime,
         isLunchCollected: Boolean(lunchStats.memberStatus[key] || lunchStats.isFullyCollected),
         record
       });
@@ -318,6 +451,10 @@ export interface DelegateStats {
   checkedInRegistrations: number;
   checkedInDelegates: number;
   absentDelegates: number;
+  totalTechDelegates: number;
+  techAttendedDelegates: number;
+  totalSpotDelegates: number;
+  spotAttendedDelegates: number;
   totalRevenue: number;
   upiPendingCount: number;
   verifiedCount: number;
@@ -336,6 +473,10 @@ export function computeDelegatesStats(records: RegistrationRecord[]): DelegateSt
   let totalNonIeeeDelegates = 0;
   let checkedInRegistrations = 0;
   let checkedInDelegates = 0;
+  let totalTechDelegates = 0;
+  let techAttendedDelegates = 0;
+  let totalSpotDelegates = 0;
+  let spotAttendedDelegates = 0;
   let totalRevenue = 0;
   let upiPendingCount = 0;
   let verifiedCount = 0;
@@ -366,10 +507,27 @@ export function computeDelegatesStats(records: RegistrationRecord[]): DelegateSt
 
     // Individual Checked In Counting
     const checkInStats = getRecordCheckInStats(r);
-    if (checkInStats.checkedInCount > 0) {
+    const trackStats = getRecordTrackAttendanceStats(r);
+
+    if (trackStats.hasTech) {
+      totalTechDelegates += memberCount;
+      techAttendedDelegates += trackStats.techAttendedCount;
+    }
+    if (trackStats.hasSpot) {
+      totalSpotDelegates += memberCount;
+      spotAttendedDelegates += trackStats.spotAttendedCount;
+    }
+
+    const effectiveCheckedInCount = Math.max(
+      checkInStats.checkedInCount,
+      trackStats.techAttendedCount,
+      trackStats.spotAttendedCount
+    );
+
+    if (effectiveCheckedInCount > 0) {
       checkedInRegistrations++;
     }
-    checkedInDelegates += checkInStats.checkedInCount;
+    checkedInDelegates += effectiveCheckedInCount;
 
     // Lunch Trays
     totalLunchMealsDispensed += getRecordLunchStats(r).mealsDispensed;
@@ -399,6 +557,10 @@ export function computeDelegatesStats(records: RegistrationRecord[]): DelegateSt
     checkedInRegistrations,
     checkedInDelegates,
     absentDelegates: Math.max(0, totalDelegates - checkedInDelegates),
+    totalTechDelegates,
+    techAttendedDelegates,
+    totalSpotDelegates,
+    spotAttendedDelegates,
     totalRevenue,
     upiPendingCount,
     verifiedCount,

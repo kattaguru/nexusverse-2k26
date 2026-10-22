@@ -417,7 +417,11 @@ apiRouter.put('/registrations/:regId', (req: Request, res: Response) => {
         ...(updatedRecord.lunchCollectedCount !== undefined ? { _lunchCollectedCount: updatedRecord.lunchCollectedCount } : {}),
         ...(updatedRecord.memberLunchStatus ? { _memberLunchStatus: updatedRecord.memberLunchStatus } : {}),
         ...(updatedRecord.memberCheckInStatus ? { _memberCheckInStatus: updatedRecord.memberCheckInStatus } : {}),
-        ...(updatedRecord.memberCheckInTimes ? { _memberCheckInTimes: updatedRecord.memberCheckInTimes } : {})
+        ...(updatedRecord.memberCheckInTimes ? { _memberCheckInTimes: updatedRecord.memberCheckInTimes } : {}),
+        ...(updatedRecord.memberTechStatus ? { _memberTechStatus: updatedRecord.memberTechStatus } : {}),
+        ...(updatedRecord.memberTechTimes ? { _memberTechTimes: updatedRecord.memberTechTimes } : {}),
+        ...(updatedRecord.memberSpotStatus ? { _memberSpotStatus: updatedRecord.memberSpotStatus } : {}),
+        ...(updatedRecord.memberSpotTimes ? { _memberSpotTimes: updatedRecord.memberSpotTimes } : {})
       },
       total_paid: Number(updatedRecord.totalPaid || 0),
       promo_code: updatedRecord.promoCode || '',
