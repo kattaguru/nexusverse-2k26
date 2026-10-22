@@ -128,6 +128,188 @@ export function getRecordLunchStats(record: RegistrationRecord | undefined | nul
   };
 }
 
+export interface RecordCheckInStats {
+  totalMembers: number;
+  checkedInCount: number;
+  absentCount: number;
+  isFullyCheckedIn: boolean;
+  isPartiallyCheckedIn: boolean;
+  memberStatus: Record<string, boolean>;
+  memberTimes: Record<string, string>;
+}
+
+/**
+ * Computes individual and total check-in attendance stats for a record.
+ * Tracks each member (lead, teammate_0, etc.) separately.
+ */
+export function getRecordCheckInStats(record: RegistrationRecord | undefined | null): RecordCheckInStats {
+  if (!record) {
+    return {
+      totalMembers: 0,
+      checkedInCount: 0,
+      absentCount: 0,
+      isFullyCheckedIn: false,
+      isPartiallyCheckedIn: false,
+      memberStatus: {},
+      memberTimes: {}
+    };
+  }
+
+  const teammates = getRecordTeammates(record);
+  const totalMembers = 1 + teammates.length;
+  const statusMap: Record<string, boolean> = { ...(record.memberCheckInStatus || {}) };
+  const timesMap: Record<string, string> = { ...(record.memberCheckInTimes || {}) };
+
+  const memberKeys = ['lead', ...teammates.map((_, i) => `teammate_${i}`)];
+
+  // Legacy fallback: if record.checkedIn is true but memberCheckInStatus has no keys at all
+  if (record.checkedIn && Object.keys(statusMap).length === 0) {
+    statusMap['lead'] = true;
+    if (record.checkInTime) timesMap['lead'] = record.checkInTime;
+    teammates.forEach((_, i) => {
+      const k = `teammate_${i}`;
+      statusMap[k] = true;
+      if (record.checkInTime) timesMap[k] = record.checkInTime;
+    });
+  }
+
+  const checkedInCount = memberKeys.filter(k => Boolean(statusMap[k])).length;
+  const absentCount = Math.max(0, totalMembers - checkedInCount);
+  const isFullyCheckedIn = checkedInCount >= totalMembers && totalMembers > 0;
+  const isPartiallyCheckedIn = checkedInCount > 0 && checkedInCount < totalMembers;
+
+  return {
+    totalMembers,
+    checkedInCount,
+    absentCount,
+    isFullyCheckedIn,
+    isPartiallyCheckedIn,
+    memberStatus: statusMap,
+    memberTimes: timesMap
+  };
+}
+
+export interface IndividualParticipant {
+  id: string;
+  regId: string;
+  memberKey: string;
+  memberIndex: number;
+  passCode: string;
+  role: string;
+  name: string;
+  roll: string;
+  phone: string;
+  email: string;
+  college: string;
+  dept: string;
+  className: string;
+  section: string;
+  year: string;
+  isIeeeMember: boolean;
+  ieeeId?: string;
+  teamName?: string;
+  totalTeamMembers: number;
+  eventIds: string[];
+  paymentMode?: string;
+  totalPaid: number;
+  isVerified?: boolean;
+  isCheckedIn: boolean;
+  checkInTime?: string;
+  isLunchCollected: boolean;
+  record: RegistrationRecord;
+}
+
+/**
+ * Flattens all registration records into an array of individual participants,
+ * allowing individual delegate tracking (Present vs Absent) across teams and solo delegates.
+ */
+export function flattenToIndividualParticipants(records: RegistrationRecord[]): IndividualParticipant[] {
+  const participants: IndividualParticipant[] = [];
+
+  for (const record of records) {
+    const teammates = getRecordTeammates(record);
+    const totalMembers = 1 + teammates.length;
+    const checkInStats = getRecordCheckInStats(record);
+    const lunchStats = getRecordLunchStats(record);
+    const primaryEventId = record.eventIds?.[0] || '';
+    const teamName = record.teamDetails?.[primaryEventId]?.teamName || 
+      Object.values(record.teamDetails || {}).find(t => t?.teamName)?.teamName || '';
+
+    // 1. Lead / Solo Participant
+    const leadCheckedIn = Boolean(checkInStats.memberStatus['lead']);
+    const leadCheckInTime = checkInStats.memberTimes['lead'] || (leadCheckedIn ? record.checkInTime : undefined);
+    participants.push({
+      id: `${record.regId}-lead`,
+      regId: record.regId,
+      memberKey: 'lead',
+      memberIndex: 1,
+      passCode: totalMembers > 1 ? `${record.regId}-M1` : record.regId,
+      role: totalMembers > 1 ? 'Team Lead (Member 1)' : 'Solo Delegate',
+      name: record.name,
+      roll: record.roll || '',
+      phone: record.phone || '',
+      email: record.email || '',
+      college: record.college || '',
+      dept: record.dept || '',
+      className: record.className || '',
+      section: record.section || '',
+      year: record.year || '',
+      isIeeeMember: Boolean(record.isIeeeMember),
+      ieeeId: record.ieeeId || '',
+      teamName: teamName || undefined,
+      totalTeamMembers: totalMembers,
+      eventIds: record.eventIds || [],
+      paymentMode: record.paymentMode,
+      totalPaid: record.totalPaid,
+      isVerified: Boolean(record.isVerified),
+      isCheckedIn: leadCheckedIn,
+      checkInTime: leadCheckInTime,
+      isLunchCollected: Boolean(lunchStats.memberStatus['lead'] || lunchStats.isFullyCollected),
+      record
+    });
+
+    // 2. Teammates
+    teammates.forEach((m, idx) => {
+      const mIdx = idx + 2;
+      const key = `teammate_${idx}`;
+      const isCheckedIn = Boolean(checkInStats.memberStatus[key]);
+      const checkInTime = checkInStats.memberTimes[key] || (isCheckedIn ? record.checkInTime : undefined);
+
+      participants.push({
+        id: `${record.regId}-${key}`,
+        regId: record.regId,
+        memberKey: key,
+        memberIndex: mIdx,
+        passCode: `${record.regId}-M${mIdx}`,
+        role: `Team Member ${mIdx}`,
+        name: m.name || `Member ${mIdx}`,
+        roll: m.roll || '',
+        phone: m.phone || record.phone || '',
+        email: record.email || '',
+        college: record.college || '',
+        dept: m.branch || record.dept || '',
+        className: m.className || record.className || '',
+        section: m.section || record.section || '',
+        year: m.year || record.year || '',
+        isIeeeMember: Boolean(m.isIeeeMember),
+        ieeeId: m.ieeeId || '',
+        teamName: teamName || undefined,
+        totalTeamMembers: totalMembers,
+        eventIds: record.eventIds || [],
+        paymentMode: record.paymentMode,
+        totalPaid: record.totalPaid,
+        isVerified: Boolean(record.isVerified),
+        isCheckedIn,
+        checkInTime,
+        isLunchCollected: Boolean(lunchStats.memberStatus[key] || lunchStats.isFullyCollected),
+        record
+      });
+    });
+  }
+
+  return participants;
+}
+
 export interface DelegateStats {
   totalRegistrations: number;
   totalDelegates: number;
@@ -135,6 +317,7 @@ export interface DelegateStats {
   totalNonIeeeDelegates: number;
   checkedInRegistrations: number;
   checkedInDelegates: number;
+  absentDelegates: number;
   totalRevenue: number;
   upiPendingCount: number;
   verifiedCount: number;
@@ -145,6 +328,7 @@ export interface DelegateStats {
 
 /**
  * Computes symposium-wide delegate metrics including all team members across all records.
+ * Accurately tracks individual delegate attendance.
  */
 export function computeDelegatesStats(records: RegistrationRecord[]): DelegateStats {
   let totalDelegates = 0;
@@ -180,11 +364,12 @@ export function computeDelegatesStats(records: RegistrationRecord[]): DelegateSt
       }
     }
 
-    // Checked In
-    if (r.checkedIn) {
+    // Individual Checked In Counting
+    const checkInStats = getRecordCheckInStats(r);
+    if (checkInStats.checkedInCount > 0) {
       checkedInRegistrations++;
-      checkedInDelegates += memberCount;
     }
+    checkedInDelegates += checkInStats.checkedInCount;
 
     // Lunch Trays
     totalLunchMealsDispensed += getRecordLunchStats(r).mealsDispensed;
@@ -213,6 +398,7 @@ export function computeDelegatesStats(records: RegistrationRecord[]): DelegateSt
     totalNonIeeeDelegates,
     checkedInRegistrations,
     checkedInDelegates,
+    absentDelegates: Math.max(0, totalDelegates - checkedInDelegates),
     totalRevenue,
     upiPendingCount,
     verifiedCount,

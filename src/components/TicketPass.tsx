@@ -85,6 +85,8 @@ export interface RegistrationRecord {
   lunchCollectedBy?: string;
   lunchCollectedCount?: number;
   memberLunchStatus?: Record<string, boolean>;
+  memberCheckInStatus?: Record<string, boolean>;
+  memberCheckInTimes?: Record<string, string>;
 }
 
 interface TicketPassProps {

@@ -48,13 +48,19 @@ import {
   Clock,
   Sun,
   Moon,
-  Cpu
+  Cpu,
+  UserCheck,
+  UserX,
+  MessageCircle
 } from 'lucide-react';
 import { TicketPass, RegistrationRecord, TeamMemberInfo } from './TicketPass';
 import { 
   getRecordTeammates, 
   getRecordMemberCount, 
-  computeDelegatesStats 
+  computeDelegatesStats,
+  getRecordCheckInStats,
+  flattenToIndividualParticipants,
+  IndividualParticipant
 } from '../utils/delegateStats';
 import { AdminTicketScanner } from './AdminTicketScanner';
 import { AdminCacheManager } from './AdminCacheManager';
@@ -419,6 +425,8 @@ export const AdminModal: React.FC<AdminModalProps> = ({
   const [ieeeFilter, setIeeeFilter] = useState<'all' | 'ieee' | 'non-ieee'>('all');
   const [verificationFilter, setVerificationFilter] = useState<'all' | 'verified' | 'unverified' | 'upi' | 'razorpay'>('all');
   const [checkInFilter, setCheckInFilter] = useState<'all' | 'checked-in' | 'not-checked-in'>('all');
+  const [registrationViewMode, setRegistrationViewMode] = useState<'teams' | 'individual'>('teams');
+  const [individualAttendeeFilter, setIndividualAttendeeFilter] = useState<'all' | 'present' | 'absent'>('all');
   const [sortBy, setSortBy] = useState<SortOption>('date-desc');
   const [expandedRecordId, setExpandedRecordId] = useState<string | null>(null);
 
@@ -1293,6 +1301,81 @@ export const AdminModal: React.FC<AdminModalProps> = ({
     URL.revokeObjectURL(url);
   };
 
+  // Export individual delegate attendance roster to CSV (All / Present / Absent)
+  const handleExportIndividualAttendanceCsv = (filterType: 'all' | 'present' | 'absent' = 'all') => {
+    const list = flattenToIndividualParticipants(savedRecords).filter(p => {
+      if (filterType === 'present') return p.isCheckedIn;
+      if (filterType === 'absent') return !p.isCheckedIn;
+      return true;
+    });
+
+    if (list.length === 0) {
+      alert(`No delegates found in "${filterType.toUpperCase()}" list.`);
+      return;
+    }
+
+    const headers = [
+      'S.No',
+      'Pass ID / Reg ID',
+      'Member Pass Code',
+      'Delegate Name',
+      'Roll Number',
+      'Team Role',
+      'Team Name',
+      'Attendance Status',
+      'Check-In Time',
+      'Mobile Phone',
+      'Email',
+      'Department / Branch',
+      'Year',
+      'Section',
+      'Degree / Class',
+      'College',
+      'IEEE Member',
+      'IEEE ID',
+      'Payment Mode',
+      'Payment Verified',
+      'Total Paid',
+      'Lunch Meal Tray Status'
+    ];
+
+    const rows = list.map((p, idx) => [
+      idx + 1,
+      `"${p.regId}"`,
+      `"${p.passCode}"`,
+      `"${(p.name || '').replace(/"/g, '""')}"`,
+      `"${p.roll}"`,
+      `"${p.role}"`,
+      `"${(p.teamName || 'Solo').replace(/"/g, '""')}"`,
+      `"${p.isCheckedIn ? 'PRESENT' : 'ABSENT'}"`,
+      `"${p.checkInTime ? new Date(p.checkInTime).toLocaleString() : 'N/A'}"`,
+      `"${p.phone}"`,
+      `"${p.email}"`,
+      `"${p.dept}"`,
+      `"${p.year}"`,
+      `"${p.section}"`,
+      `"${p.className}"`,
+      `"${(p.college || '').replace(/"/g, '""')}"`,
+      `"${p.isIeeeMember ? 'YES' : 'NO'}"`,
+      `"${p.ieeeId || ''}"`,
+      `"${p.paymentMode || 'UPI'}"`,
+      `"${p.isVerified ? 'VERIFIED' : 'PENDING'}"`,
+      `"${p.totalPaid}"`,
+      `"${p.isLunchCollected ? 'DISPENSED' : 'PENDING'}"`
+    ].join(','));
+
+    const csvContent = '\uFEFF' + [headers.join(','), ...rows].join('\r\n');
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.setAttribute('download', `NexusVerse_Attendance_${filterType.toUpperCase()}_Delegates_${new Date().toISOString().slice(0, 10)}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  };
+
   // Download full JSON database backup
   const handleDownloadJsonBackup = () => {
     const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(savedRecords, null, 2));
@@ -1483,11 +1566,12 @@ export const AdminModal: React.FC<AdminModalProps> = ({
         (team?.projectTitle && team.projectTitle.toLowerCase().includes(q)) ||
         teammateMatch;
 
+      const checkInStats = getRecordCheckInStats(r);
       const matchesCheckIn = checkInFilter === 'all'
         ? true
         : checkInFilter === 'checked-in'
-        ? Boolean(r.checkedIn)
-        : !r.checkedIn;
+        ? checkInStats.checkedInCount > 0
+        : checkInStats.checkedInCount < checkInStats.totalMembers;
 
       return matchesEvent && matchesIeee && matchesVerification && matchesCheckIn && matchesQuery;
     })
@@ -1534,17 +1618,73 @@ export const AdminModal: React.FC<AdminModalProps> = ({
   const checkedInDelegates = stats.checkedInDelegates;
   const checkInPercent = totalDelegates > 0 ? Math.round((checkedInDelegates / totalDelegates) * 100) : 0;
 
-  const handleToggleCheckIn = (record: RegistrationRecord) => {
-    const isNowChecked = !record.checkedIn;
+  // Toggle individual delegate check-in status
+  const handleToggleMemberCheckIn = (record: RegistrationRecord, memberKey: string, forceStatus?: boolean) => {
+    const currentStatus = { ...(record.memberCheckInStatus || {}) };
+    const currentTimes = { ...(record.memberCheckInTimes || {}) };
+    const teammates = getRecordTeammates(record);
+    const memberKeys = ['lead', ...teammates.map((_, i) => `teammate_${i}`)];
+
+    if (record.checkedIn && Object.keys(currentStatus).length === 0) {
+      currentStatus['lead'] = true;
+      teammates.forEach((_, i) => { currentStatus[`teammate_${i}`] = true; });
+    }
+
+    const nextStatus = forceStatus !== undefined ? forceStatus : !Boolean(currentStatus[memberKey]);
+    currentStatus[memberKey] = nextStatus;
+    const now = new Date().toISOString();
+    if (nextStatus) {
+      currentTimes[memberKey] = now;
+    } else {
+      delete currentTimes[memberKey];
+    }
+
+    const activeCount = memberKeys.filter(k => Boolean(currentStatus[k])).length;
+    const anyCheckedIn = activeCount > 0;
+
     const updated: RegistrationRecord = {
       ...record,
-      checkedIn: isNowChecked,
-      checkInTime: isNowChecked ? new Date().toISOString() : undefined,
-      checkedInBy: isNowChecked ? 'Admin Table' : undefined,
-      attendedEvents: isNowChecked ? Array.from(new Set([...(record.attendedEvents || []), ...record.eventIds])) : [],
-      kitIssued: isNowChecked ? true : false
+      memberCheckInStatus: currentStatus,
+      memberCheckInTimes: currentTimes,
+      checkedIn: anyCheckedIn,
+      checkInTime: anyCheckedIn ? (record.checkInTime || now) : undefined,
+      checkedInBy: anyCheckedIn ? (record.checkedInBy || 'Admin Table') : undefined,
+      kitIssued: anyCheckedIn ? true : record.kitIssued
     };
     onUpdateRecord(updated);
+  };
+
+  const handleToggleCheckIn = (record: RegistrationRecord) => {
+    const teammates = getRecordTeammates(record);
+    const checkInStats = getRecordCheckInStats(record);
+    const willCheckIn = checkInStats.checkedInCount === 0;
+
+    if (teammates.length > 0) {
+      const status: Record<string, boolean> = {};
+      const times: Record<string, string> = { ...(record.memberCheckInTimes || {}) };
+      const now = new Date().toISOString();
+      if (willCheckIn) {
+        status['lead'] = true;
+        times['lead'] = times['lead'] || now;
+        teammates.forEach((_, i) => {
+          status[`teammate_${i}`] = true;
+          times[`teammate_${i}`] = times[`teammate_${i}`] || now;
+        });
+      }
+      const updated: RegistrationRecord = {
+        ...record,
+        memberCheckInStatus: status,
+        memberCheckInTimes: willCheckIn ? times : {},
+        checkedIn: willCheckIn,
+        checkInTime: willCheckIn ? (record.checkInTime || now) : undefined,
+        checkedInBy: willCheckIn ? 'Admin Table' : undefined,
+        attendedEvents: willCheckIn ? Array.from(new Set([...(record.attendedEvents || []), ...record.eventIds])) : [],
+        kitIssued: willCheckIn ? true : false
+      };
+      onUpdateRecord(updated);
+    } else {
+      handleToggleMemberCheckIn(record, 'lead', willCheckIn);
+    }
   };
 
   return (
@@ -2233,8 +2373,285 @@ export const AdminModal: React.FC<AdminModalProps> = ({
                     </div>
                   </div>
 
-                  {/* REGISTRATIONS LIST VIEW */}
-                  {filteredAndSortedRecords.length === 0 ? (
+                  {/* DIRECTORY VIEW MODE SWITCHER: TEAM CARDS VS INDIVIDUAL PARTICIPANTS ROSTER */}
+                  <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 p-3 rounded-xl bg-[#0a0a0d] border border-[#2e2b22]">
+                    <div className="flex items-center gap-1.5 p-1 rounded-xl bg-[#131318] border border-[#2e2b22] text-xs">
+                      <button
+                        type="button"
+                        onClick={() => setRegistrationViewMode('teams')}
+                        className={`px-3 py-1.5 rounded-lg font-bold flex items-center gap-2 transition-all cursor-pointer ${
+                          registrationViewMode === 'teams'
+                            ? 'bg-[#d4a935] text-[#1a1300] shadow-sm'
+                            : 'text-[#a79f8b] hover:text-white'
+                        }`}
+                      >
+                        <Users className="w-3.5 h-3.5" />
+                        <span>Team & Registration Cards ({filteredAndSortedRecords.length})</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => setRegistrationViewMode('individual')}
+                        className={`px-3 py-1.5 rounded-lg font-bold flex items-center gap-2 transition-all cursor-pointer ${
+                          registrationViewMode === 'individual'
+                            ? 'bg-[#4cc38a] text-[#0a1a0f] shadow-sm'
+                            : 'text-[#a79f8b] hover:text-white'
+                        }`}
+                      >
+                        <UserCheck className="w-3.5 h-3.5" />
+                        <span>All Individual Participants ({totalDelegates})</span>
+                      </button>
+                    </div>
+
+                    {registrationViewMode === 'individual' && (
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className="text-[11px] text-[#a79f8b] font-semibold mr-0.5">Status:</span>
+                        <button
+                          type="button"
+                          onClick={() => setIndividualAttendeeFilter('all')}
+                          className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                            individualAttendeeFilter === 'all'
+                              ? 'bg-[#d4a935] text-[#1a1300]'
+                              : 'bg-[#181820] text-[#a79f8b] hover:text-white border border-[#2e2b22]'
+                          }`}
+                        >
+                          All ({totalDelegates})
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setIndividualAttendeeFilter('present')}
+                          className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1 ${
+                            individualAttendeeFilter === 'present'
+                              ? 'bg-[#4cc38a] text-[#0a1a0f] shadow-sm'
+                              : 'bg-[#0f2418] text-[#4cc38a] hover:bg-[#183b27] border border-[#4cc38a]/40'
+                          }`}
+                        >
+                          <UserCheck className="w-3 h-3" />
+                          <span>Present ({checkedInDelegates})</span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setIndividualAttendeeFilter('absent')}
+                          className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1 ${
+                            individualAttendeeFilter === 'absent'
+                              ? 'bg-[#ff8a80] text-[#2a0e10] shadow-sm'
+                              : 'bg-[#2a1215] text-[#ff8a80] hover:bg-[#3d181d] border border-[#ff8a80]/40'
+                          }`}
+                        >
+                          <UserX className="w-3 h-3" />
+                          <span>Absent ({stats.absentDelegates})</span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleExportIndividualAttendanceCsv(individualAttendeeFilter)}
+                          className="px-2.5 py-1 rounded-lg bg-[#181820] hover:bg-[#20202c] text-[#f2c14e] border border-[#d4a935]/40 text-xs font-semibold flex items-center gap-1 transition-colors cursor-pointer ml-auto"
+                          title="Download individual delegates CSV"
+                        >
+                          <Download className="w-3 h-3" />
+                          <span>CSV</span>
+                        </button>
+                      </div>
+                    )}
+                  </div>
+
+                  {registrationViewMode === 'individual' ? (
+                    /* ALL INDIVIDUAL PARTICIPANTS ROSTER */
+                    (() => {
+                      const allParticipants = flattenToIndividualParticipants(savedRecords);
+                      const filteredParticipants = allParticipants.filter(p => {
+                        if (individualAttendeeFilter === 'present' && !p.isCheckedIn) return false;
+                        if (individualAttendeeFilter === 'absent' && p.isCheckedIn) return false;
+                        if (selectedEventFilter !== 'all' && !p.eventIds.includes(selectedEventFilter)) return false;
+                        if (ieeeFilter === 'ieee' && !p.isIeeeMember) return false;
+                        if (ieeeFilter === 'non-ieee' && p.isIeeeMember) return false;
+
+                        const isAuto = p.paymentMode !== 'upi';
+                        const isVer = isAuto || Boolean(p.isVerified);
+                        if (verificationFilter === 'verified' && !isVer) return false;
+                        if (verificationFilter === 'unverified' && isVer) return false;
+                        if (verificationFilter === 'upi' && p.paymentMode !== 'upi') return false;
+                        if (verificationFilter === 'razorpay' && p.paymentMode === 'upi') return false;
+
+                        if (searchQuery.trim()) {
+                          const q = searchQuery.trim().toLowerCase();
+                          const mName = (p.name || '').toLowerCase().includes(q);
+                          const mRoll = (p.roll || '').toLowerCase().includes(q);
+                          const mPhone = (p.phone || '').replace(/\D/g, '').includes(q.replace(/\D/g, ''));
+                          const mEmail = (p.email || '').toLowerCase().includes(q);
+                          const mDept = (p.dept || '').toLowerCase().includes(q);
+                          const mCollege = (p.college || '').toLowerCase().includes(q);
+                          const mTeam = (p.teamName || '').toLowerCase().includes(q);
+                          const mPass = (p.passCode || '').toLowerCase().includes(q);
+                          const mReg = (p.regId || '').toLowerCase().includes(q);
+                          return mName || mRoll || mPhone || mEmail || mDept || mCollege || mTeam || mPass || mReg;
+                        }
+                        return true;
+                      });
+
+                      if (filteredParticipants.length === 0) {
+                        return (
+                          <div className="p-8 text-center bg-[#0a0a0d] rounded-2xl border border-[#2e2b22] text-xs text-[#a79f8b] space-y-2">
+                            <AlertCircle className="w-6 h-6 text-[#d4a935] mx-auto" />
+                            <p>No individual participants match your search or filter criteria.</p>
+                            <button
+                              type="button"
+                              onClick={() => { setSearchQuery(''); setIndividualAttendeeFilter('all'); setSelectedEventFilter('all'); setIeeeFilter('all'); }}
+                              className="text-xs text-[#f2c14e] hover:underline"
+                            >
+                              Reset filters
+                            </button>
+                          </div>
+                        );
+                      }
+
+                      return (
+                        <div className="space-y-2.5">
+                          <div className="text-xs px-1 flex items-center justify-between text-[#a79f8b] font-medium">
+                            <span>Showing {filteredParticipants.length} {filteredParticipants.length === 1 ? 'Individual Delegate' : 'Individual Delegates'}:</span>
+                            <span className="text-[11px] text-[#d4a935]">
+                              Tap "Check In" to mark delegate present individually
+                            </span>
+                          </div>
+
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                            {filteredParticipants.map((p, idx) => (
+                              <div
+                                key={p.id}
+                                className={`p-3.5 sm:p-4 rounded-xl border transition-all ${
+                                  p.isCheckedIn
+                                    ? 'bg-gradient-to-r from-[#0d2217] to-[#091710] border-[#4cc38a]/50 shadow-md'
+                                    : 'bg-[#0a0a0d] border-[#2e2b22] hover:border-[#d4a935]/40'
+                                }`}
+                              >
+                                <div className="flex items-start justify-between gap-3">
+                                  <div className="flex items-start gap-2.5 min-w-0">
+                                    <div className={`w-7 h-7 rounded-lg flex items-center justify-center font-mono text-xs font-bold shrink-0 ${
+                                      p.isCheckedIn
+                                        ? 'bg-[#22c55e]/20 text-[#4cc38a] border border-[#22c55e]/40'
+                                        : 'bg-[#181820] text-[#a79f8b] border border-[#2e2b22]'
+                                    }`}>
+                                      {idx + 1}
+                                    </div>
+
+                                    <div className="min-w-0 space-y-1">
+                                      <div className="flex items-center gap-1.5 flex-wrap">
+                                        <span className="font-bold text-sm text-white truncate">{cleanAdminText(p.name)}</span>
+                                        <span className={`text-[10px] font-mono px-2 py-0.2 rounded border font-semibold uppercase ${
+                                          p.role.includes('Lead')
+                                            ? 'bg-[#d4a935]/15 text-[#d4a935] border-[#d4a935]/40'
+                                            : p.role.includes('Solo')
+                                            ? 'bg-[#0088d4]/15 text-[#0088d4] border-[#0088d4]/40'
+                                            : 'bg-[#9fc7e8]/15 text-[#9fc7e8] border-[#9fc7e8]/40'
+                                        }`}>
+                                          {p.role}
+                                        </span>
+                                        {p.isIeeeMember ? (
+                                          <span className="text-[10px] px-1.5 py-0.2 rounded bg-[#4cc38a]/15 text-[#4cc38a] border border-[#4cc38a]/30 font-mono font-semibold">
+                                            IEEE #{p.ieeeId || 'Active'}
+                                          </span>
+                                        ) : (
+                                          <span className="text-[10px] px-1.5 py-0.2 rounded bg-[#181820] text-[#a79f8b] border border-[#2e2b22] font-mono">
+                                            Non-IEEE
+                                          </span>
+                                        )}
+                                      </div>
+
+                                      <div className="text-xs text-[#a79f8b] flex flex-wrap items-center gap-x-2 gap-y-0.5">
+                                        <span className="font-mono font-bold text-[#f3ecd9]">{cleanAdminText(p.roll) || 'Roll N/A'}</span>
+                                        <span>·</span>
+                                        <span>{[cleanAdminText(p.dept), cleanAdminText(p.className), p.section ? `Sec ${cleanAdminText(p.section)}` : '', p.year && p.year !== '0' ? `(${cleanAdminText(p.year)})` : ''].filter(Boolean).join(' ')}</span>
+                                      </div>
+
+                                      {p.college && (
+                                        <div className="text-[11px] text-[#7e7663] truncate">
+                                          🏫 {cleanAdminText(p.college)}
+                                        </div>
+                                      )}
+
+                                      {p.teamName && (
+                                        <div className="text-[11px] text-[#f2c14e] font-medium truncate">
+                                          👥 Team: {cleanAdminText(p.teamName)} ({p.totalTeamMembers} members)
+                                        </div>
+                                      )}
+
+                                      <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[10px] text-[#a79f8b] font-mono pt-0.5">
+                                        <span className="text-[#f2c14e]">Pass: {p.passCode}</span>
+                                        {p.phone && (
+                                          <a
+                                            href={`https://wa.me/91${p.phone.replace(/\D/g, '')}`}
+                                            target="_blank"
+                                            rel="noopener noreferrer"
+                                            className="text-[#25d366] hover:underline flex items-center gap-1 font-sans"
+                                          >
+                                            <MessageCircle className="w-3 h-3 text-[#25d366]" />
+                                            <span>{p.phone}</span>
+                                          </a>
+                                        )}
+                                        {p.email && <span>✉️ {cleanAdminText(p.email)}</span>}
+                                      </div>
+                                    </div>
+                                  </div>
+
+                                  <div className="flex flex-col items-end gap-2 shrink-0">
+                                    {p.isCheckedIn ? (
+                                      <span className="text-[10px] font-bold text-[#4cc38a] bg-[#4cc38a]/15 px-2.5 py-1 rounded-lg border border-[#4cc38a]/40 flex items-center gap-1 shadow-sm">
+                                        <CheckCircle2 className="w-3.5 h-3.5 text-[#4cc38a]" />
+                                        <span>PRESENT ✓</span>
+                                      </span>
+                                    ) : (
+                                      <span className="text-[10px] font-bold text-[#ff8a80] bg-[#ff8a80]/15 px-2.5 py-1 rounded-lg border border-[#ff8a80]/40 flex items-center gap-1">
+                                        <Clock className="w-3.5 h-3.5 text-[#ff8a80]" />
+                                        <span>ABSENT</span>
+                                      </span>
+                                    )}
+
+                                    {p.isCheckedIn && p.checkInTime && (
+                                      <span className="text-[9px] font-mono text-[#a79f8b]">
+                                        {new Date(p.checkInTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                      </span>
+                                    )}
+
+                                    <div className="flex items-center gap-1.5 mt-1">
+                                      {p.isCheckedIn ? (
+                                        <button
+                                          type="button"
+                                          onClick={() => handleToggleMemberCheckIn(p.record, p.memberKey, false)}
+                                          className="px-2.5 py-1 rounded-lg bg-[#2a1215] hover:bg-[#3d181d] text-[#ff8a80] border border-[#ff8a80]/30 text-[11px] font-semibold transition-colors cursor-pointer"
+                                          title="Mark delegate absent"
+                                        >
+                                          Undo
+                                        </button>
+                                      ) : (
+                                        <button
+                                          type="button"
+                                          onClick={() => handleToggleMemberCheckIn(p.record, p.memberKey, true)}
+                                          className="px-3 py-1 rounded-lg bg-gradient-to-r from-[#22c55e] to-[#16a34a] hover:from-[#16a34a] hover:to-[#15803d] text-white text-[11px] font-bold shadow transition-all cursor-pointer flex items-center gap-1"
+                                        >
+                                          <Check className="w-3 h-3" />
+                                          <span>Check In</span>
+                                        </button>
+                                      )}
+
+                                      <button
+                                        type="button"
+                                        onClick={() => setViewingAdminTicket(p.record)}
+                                        className="p-1 px-2 rounded-lg border border-[#d4a935]/40 text-[#f2c14e] bg-[#181820] hover:bg-[#20202c] text-[11px] font-medium transition-colors cursor-pointer"
+                                        title="Inspect ticket pass"
+                                      >
+                                        Ticket
+                                      </button>
+                                    </div>
+                                  </div>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      );
+                    })()
+                  ) : (
+                    /* REGISTRATIONS LIST VIEW (TEAM CARDS) */
+                    filteredAndSortedRecords.length === 0 ? (
                     <div className="p-8 text-center bg-[#0a0a0d] rounded-2xl border border-[#2e2b22] text-xs text-[#a79f8b] space-y-2">
                       <AlertCircle className="w-6 h-6 text-[#d4a935] mx-auto" />
                       <p>No registration records match your search or filter criteria.</p>
@@ -2254,6 +2671,7 @@ export const AdminModal: React.FC<AdminModalProps> = ({
                         const primaryEventId = record.eventIds[0] || '';
                         const team = record.teamDetails?.[primaryEventId];
                         const teammates = getRecordTeammates(record);
+                        const checkInStats = getRecordCheckInStats(record);
 
                         return (
                           <div
@@ -2296,7 +2714,23 @@ export const AdminModal: React.FC<AdminModalProps> = ({
                                       <span>Razorpay (Auto Verified)</span>
                                     </span>
                                   )}
-                                  {record.checkedIn ? (
+                                  {teammates.length > 0 ? (
+                                    checkInStats.isFullyCheckedIn ? (
+                                      <span className="admin-badge-checkedin text-[10px] font-semibold text-[#4cc38a] bg-[#142617] px-2 py-0.5 rounded border border-[#4cc38a]/40 font-mono flex items-center gap-1">
+                                        <CheckCircle2 className="w-3 h-3 text-[#4cc38a]" />
+                                        <span>All {checkInStats.totalMembers} Present</span>
+                                      </span>
+                                    ) : checkInStats.isPartiallyCheckedIn ? (
+                                      <span className="text-[10px] font-semibold text-[#f2c14e] bg-[#2a2007] px-2 py-0.5 rounded border border-[#d4a935]/40 font-mono flex items-center gap-1">
+                                        <UserCheck className="w-3 h-3 text-[#f2c14e]" />
+                                        <span>Partial: {checkInStats.checkedInCount}/{checkInStats.totalMembers} Present ({checkInStats.absentCount} Absent)</span>
+                                      </span>
+                                    ) : (
+                                      <span className="admin-badge-not-checkedin text-[10px] text-[#a79f8b] bg-[#181820] px-2 py-0.5 rounded border border-[#2e2b22] font-mono">
+                                        All {checkInStats.totalMembers} Absent
+                                      </span>
+                                    )
+                                  ) : record.checkedIn ? (
                                     <span className="admin-badge-checkedin text-[10px] font-semibold text-[#4cc38a] bg-[#142617] px-2 py-0.5 rounded border border-[#4cc38a]/40 font-mono flex items-center gap-1">
                                       <CheckCircle2 className="w-3 h-3 text-[#4cc38a]" />
                                       <span>Checked In</span>
@@ -2398,14 +2832,28 @@ export const AdminModal: React.FC<AdminModalProps> = ({
                                   type="button"
                                   onClick={() => handleToggleCheckIn(record)}
                                   className={`p-1.5 px-2.5 rounded-lg border text-xs font-semibold flex items-center gap-1.5 transition-all cursor-pointer ${
-                                    record.checkedIn
+                                    checkInStats.checkedInCount > 0
                                       ? 'bg-[#142617] text-[#4cc38a] border-[#4cc38a]/50 hover:bg-[#1b5e39]/40'
                                       : 'bg-[#181820] text-[#a79f8b] border-[#2e2b22] hover:text-[#4cc38a] hover:border-[#4cc38a]/40'
                                   }`}
-                                  title={record.checkedIn ? 'Delegate Checked In (Click to Undo)' : 'Click to Check In Delegate'}
+                                  title={
+                                    teammates.length > 0
+                                      ? (checkInStats.checkedInCount > 0
+                                          ? `${checkInStats.checkedInCount}/${checkInStats.totalMembers} checked in (Click to toggle all)`
+                                          : 'Click to check in all team members')
+                                      : (record.checkedIn ? 'Delegate Checked In (Click to Undo)' : 'Click to Check In Delegate')
+                                  }
                                 >
                                   <CheckCircle2 className="w-3.5 h-3.5" />
-                                  <span className="hidden md:inline">{record.checkedIn ? 'Checked In' : 'Check In'}</span>
+                                  <span className="hidden md:inline">
+                                    {teammates.length > 0
+                                      ? (checkInStats.isFullyCheckedIn
+                                          ? 'All Present'
+                                          : (checkInStats.checkedInCount > 0
+                                              ? `${checkInStats.checkedInCount}/${checkInStats.totalMembers} Present`
+                                              : 'Check In All'))
+                                      : (record.checkedIn ? 'Checked In' : 'Check In')}
+                                  </span>
                                 </button>
 
                                 {/* View Official Ticket Pass Button */}
@@ -2636,40 +3084,88 @@ export const AdminModal: React.FC<AdminModalProps> = ({
                                   </span>
                                   <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2">
                                     {/* Member 1 (Lead) */}
-                                    <div className="p-2.5 rounded-lg bg-[#0a0a0d] border border-[#d4a935]/30 text-[11px] space-y-0.5">
-                                      <div className="flex justify-between font-bold text-white">
-                                        <span>{record.name}</span>
-                                        <span className="text-[10px] text-[#f2c14e] font-mono">LEAD (MEMBER 1)</span>
+                                    <div className={`p-2.5 rounded-lg border text-[11px] space-y-1 ${
+                                      checkInStats.memberStatus['lead'] ? 'bg-[#0e2316] border-[#4cc38a]/40' : 'bg-[#0a0a0d] border-[#d4a935]/30'
+                                    }`}>
+                                      <div className="flex justify-between font-bold text-white items-center">
+                                        <span className="truncate">{record.name}</span>
+                                        <span className="text-[10px] text-[#f2c14e] font-mono shrink-0">LEAD (M1)</span>
                                       </div>
                                       <div className="text-[#a79f8b] font-mono">Roll: {record.roll} · Phone: {record.phone}</div>
                                       <div className="text-[#a79f8b]">{record.className} {record.section} · {record.dept} ({record.year})</div>
-                                      <div className="text-[10px] pt-0.5 font-medium">
+                                      <div className="text-[10px] font-medium">
                                         {record.isIeeeMember ? (
                                           <span className="text-[#4cc38a]">IEEE Member (ID: #{record.ieeeId || 'Active'})</span>
                                         ) : (
                                           <span className="text-[#a79f8b]">Non-IEEE Member</span>
                                         )}
                                       </div>
+                                      <div className="flex items-center justify-between pt-1 border-t border-[#2e2b22]/60">
+                                        <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded flex items-center gap-1 ${
+                                          checkInStats.memberStatus['lead'] ? 'bg-[#4cc38a]/20 text-[#4cc38a]' : 'bg-[#ff8a80]/15 text-[#ff8a80]'
+                                        }`}>
+                                          {checkInStats.memberStatus['lead'] ? <CheckCircle2 className="w-3 h-3 text-[#4cc38a]" /> : <Clock className="w-3 h-3 text-[#ff8a80]" />}
+                                          <span>{checkInStats.memberStatus['lead'] ? 'Present ✓' : 'Absent'}</span>
+                                        </span>
+                                        <button
+                                          type="button"
+                                          onClick={() => handleToggleMemberCheckIn(record, 'lead')}
+                                          className={`px-2 py-0.5 rounded text-[10px] font-bold cursor-pointer transition-colors ${
+                                            checkInStats.memberStatus['lead']
+                                              ? 'bg-[#2a1315] text-[#ff8a80] hover:bg-[#3d181d] border border-[#ff8a80]/30'
+                                              : 'bg-[#142617] text-[#4cc38a] hover:bg-[#1b5e39] border border-[#4cc38a]/40'
+                                          }`}
+                                          title={checkInStats.memberStatus['lead'] ? 'Mark lead absent' : 'Check in lead individually'}
+                                        >
+                                          {checkInStats.memberStatus['lead'] ? 'Undo' : 'Check In'}
+                                        </button>
+                                      </div>
                                     </div>
 
                                     {/* Teammates */}
-                                    {teammates.map((m, mIdx) => (
-                                      <div key={mIdx} className="p-2.5 rounded-lg bg-[#0a0a0d] border border-[#2e2b22] text-[11px] space-y-0.5">
-                                        <div className="flex justify-between font-bold text-white">
-                                          <span>{m.name || `Member ${mIdx + 2}`}</span>
-                                          <span className="text-[10px] text-[#a79f8b] font-mono">MEMBER {mIdx + 2}</span>
+                                    {teammates.map((m, mIdx) => {
+                                      const tKey = `teammate_${mIdx}`;
+                                      const isChecked = Boolean(checkInStats.memberStatus[tKey]);
+                                      return (
+                                        <div key={mIdx} className={`p-2.5 rounded-lg border text-[11px] space-y-1 ${
+                                          isChecked ? 'bg-[#0e2316] border-[#4cc38a]/40' : 'bg-[#0a0a0d] border-[#2e2b22]'
+                                        }`}>
+                                          <div className="flex justify-between font-bold text-white items-center">
+                                            <span className="truncate">{m.name || `Member ${mIdx + 2}`}</span>
+                                            <span className="text-[10px] text-[#a79f8b] font-mono shrink-0">MEMBER {mIdx + 2}</span>
+                                          </div>
+                                          <div className="text-[#a79f8b] font-mono">Roll: {m.roll || 'Pending'} · Phone: {m.phone || 'N/A'}</div>
+                                          <div className="text-[#a79f8b]">{m.className || 'B.Tech'} {m.section ? `Sec ${m.section}` : ''} · {m.branch || 'Branch'} ({m.year || '3rd Year'})</div>
+                                          <div className="text-[10px] font-medium">
+                                            {m.isIeeeMember ? (
+                                              <span className="text-[#4cc38a]">IEEE Member (ID: #{m.ieeeId || 'Active'})</span>
+                                            ) : (
+                                              <span className="text-[#a79f8b]">Non-IEEE Member</span>
+                                            )}
+                                          </div>
+                                          <div className="flex items-center justify-between pt-1 border-t border-[#2e2b22]/60">
+                                            <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded flex items-center gap-1 ${
+                                              isChecked ? 'bg-[#4cc38a]/20 text-[#4cc38a]' : 'bg-[#ff8a80]/15 text-[#ff8a80]'
+                                            }`}>
+                                              {isChecked ? <CheckCircle2 className="w-3 h-3 text-[#4cc38a]" /> : <Clock className="w-3 h-3 text-[#ff8a80]" />}
+                                              <span>{isChecked ? 'Present ✓' : 'Absent'}</span>
+                                            </span>
+                                            <button
+                                              type="button"
+                                              onClick={() => handleToggleMemberCheckIn(record, tKey)}
+                                              className={`px-2 py-0.5 rounded text-[10px] font-bold cursor-pointer transition-colors ${
+                                                isChecked
+                                                  ? 'bg-[#2a1315] text-[#ff8a80] hover:bg-[#3d181d] border border-[#ff8a80]/30'
+                                                  : 'bg-[#142617] text-[#4cc38a] hover:bg-[#1b5e39] border border-[#4cc38a]/40'
+                                              }`}
+                                              title={isChecked ? 'Mark member absent' : 'Check in member individually'}
+                                            >
+                                              {isChecked ? 'Undo' : 'Check In'}
+                                            </button>
+                                          </div>
                                         </div>
-                                        <div className="text-[#a79f8b] font-mono">Roll: {m.roll || 'Pending'} · Phone: {m.phone || 'N/A'}</div>
-                                        <div className="text-[#a79f8b]">{m.className || 'B.Tech'} {m.section ? `Sec ${m.section}` : ''} · {m.branch || 'Branch'} ({m.year || '3rd Year'})</div>
-                                        <div className="text-[10px] pt-0.5 font-medium">
-                                          {m.isIeeeMember ? (
-                                            <span className="text-[#4cc38a]">IEEE Member (ID: #{m.ieeeId || 'Active'})</span>
-                                          ) : (
-                                            <span className="text-[#a79f8b]">Non-IEEE Member</span>
-                                          )}
-                                        </div>
-                                      </div>
-                                    ))}
+                                      );
+                                    })}
                                   </div>
                                 </div>
                               </div>
@@ -2678,7 +3174,8 @@ export const AdminModal: React.FC<AdminModalProps> = ({
                         );
                       })}
                     </div>
-                  )}
+                  )
+                )}
                 </div>
               )}
 

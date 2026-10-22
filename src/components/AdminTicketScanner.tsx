@@ -39,12 +39,25 @@ import {
   ExternalLink,
   MessageCircle,
   FileCheck,
-  Plus,
   Utensils,
-  ShieldAlert
+  ShieldAlert,
+  Filter,
+  Download,
+  UserCheck,
+  UserX,
+  FileSpreadsheet
 } from 'lucide-react';
 import { RegistrationRecord } from './TicketPass';
-import { computeDelegatesStats, getRecordTeammates, getRecordMemberCount, getRecordLunchStats } from '../utils/delegateStats';
+import { 
+  computeDelegatesStats, 
+  getRecordTeammates, 
+  getRecordMemberCount, 
+  getRecordLunchStats,
+  getRecordCheckInStats,
+  flattenToIndividualParticipants,
+  IndividualParticipant,
+  RecordCheckInStats
+} from '../utils/delegateStats';
 import { EVENTS, SPOT_EVENT, ALL_EVENTS, SYMPOSIUM_CONFIG } from '../data/symposiumData';
 import { sendTicketEmailApi } from '../services/api';
 
@@ -75,6 +88,9 @@ export const AdminTicketScanner: React.FC<AdminTicketScannerProps> = ({
 
   // Desk mode: 'checkin' for entry reception desk; 'lunch' for catering counter meal check
   const [scannerMode, setScannerMode] = useState<'checkin' | 'lunch'>('checkin');
+  const [mainScannerTab, setMainScannerTab] = useState<'scanner' | 'attendees'>('scanner');
+  const [attendeeFilter, setAttendeeFilter] = useState<'all' | 'present' | 'absent'>('all');
+  const [attendeeSearch, setAttendeeSearch] = useState('');
   const [lunchAlert, setLunchAlert] = useState<{
     type: 'duplicate' | 'success' | 'info';
     message: string;
@@ -479,28 +495,135 @@ export const AdminTicketScanner: React.FC<AdminTicketScannerProps> = ({
           }
         }
       } else {
-        // Standard check-in desk mode
-        playBeep(true);
-        try {
-          navigator.vibrate?.([80, 40, 80]);
-        } catch (e) {}
+        // Individual Delegate Check-In Reception Desk Mode
+        const currentCheckInStatus = { ...(matched.memberCheckInStatus || {}) };
+        const currentCheckInTimes = { ...(matched.memberCheckInTimes || {}) };
 
-        if (lunchStats.isFullyCollected) {
-          setLunchAlert({
-            type: 'info',
-            message: `Food Note: All ${matchedTotalMembers} delegate lunch meal trays have been collected.`,
-            delegateName: matched.name,
-            delegateRoll: matched.roll
-          });
-        } else if (lunchStats.mealsDispensed > 0) {
-          setLunchAlert({
-            type: 'info',
-            message: `Food Note: ${lunchStats.mealsDispensed} of ${matchedTotalMembers} meal trays collected (${lunchStats.mealsRemaining} remaining).`,
-            delegateName: matched.name,
-            delegateRoll: matched.roll
-          });
+        // Legacy fallback: if record.checkedIn is true but map empty, backfill
+        if (matched.checkedIn && Object.keys(currentCheckInStatus).length === 0) {
+          currentCheckInStatus['lead'] = true;
+          matchedTeammates.forEach((_, i) => { currentCheckInStatus[`teammate_${i}`] = true; });
+        }
+
+        // Case A: Specific Member QR or Member Roll was scanned
+        if (scannedMemberKey) {
+          const isAlreadyCheckedIn = Boolean(currentCheckInStatus[scannedMemberKey]);
+          if (isAlreadyCheckedIn) {
+            // DUPLICATE CHECK-IN ATTEMPT: ALERT OPERATOR
+            playBuzzer();
+            try { navigator.vibrate?.([200, 100, 200, 100, 200]); } catch (e) {}
+            const existingTime = currentCheckInTimes[scannedMemberKey]
+              ? new Date(currentCheckInTimes[scannedMemberKey]).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+              : (matched.checkInTime ? new Date(matched.checkInTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'Earlier Today');
+            
+            setLunchAlert({
+              type: 'duplicate',
+              message: `ALREADY CHECKED IN: ${scannedMemberName} (${scannedMemberRoll} · ${scannedMemberRole}) was already checked in at ${existingTime}. Duplicate check-in rejected.`,
+              delegateName: scannedMemberName,
+              delegateRoll: scannedMemberRoll
+            });
+          } else {
+            // VALID SCAN: MARK ONLY THIS INDIVIDUAL MEMBER AS PRESENT
+            playBeep(true);
+            try {
+              navigator.vibrate?.([80, 40, 80]);
+              confetti({
+                particleCount: 60,
+                spread: 70,
+                origin: { y: 0.6 },
+                colors: ['#4cc38a', '#22c55e', '#ffffff', '#0088d4']
+              });
+            } catch (e) {}
+
+            const now = new Date().toISOString();
+            currentCheckInStatus[scannedMemberKey] = true;
+            currentCheckInTimes[scannedMemberKey] = now;
+
+            const memberKeys = ['lead', ...matchedTeammates.map((_, i) => `teammate_${i}`)];
+            const newCheckedInCount = memberKeys.filter(k => Boolean(currentCheckInStatus[k])).length;
+            const anyCheckedIn = newCheckedInCount > 0;
+
+            const updated: RegistrationRecord = {
+              ...matched,
+              memberCheckInStatus: currentCheckInStatus,
+              memberCheckInTimes: currentCheckInTimes,
+              checkedIn: anyCheckedIn,
+              checkInTime: matched.checkInTime || now,
+              checkedInBy: 'QR Scanner Reception',
+              kitIssued: true
+            };
+            onUpdateRecord(updated);
+            setActiveRecord(updated);
+
+            setLunchAlert({
+              type: 'success',
+              message: `1 DELEGATE CHECKED IN ✓: ${scannedMemberName} (${scannedMemberRoll} · ${scannedMemberRole}) marked as PRESENT! [${newCheckedInCount} of ${matchedTotalMembers} team members present].`,
+              delegateName: scannedMemberName,
+              delegateRoll: scannedMemberRoll
+            });
+          }
         } else {
-          setLunchAlert(null);
+          // Case B: General team pass scanned without specific member
+          if (matchedTotalMembers === 1) {
+            // Solo participant: check in lead
+            const isAlreadyCheckedIn = Boolean(currentCheckInStatus['lead']);
+            if (isAlreadyCheckedIn) {
+              playBuzzer();
+              const existingTime = currentCheckInTimes['lead']
+                ? new Date(currentCheckInTimes['lead']).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+                : 'Earlier Today';
+              setLunchAlert({
+                type: 'duplicate',
+                message: `ALREADY CHECKED IN: ${matched.name} (${matched.roll}) was already checked in at ${existingTime}.`,
+                delegateName: matched.name,
+                delegateRoll: matched.roll
+              });
+            } else {
+              playBeep(true);
+              try {
+                navigator.vibrate?.([80, 40, 80]);
+                confetti({
+                  particleCount: 60,
+                  spread: 70,
+                  origin: { y: 0.6 },
+                  colors: ['#4cc38a', '#22c55e', '#ffffff']
+                });
+              } catch (e) {}
+
+              const now = new Date().toISOString();
+              currentCheckInStatus['lead'] = true;
+              currentCheckInTimes['lead'] = now;
+
+              const updated: RegistrationRecord = {
+                ...matched,
+                memberCheckInStatus: currentCheckInStatus,
+                memberCheckInTimes: currentCheckInTimes,
+                checkedIn: true,
+                checkInTime: now,
+                checkedInBy: 'QR Scanner Reception',
+                kitIssued: true
+              };
+              onUpdateRecord(updated);
+              setActiveRecord(updated);
+
+              setLunchAlert({
+                type: 'success',
+                message: `CHECK-IN SUCCESS ✓: ${matched.name} (${matched.roll}) marked as PRESENT!`,
+                delegateName: matched.name,
+                delegateRoll: matched.roll
+              });
+            }
+          } else {
+            // Multi-member team pass scanned: alert operator and show member roster
+            playBeep(true);
+            const checkInStats = getRecordCheckInStats(matched);
+            setLunchAlert({
+              type: 'info',
+              message: `Team Pass Scanned: "${matched.name}" (${checkInStats.checkedInCount} of ${matchedTotalMembers} delegates present). Please select the arriving member from the list below to mark them present.`,
+              delegateName: matched.name,
+              delegateRoll: matched.roll
+            });
+          }
         }
       }
 
@@ -578,30 +701,92 @@ export const AdminTicketScanner: React.FC<AdminTicketScannerProps> = ({
     if (fileInputRef.current) fileInputRef.current.value = '';
   };
 
-  // Check-In Action
-  const handleCheckIn = () => {
-    if (!activeRecord) return;
+  // Toggle individual member check-in status (allows individual counting)
+  const handleToggleMemberCheckIn = (targetRecord: RegistrationRecord, memberKey: string, forceStatus?: boolean) => {
+    const currentStatus = { ...(targetRecord.memberCheckInStatus || {}) };
+    const currentTimes = { ...(targetRecord.memberCheckInTimes || {}) };
+    const teammates = getRecordTeammates(targetRecord);
+    const memberKeys = ['lead', ...teammates.map((_, i) => `teammate_${i}`)];
 
+    // Legacy backfill
+    if (targetRecord.checkedIn && Object.keys(currentStatus).length === 0) {
+      currentStatus['lead'] = true;
+      teammates.forEach((_, i) => { currentStatus[`teammate_${i}`] = true; });
+    }
+
+    const nextStatus = forceStatus !== undefined ? forceStatus : !Boolean(currentStatus[memberKey]);
+    currentStatus[memberKey] = nextStatus;
     const now = new Date().toISOString();
-    // By default, mark all registered events as attended on check-in
-    const defaultAttended = Array.from(new Set([...(activeRecord.attendedEvents || []), ...(activeRecord.eventIds || [])]));
+    if (nextStatus) {
+      currentTimes[memberKey] = now;
+      playBeep(true);
+      try {
+        navigator.vibrate?.([80, 40, 80]);
+        confetti({
+          particleCount: 50,
+          spread: 60,
+          origin: { y: 0.6 },
+          colors: ['#4cc38a', '#22c55e', '#ffffff']
+        });
+      } catch (e) {}
+    } else {
+      delete currentTimes[memberKey];
+    }
+
+    const activeCount = memberKeys.filter(k => Boolean(currentStatus[k])).length;
+    const anyCheckedIn = activeCount > 0;
 
     const updated: RegistrationRecord = {
-      ...activeRecord,
-      checkedIn: true,
-      checkInTime: now,
-      checkedInBy: 'Admin Desk',
-      attendedEvents: defaultAttended,
-      kitIssued: true,
-      checkInNotes: notesInput.trim() || activeRecord.checkInNotes
+      ...targetRecord,
+      memberCheckInStatus: currentStatus,
+      memberCheckInTimes: currentTimes,
+      checkedIn: anyCheckedIn,
+      checkInTime: anyCheckedIn ? (targetRecord.checkInTime || now) : undefined,
+      checkedInBy: anyCheckedIn ? (targetRecord.checkedInBy || 'Reception Desk') : undefined,
+      kitIssued: anyCheckedIn ? true : targetRecord.kitIssued
     };
 
     onUpdateRecord(updated);
-    setActiveRecord(updated);
+    if (activeRecord && activeRecord.regId === targetRecord.regId) {
+      setActiveRecord(updated);
+    }
+  };
+
+  // Check In All Members of a team at once
+  const handleCheckInAllMembers = (targetRecord: RegistrationRecord) => {
+    const teammates = getRecordTeammates(targetRecord);
+    const status: Record<string, boolean> = { lead: true };
+    const times: Record<string, string> = { ...(targetRecord.memberCheckInTimes || {}) };
+    const now = new Date().toISOString();
+    times['lead'] = times['lead'] || now;
+
+    teammates.forEach((_, i) => {
+      const k = `teammate_${i}`;
+      status[k] = true;
+      times[k] = times[k] || now;
+    });
+
+    const defaultAttended = Array.from(new Set([...(targetRecord.attendedEvents || []), ...(targetRecord.eventIds || [])]));
+
+    const updated: RegistrationRecord = {
+      ...targetRecord,
+      memberCheckInStatus: status,
+      memberCheckInTimes: times,
+      checkedIn: true,
+      checkInTime: targetRecord.checkInTime || now,
+      checkedInBy: 'Reception Desk',
+      attendedEvents: defaultAttended,
+      kitIssued: true,
+      checkInNotes: notesInput.trim() || targetRecord.checkInNotes
+    };
+
+    onUpdateRecord(updated);
+    if (activeRecord && activeRecord.regId === targetRecord.regId) {
+      setActiveRecord(updated);
+    }
     setJustCheckedIn(true);
     setTimeout(() => setJustCheckedIn(false), 3000);
 
-    // Celebratory confetti and audio
     playBeep(true);
     try {
       confetti({
@@ -613,13 +798,14 @@ export const AdminTicketScanner: React.FC<AdminTicketScannerProps> = ({
     } catch (e) {}
   };
 
-  // Undo Check-In
-  const handleUndoCheckIn = () => {
-    if (!activeRecord) return;
-    if (!confirm(`Undo check-in for ${activeRecord.name} (${activeRecord.regId})?`)) return;
+  // Reset / Mark All Members Absent
+  const handleResetAllMembers = (targetRecord: RegistrationRecord) => {
+    if (!confirm(`Mark all delegates of ${targetRecord.name} (${targetRecord.regId}) as absent?`)) return;
 
     const updated: RegistrationRecord = {
-      ...activeRecord,
+      ...targetRecord,
+      memberCheckInStatus: {},
+      memberCheckInTimes: {},
       checkedIn: false,
       checkInTime: undefined,
       checkedInBy: undefined,
@@ -628,7 +814,96 @@ export const AdminTicketScanner: React.FC<AdminTicketScannerProps> = ({
     };
 
     onUpdateRecord(updated);
-    setActiveRecord(updated);
+    if (activeRecord && activeRecord.regId === targetRecord.regId) {
+      setActiveRecord(updated);
+    }
+  };
+
+  // Check-In Action
+  const handleCheckIn = () => {
+    if (!activeRecord) return;
+    const teammates = getRecordTeammates(activeRecord);
+    if (teammates.length > 0) {
+      handleCheckInAllMembers(activeRecord);
+    } else {
+      handleToggleMemberCheckIn(activeRecord, 'lead', true);
+    }
+  };
+
+  // Undo Check-In
+  const handleUndoCheckIn = () => {
+    if (!activeRecord) return;
+    handleResetAllMembers(activeRecord);
+  };
+
+  // Export Individual Attendance CSV (All, Present, or Absent)
+  const handleExportIndividualAttendanceCsv = (filterType: 'all' | 'present' | 'absent') => {
+    const list = flattenToIndividualParticipants(records).filter(p => {
+      if (filterType === 'present') return p.isCheckedIn;
+      if (filterType === 'absent') return !p.isCheckedIn;
+      return true;
+    });
+
+    const headers = [
+      'S.No',
+      'Pass ID / Reg ID',
+      'Member Pass Code',
+      'Delegate Name',
+      'Roll Number',
+      'Team Role',
+      'Team Name',
+      'Attendance Status',
+      'Check-In Time',
+      'Mobile Phone',
+      'Email',
+      'Department / Branch',
+      'Year',
+      'Section',
+      'Degree / Class',
+      'College',
+      'IEEE Member',
+      'IEEE ID',
+      'Payment Mode',
+      'Payment Verified',
+      'Total Paid',
+      'Lunch Meal Tray Status'
+    ];
+
+    const rows = list.map((p, idx) => [
+      idx + 1,
+      `"${p.regId}"`,
+      `"${p.passCode}"`,
+      `"${(p.name || '').replace(/"/g, '""')}"`,
+      `"${p.roll}"`,
+      `"${p.role}"`,
+      `"${(p.teamName || 'Solo').replace(/"/g, '""')}"`,
+      `"${p.isCheckedIn ? 'PRESENT' : 'ABSENT'}"`,
+      `"${p.checkInTime ? new Date(p.checkInTime).toLocaleString() : 'N/A'}"`,
+      `"${p.phone}"`,
+      `"${p.email}"`,
+      `"${p.dept}"`,
+      `"${p.year}"`,
+      `"${p.section}"`,
+      `"${p.className}"`,
+      `"${(p.college || '').replace(/"/g, '""')}"`,
+      `"${p.isIeeeMember ? 'YES' : 'NO'}"`,
+      `"${p.ieeeId || ''}"`,
+      `"${p.paymentMode || 'UPI'}"`,
+      `"${p.isVerified ? 'VERIFIED' : 'PENDING'}"`,
+      `"${p.totalPaid}"`,
+      `"${p.isLunchCollected ? 'DISPENSED' : 'PENDING'}"`
+    ].join(','));
+
+    const csvContent = '\uFEFF' + [headers.join(','), ...rows].join('\r\n');
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.setAttribute('download', `NexusVerse_Attendance_${filterType.toUpperCase()}_${new Date().toISOString().slice(0, 10)}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
   };
 
   // Toggle individual event attendance
@@ -1141,10 +1416,10 @@ export const AdminTicketScanner: React.FC<AdminTicketScannerProps> = ({
             <div>
               <span className="font-bold block text-sm tracking-wide">
                 {lunchAlert.type === 'duplicate' 
-                  ? '⚠️ CATERING DISPUTE ALERT: DUPLICATE MEAL CLAIM DETECTED' 
+                  ? '⚠️ DUPLICATE DETECTED: ALREADY CHECKED IN / CLAIMED' 
                   : lunchAlert.type === 'success' 
-                    ? 'MEAL TOKEN VERIFIED & DISPENSED ✓' 
-                    : 'CATERING / FOOD TOKEN STATUS'}
+                    ? (scannerMode === 'lunch' ? 'MEAL TOKEN VERIFIED & DISPENSED ✓' : 'DELEGATE CHECK-IN SUCCESS ✓') 
+                    : 'SCANNER DESK NOTIFICATION'}
               </span>
               <p className="text-xs mt-0.5 opacity-90 leading-relaxed font-medium">
                 {lunchAlert.message}
@@ -1162,8 +1437,81 @@ export const AdminTicketScanner: React.FC<AdminTicketScannerProps> = ({
         </div>
       )}
 
-      {/* Main Two-Column Layout: Scanner & Search vs Loaded Delegate Detail */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+      {/* Primary Section Switcher: Live Scanner Desk vs All Individual Participants */}
+      <div className={`p-2.5 rounded-2xl border flex flex-wrap items-center justify-between gap-3 shadow-md ${
+        isLight ? 'bg-white border-[#d8d0ba]' : 'bg-[#0a0a0d] border-[#2e2b22]'
+      }`}>
+        <div className="flex flex-wrap items-center gap-2">
+          <button
+            type="button"
+            onClick={() => setMainScannerTab('scanner')}
+            className={`px-4 py-2.5 rounded-xl text-xs font-bold flex items-center gap-2 transition-all cursor-pointer ${
+              mainScannerTab === 'scanner'
+                ? 'bg-gradient-to-r from-[#d4a935] to-[#f2c14e] text-[#121217] shadow-md shadow-[#d4a935]/20 scale-[1.02]'
+                : isLight ? 'text-[#6b6250] hover:text-[#1c1811] hover:bg-[#f4efe0]' : 'text-[#a79f8b] hover:text-white hover:bg-white/5'
+            }`}
+          >
+            <QrCode className="w-4 h-4" />
+            <span>Camera Scanner & Desk Station</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setMainScannerTab('attendees')}
+            className={`px-4 py-2.5 rounded-xl text-xs font-bold flex items-center gap-2 transition-all cursor-pointer ${
+              mainScannerTab === 'attendees'
+                ? 'bg-gradient-to-r from-[#22c55e] to-[#16a34a] text-white shadow-md shadow-[#22c55e]/25 scale-[1.02]'
+                : isLight ? 'text-[#6b6250] hover:text-[#1c1811] hover:bg-[#f4efe0]' : 'text-[#a79f8b] hover:text-white hover:bg-white/5'
+            }`}
+          >
+            <Users className="w-4 h-4" />
+            <span>All Individual Participants ({totalDelegates})</span>
+            <span className={`text-[10px] font-mono px-2 py-0.5 rounded-full font-bold ${
+              mainScannerTab === 'attendees' ? 'bg-black/30 text-white' : 'bg-[#4cc38a]/15 text-[#4cc38a]'
+            }`}>
+              {checkedInDelegates} Present · {scannerStats.absentDelegates} Absent
+            </span>
+          </button>
+        </div>
+
+        {mainScannerTab === 'attendees' && (
+          <div className="flex flex-wrap items-center gap-2">
+            <button
+              type="button"
+              onClick={() => handleExportIndividualAttendanceCsv('all')}
+              className={`px-2.5 py-1.5 rounded-lg border text-[11px] font-semibold flex items-center gap-1.5 transition-colors cursor-pointer ${
+                isLight ? 'bg-[#f4efe0] hover:bg-[#ede4ce] text-[#705600] border-[#d4a935]' : 'bg-[#181820] hover:bg-[#20202c] text-[#f2c14e] border-[#d4a935]/40'
+              }`}
+              title="Download CSV of all individual delegates"
+            >
+              <Download className="w-3.5 h-3.5" />
+              <span>All CSV</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => handleExportIndividualAttendanceCsv('present')}
+              className="px-2.5 py-1.5 rounded-lg bg-[#0f2e1e] hover:bg-[#1a4a32] border border-[#4cc38a]/50 text-[#4cc38a] text-[11px] font-semibold flex items-center gap-1.5 transition-colors cursor-pointer"
+              title="Download CSV of present delegates"
+            >
+              <UserCheck className="w-3.5 h-3.5" />
+              <span>Present List ({checkedInDelegates})</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => handleExportIndividualAttendanceCsv('absent')}
+              className="px-2.5 py-1.5 rounded-lg bg-[#2a1315] hover:bg-[#3d181d] border border-[#ff8a80]/50 text-[#ff8a80] text-[11px] font-semibold flex items-center gap-1.5 transition-colors cursor-pointer"
+              title="Download CSV of absent delegates"
+            >
+              <UserX className="w-3.5 h-3.5" />
+              <span>Absent List ({scannerStats.absentDelegates})</span>
+            </button>
+          </div>
+        )}
+      </div>
+
+      {mainScannerTab === 'scanner' ? (
+        /* Main Two-Column Layout: Scanner & Search vs Loaded Delegate Detail */
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
         
         {/* Left 5 Cols: Scanner & Manual Lookup */}
         <div className="lg:col-span-5 space-y-4">
@@ -1585,76 +1933,218 @@ export const AdminTicketScanner: React.FC<AdminTicketScannerProps> = ({
                 </a>
               </div>
 
-              {/* CHECK-IN HERO ACTION BOX */}
-              <div className={`p-5 rounded-2xl border transition-all ${
-                activeRecord.checkedIn
-                  ? isLight
-                    ? 'bg-gradient-to-r from-[#eaf8f0] via-[#f1faf4] to-[#e4f6eb] border-[#4cc38a] shadow-md shadow-[#4cc38a]/10'
-                    : 'bg-gradient-to-r from-[#0d2a1c] via-[#091f14] to-[#07170f] border-[#4cc38a] shadow-lg shadow-[#4cc38a]/10 ring-1 ring-[#4cc38a]/50'
-                  : isLight
-                    ? 'bg-gradient-to-r from-[#fefbf2] via-[#faf4e4] to-[#f7eed6] border-[#d4a935] shadow-md'
-                    : 'bg-gradient-to-r from-[#1c1809] via-[#141006] to-[#0e0c04] border-[#d4a935] shadow-lg shadow-[#d4a935]/15'
-              }`}>
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                  <div className="space-y-1">
-                    <div className="flex items-center gap-2">
-                      {activeRecord.checkedIn ? (
-                        <>
-                          <CheckCircle2 className="w-5 h-5 text-[#4cc38a]" />
-                          <span className={`text-base font-bold ${isLight ? 'text-[#14532d]' : 'text-white'}`}>DELEGATE CHECKED IN</span>
-                        </>
-                      ) : (
-                        <>
-                          <Sparkles className="w-5 h-5 text-[#f2c14e]" />
-                          <span className={`text-base font-bold ${isLight ? 'text-[#594200]' : 'text-white'}`}>READY FOR CHECK-IN</span>
-                        </>
-                      )}
+              {/* INDIVIDUAL MEMBER ATTENDANCE & CHECK-IN SYSTEM */}
+              {(() => {
+                const checkInStats = getRecordCheckInStats(activeRecord);
+                const teammates = getRecordTeammates(activeRecord);
+                const totalMembers = 1 + teammates.length;
+                const memberAttendanceList = [
+                  {
+                    key: 'lead',
+                    role: totalMembers > 1 ? 'Team Lead (Member 1)' : 'Lead Delegate',
+                    name: activeRecord.name,
+                    roll: activeRecord.roll || 'N/A',
+                    phone: activeRecord.phone,
+                    isPresent: Boolean(checkInStats.memberStatus['lead']),
+                    time: checkInStats.memberTimes['lead'] || (activeRecord.checkedIn ? activeRecord.checkInTime : undefined)
+                  },
+                  ...teammates.map((m, idx) => ({
+                    key: `teammate_${idx}`,
+                    role: `Team Member ${idx + 2}`,
+                    name: m.name || `Member ${idx + 2}`,
+                    roll: m.roll || 'N/A',
+                    phone: m.phone || activeRecord.phone,
+                    isPresent: Boolean(checkInStats.memberStatus[`teammate_${idx}`]),
+                    time: checkInStats.memberTimes[`teammate_${idx}`]
+                  }))
+                ];
+
+                return (
+                  <div className={`p-5 rounded-2xl border transition-all ${
+                    checkInStats.isFullyCheckedIn
+                      ? isLight
+                        ? 'bg-gradient-to-r from-[#eaf8f0] via-[#f1faf4] to-[#e4f6eb] border-[#4cc38a] shadow-md shadow-[#4cc38a]/10'
+                        : 'bg-gradient-to-r from-[#0d2a1c] via-[#091f14] to-[#07170f] border-[#4cc38a] shadow-lg shadow-[#4cc38a]/10 ring-1 ring-[#4cc38a]/50'
+                      : checkInStats.isPartiallyCheckedIn
+                        ? isLight
+                          ? 'bg-gradient-to-r from-[#fefbf2] via-[#faf4e4] to-[#f7eed6] border-[#d4a935] shadow-md'
+                          : 'bg-gradient-to-r from-[#1c1809] via-[#141006] to-[#0e0c04] border-[#d4a935] shadow-lg shadow-[#d4a935]/15'
+                        : isLight
+                          ? 'bg-[#fcfaf5] border-[#d8d0ba] shadow-sm'
+                          : 'bg-[#0e0e13] border-[#2e2b22]'
+                  }`}>
+                    {/* Header Summary */}
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                      <div className="space-y-1">
+                        <div className="flex items-center gap-2">
+                          {checkInStats.isFullyCheckedIn ? (
+                            <>
+                              <CheckCircle2 className="w-5 h-5 text-[#4cc38a]" />
+                              <span className={`text-base font-bold ${isLight ? 'text-[#14532d]' : 'text-white'}`}>
+                                ALL DELEGATES PRESENT ✓ ({checkInStats.checkedInCount}/{checkInStats.totalMembers})
+                              </span>
+                            </>
+                          ) : checkInStats.isPartiallyCheckedIn ? (
+                            <>
+                              <Sparkles className="w-5 h-5 text-[#f2c14e]" />
+                              <span className={`text-base font-bold ${isLight ? 'text-[#594200]' : 'text-white'}`}>
+                                PARTIAL ATTENDANCE ({checkInStats.checkedInCount}/{checkInStats.totalMembers} Present · {checkInStats.absentCount} Absent)
+                              </span>
+                            </>
+                          ) : (
+                            <>
+                              <Clock className="w-5 h-5 text-[#a79f8b]" />
+                              <span className={`text-base font-bold ${isLight ? 'text-[#1c1811]' : 'text-white'}`}>
+                                NOT CHECKED IN (0/{checkInStats.totalMembers} Present · All Absent)
+                              </span>
+                            </>
+                          )}
+                        </div>
+                        <p className={`text-xs ${isLight ? 'text-[#6b6250]' : 'text-[#a79f8b]'}`}>
+                          {totalMembers > 1 
+                            ? 'Individual member attendance tracking. Each team member is counted separately.'
+                            : 'Verify student ID badge and confirm entry attendance.'}
+                        </p>
+                      </div>
+
+                      {/* Quick Bulk Action Buttons */}
+                      <div className="flex items-center gap-2 shrink-0">
+                        {totalMembers > 1 && !checkInStats.isFullyCheckedIn && (
+                          <button
+                            type="button"
+                            onClick={() => handleCheckInAllMembers(activeRecord)}
+                            className="px-3 py-1.5 rounded-xl bg-gradient-to-r from-[#22c55e] to-[#16a34a] hover:from-[#16a34a] hover:to-[#15803d] text-white font-bold text-xs shadow-md transition-all cursor-pointer flex items-center gap-1.5"
+                          >
+                            <CheckCircle2 className="w-3.5 h-3.5" />
+                            <span>Check In All ({totalMembers})</span>
+                          </button>
+                        )}
+
+                        {checkInStats.checkedInCount > 0 && (
+                          <button
+                            type="button"
+                            onClick={() => handleResetAllMembers(activeRecord)}
+                            className="px-3 py-1.5 rounded-xl bg-[#2a1215] hover:bg-[#3d181d] text-[#ff8a80] border border-[#ff8a80]/30 font-semibold text-xs transition-all cursor-pointer flex items-center gap-1.5"
+                          >
+                            <RotateCcw className="w-3.5 h-3.5" />
+                            <span>Mark All Absent</span>
+                          </button>
+                        )}
+                      </div>
                     </div>
-                    <p className={`text-xs ${isLight ? 'text-[#6b6250]' : 'text-[#a79f8b]'}`}>
-                      {activeRecord.checkedIn
-                        ? `Checked in on ${new Date(activeRecord.checkInTime || '').toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} (${activeRecord.checkedInBy || 'Admin Desk'}).`
-                        : 'Delegate has arrived at symposium venue. Verify student ID and confirm attendance.'}
-                    </p>
-                  </div>
 
-                  <div className="flex items-center gap-2 shrink-0">
-                    {activeRecord.checkedIn ? (
-                      <button
-                        type="button"
-                        onClick={handleUndoCheckIn}
-                        className="px-3.5 py-2 rounded-xl bg-[#2a1215] hover:bg-[#3d181d] text-[#ff8a80] border border-[#ff8a80]/30 font-semibold text-xs transition-all cursor-pointer flex items-center gap-1.5"
-                      >
-                        <RotateCcw className="w-3.5 h-3.5" />
-                        <span>Undo Check-In</span>
-                      </button>
-                    ) : (
-                      <button
-                        type="button"
-                        onClick={handleCheckIn}
-                        className="px-5 py-3 rounded-xl bg-gradient-to-r from-[#22c55e] to-[#16a34a] hover:from-[#16a34a] hover:to-[#15803d] text-white font-bold text-sm shadow-xl shadow-[#16a34a]/30 transition-all hover:scale-[1.03] active:scale-95 cursor-pointer flex items-center gap-2"
-                      >
-                        <CheckCircle2 className="w-4 h-4" />
-                        <span>CHECK IN DELEGATE</span>
-                      </button>
-                    )}
-                  </div>
-                </div>
+                    {/* Member-by-Member Attendance Checklist */}
+                    <div className="mt-4 pt-3 border-t border-white/10 space-y-2">
+                      <span className={`text-xs font-bold uppercase tracking-wider block ${isLight ? 'text-[#705600]' : 'text-[#d4a935]'}`}>
+                        Individual Participants Attendance List ({checkInStats.checkedInCount} Present · {checkInStats.absentCount} Absent):
+                      </span>
 
-                {/* Kit Issued Checkbox */}
-                <div className={`mt-4 pt-3 border-t ${isLight ? 'border-[#d8d0ba]' : 'border-white/10'} flex items-center justify-between text-xs`}>
-                  <label className="flex items-center gap-2.5 cursor-pointer select-none">
-                    <input
-                      type="checkbox"
-                      checked={Boolean(activeRecord.kitIssued)}
-                      onChange={handleToggleKit}
-                      className="w-4 h-4 rounded text-[#4cc38a] accent-[#4cc38a] cursor-pointer"
-                    />
-                    <span className={`font-medium ${isLight ? 'text-[#1c1811]' : 'text-white'}`}>Welcome Kit & Delegate ID Badge Dispatched</span>
-                  </label>
-                  <span className={`text-[11px] font-semibold ${activeRecord.kitIssued ? 'text-[#4cc38a]' : (isLight ? 'text-[#6b6250]' : 'text-[#a79f8b]')}`}>
-                    {activeRecord.kitIssued ? 'Kit Handed Over' : 'Pending Kit'}
-                  </span>
-                </div>
+                      {memberAttendanceList.map((m) => (
+                        <div
+                          key={m.key}
+                          className={`p-3 rounded-xl border flex items-center justify-between gap-3 transition-all ${
+                            m.isPresent
+                              ? isLight
+                                ? 'bg-[#f0fdf4] border-[#86efac]'
+                                : 'bg-[#0f1f14] border-[#4cc38a]/40 shadow-sm'
+                              : isLight
+                                ? 'bg-white border-[#d8d0ba]'
+                                : 'bg-[#14141d] border-[#2e2b22]'
+                          }`}
+                        >
+                          <div className="flex items-center gap-2.5 min-w-0">
+                            <button
+                              type="button"
+                              onClick={() => handleToggleMemberCheckIn(activeRecord, m.key)}
+                              className={`w-5 h-5 rounded flex items-center justify-center transition-colors cursor-pointer shrink-0 ${
+                                m.isPresent
+                                  ? 'bg-[#22c55e] text-white'
+                                  : isLight ? 'border border-[#d8d0ba] hover:border-[#4cc38a]' : 'border border-[#2e2b22] hover:border-[#4cc38a]'
+                              }`}
+                              title={m.isPresent ? "Click to mark as absent" : "Click to mark as present"}
+                            >
+                              {m.isPresent && <Check className="w-3.5 h-3.5" />}
+                            </button>
+
+                            <div className="min-w-0">
+                              <div className="flex items-center gap-2 flex-wrap">
+                                <span className={`text-xs font-bold truncate ${isLight ? 'text-[#1c1811]' : 'text-white'}`}>
+                                  {m.name}
+                                </span>
+                                <span className={`text-[10px] font-mono px-1.5 py-0.2 rounded border font-semibold uppercase ${
+                                  m.role.includes('Lead')
+                                    ? 'bg-[#d4a935]/15 text-[#d4a935] border-[#d4a935]/30'
+                                    : 'bg-[#9fc7e8]/15 text-[#9fc7e8] border-[#9fc7e8]/30'
+                                }`}>
+                                  {m.role}
+                                </span>
+                              </div>
+                              <div className="text-[10px] text-[#a79f8b] font-mono mt-0.5 flex items-center gap-2">
+                                <span>Roll: {m.roll}</span>
+                                {m.phone && <span>· 📞 {m.phone}</span>}
+                              </div>
+                            </div>
+                          </div>
+
+                          <div className="flex items-center gap-2 shrink-0">
+                            {m.isPresent ? (
+                              <div className="flex items-center gap-1.5">
+                                <span className="text-[10px] font-bold text-[#4cc38a] flex items-center gap-1 bg-[#4cc38a]/15 px-2 py-1 rounded-lg border border-[#4cc38a]/30">
+                                  <CheckCircle2 className="w-3 h-3 text-[#4cc38a]" />
+                                  <span>PRESENT ✓</span>
+                                  {m.time && (
+                                    <span className="hidden sm:inline text-[9px] opacity-75">
+                                      ({new Date(m.time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })})
+                                    </span>
+                                  )}
+                                </span>
+                                <button
+                                  type="button"
+                                  onClick={() => handleToggleMemberCheckIn(activeRecord, m.key, false)}
+                                  className="text-[10px] text-[#ff8a80] hover:underline px-1 cursor-pointer"
+                                  title="Mark this delegate absent"
+                                >
+                                  Undo
+                                </button>
+                              </div>
+                            ) : (
+                              <div className="flex items-center gap-2">
+                                <span className="text-[10px] font-bold text-[#f59e0b] bg-[#f59e0b]/15 px-2 py-1 rounded-lg border border-[#f59e0b]/30">
+                                  ABSENT
+                                </span>
+                                <button
+                                  type="button"
+                                  onClick={() => handleToggleMemberCheckIn(activeRecord, m.key, true)}
+                                  className="px-2.5 py-1 rounded-lg bg-gradient-to-r from-[#22c55e] to-[#16a34a] hover:from-[#16a34a] hover:to-[#15803d] text-white font-bold text-[10px] shadow transition-all cursor-pointer flex items-center gap-1"
+                                >
+                                  <Check className="w-3 h-3" />
+                                  <span>Check In</span>
+                                </button>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+
+                    {/* Welcome Kit Dispatch */}
+                    <div className={`mt-4 pt-3 border-t ${isLight ? 'border-[#d8d0ba]' : 'border-white/10'} flex items-center justify-between text-xs`}>
+                      <label className="flex items-center gap-2.5 cursor-pointer select-none">
+                        <input
+                          type="checkbox"
+                          checked={Boolean(activeRecord.kitIssued)}
+                          onChange={handleToggleKit}
+                          className="w-4 h-4 rounded text-[#4cc38a] accent-[#4cc38a] cursor-pointer"
+                        />
+                        <span className={`font-medium ${isLight ? 'text-[#1c1811]' : 'text-white'}`}>Welcome Kit & Delegate ID Badge Dispatched</span>
+                      </label>
+                      <span className={`text-[11px] font-semibold ${activeRecord.kitIssued ? 'text-[#4cc38a]' : (isLight ? 'text-[#6b6250]' : 'text-[#a79f8b]')}`}>
+                        {activeRecord.kitIssued ? 'Kit Handed Over ✓' : 'Pending Kit'}
+                      </span>
+                    </div>
+                  </div>
+                );
+              })()}
 
                 {/* Food / Lunch Token Check & Anti-Dispute Verification (Based on Members) */}
                 {(() => {
@@ -1800,7 +2290,6 @@ export const AdminTicketScanner: React.FC<AdminTicketScannerProps> = ({
                     </div>
                   );
                 })()}
-              </div>
 
               {/* EVENT-LEVEL ATTENDANCE CARDS */}
               <div className="space-y-3">
@@ -2143,6 +2632,284 @@ export const AdminTicketScanner: React.FC<AdminTicketScannerProps> = ({
         </div>
 
       </div>
+      ) : (
+        /* INDIVIDUAL ATTENDEES ATTENDANCE DIRECTORY VIEW */
+        <div className="space-y-4">
+          {/* Filter Bar */}
+          <div className={`p-4 rounded-2xl border space-y-3 ${
+            isLight ? 'bg-white border-[#d8d0ba] shadow-sm' : 'bg-[#0a0a0d] border-[#2e2b22]'
+          }`}>
+            <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
+              {/* Filter Pills */}
+              <div className="flex flex-wrap items-center gap-2">
+                <span className={`text-xs font-bold uppercase tracking-wider flex items-center gap-1.5 mr-1 ${isLight ? 'text-[#705600]' : 'text-[#d4a935]'}`}>
+                  <Filter className="w-3.5 h-3.5" />
+                  <span>Attendance Status:</span>
+                </span>
+
+                <button
+                  type="button"
+                  onClick={() => setAttendeeFilter('all')}
+                  className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
+                    attendeeFilter === 'all'
+                      ? 'bg-[#d4a935] text-[#121217] shadow-sm scale-[1.02]'
+                      : isLight ? 'bg-[#f4efe0] text-[#6b6250] hover:text-[#1c1811]' : 'bg-[#181820] text-[#a79f8b] hover:text-white border border-[#2e2b22]'
+                  }`}
+                >
+                  <Users className="w-3.5 h-3.5" />
+                  <span>All Delegates ({totalDelegates})</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setAttendeeFilter('present')}
+                  className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
+                    attendeeFilter === 'present'
+                      ? 'bg-[#22c55e] text-white shadow-md shadow-[#22c55e]/30 scale-[1.02]'
+                      : isLight ? 'bg-[#eaf8f0] text-[#187547] hover:bg-[#d5f3e2]' : 'bg-[#0e2417] text-[#4cc38a] hover:bg-[#153823] border border-[#4cc38a]/40'
+                  }`}
+                >
+                  <UserCheck className="w-3.5 h-3.5" />
+                  <span>Checked In / Present ({checkedInDelegates})</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setAttendeeFilter('absent')}
+                  className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
+                    attendeeFilter === 'absent'
+                      ? 'bg-[#e11d48] text-white shadow-md shadow-[#e11d48]/30 scale-[1.02]'
+                      : isLight ? 'bg-[#fef2f2] text-[#991b1b] hover:bg-[#fee2e2]' : 'bg-[#2a1215] text-[#ff8a80] hover:bg-[#3d181d] border border-[#ff8a80]/40'
+                  }`}
+                >
+                  <UserX className="w-3.5 h-3.5" />
+                  <span>Not Checked In / Absent ({scannerStats.absentDelegates})</span>
+                </button>
+              </div>
+
+              {/* Live Search */}
+              <div className="relative w-full sm:w-72">
+                <Search className={`w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 ${isLight ? 'text-[#8a806c]' : 'text-[#a79f8b]'}`} />
+                <input
+                  type="text"
+                  value={attendeeSearch}
+                  onChange={(e) => setAttendeeSearch(e.target.value)}
+                  placeholder="Search name, roll, phone, college..."
+                  className={`w-full pl-9 pr-7 py-2 rounded-xl text-xs border focus:outline-none focus:border-[#d4a935] ${
+                    isLight ? 'bg-[#f8f5ee] border-[#d8d0ba] text-[#1c1811] placeholder-[#8a806c]' : 'bg-[#131318] border-[#2e2b22] text-[#f3ecd9] placeholder-[#5a5444]'
+                  }`}
+                />
+                {attendeeSearch && (
+                  <button
+                    type="button"
+                    onClick={() => setAttendeeSearch('')}
+                    className="absolute right-2.5 top-1/2 -translate-y-1/2 text-xs text-[#a79f8b] hover:text-white"
+                  >
+                    ✕
+                  </button>
+                )}
+              </div>
+            </div>
+          </div>
+
+          {/* Individual Participants List */}
+          {(() => {
+            const allParticipants = flattenToIndividualParticipants(records);
+            const filtered = allParticipants.filter(p => {
+              if (attendeeFilter === 'present' && !p.isCheckedIn) return false;
+              if (attendeeFilter === 'absent' && p.isCheckedIn) return false;
+              if (attendeeSearch) {
+                const q = attendeeSearch.trim().toLowerCase();
+                const mName = (p.name || '').toLowerCase().includes(q);
+                const mRoll = (p.roll || '').toLowerCase().includes(q);
+                const mPhone = (p.phone || '').replace(/\D/g, '').includes(q.replace(/\D/g, ''));
+                const mCollege = (p.college || '').toLowerCase().includes(q);
+                const mTeam = (p.teamName || '').toLowerCase().includes(q);
+                const mPass = (p.passCode || '').toLowerCase().includes(q);
+                return mName || mRoll || mPhone || mCollege || mTeam || mPass;
+              }
+              return true;
+            });
+
+            if (filtered.length === 0) {
+              return (
+                <div className={`p-12 text-center rounded-2xl border border-dashed space-y-2 ${
+                  isLight ? 'bg-white border-[#d8d0ba] text-[#6b6250]' : 'bg-[#0a0a0d] border-[#2e2b22] text-[#a79f8b]'
+                }`}>
+                  <AlertCircle className="w-8 h-8 text-[#d4a935] mx-auto opacity-70" />
+                  <h4 className="font-bold text-sm">No Delegates Found</h4>
+                  <p className="text-xs">
+                    {attendeeFilter === 'present'
+                      ? 'No delegates have been checked in yet.'
+                      : attendeeFilter === 'absent'
+                      ? 'All delegates have arrived and checked in! 100% attendance.'
+                      : 'No delegates match your search filter.'}
+                  </p>
+                </div>
+              );
+            }
+
+            return (
+              <div className="space-y-2.5">
+                <div className={`text-xs px-2 flex items-center justify-between font-medium ${isLight ? 'text-[#6b6250]' : 'text-[#a79f8b]'}`}>
+                  <span>Showing {filtered.length} {filtered.length === 1 ? 'Individual Delegate' : 'Individual Delegates'}:</span>
+                  <span className={`text-[11px] ${isLight ? 'text-[#705600]' : 'text-[#d4a935]'}`}>
+                    Tap "Check In" to mark delegate present individually
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  {filtered.map((p, idx) => (
+                    <div
+                      key={p.id}
+                      className={`p-4 rounded-2xl border transition-all ${
+                        p.isCheckedIn
+                          ? isLight
+                            ? 'bg-[#f0fdf4] border-[#86efac] shadow-sm'
+                            : 'bg-gradient-to-r from-[#0d2217] to-[#091710] border-[#4cc38a]/50 shadow-md'
+                          : isLight
+                            ? 'bg-white border-[#d8d0ba] shadow-sm hover:border-[#b0a790]'
+                            : 'bg-[#101017] border-[#242432] hover:border-[#38384d]'
+                      }`}
+                    >
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="flex items-start gap-3 min-w-0">
+                          {/* S.No badge */}
+                          <div className={`w-8 h-8 rounded-xl flex items-center justify-center font-mono text-xs font-bold shrink-0 ${
+                            p.isCheckedIn
+                              ? 'bg-[#22c55e]/20 text-[#4cc38a] border border-[#22c55e]/40'
+                              : isLight ? 'bg-[#f4efe0] text-[#705600] border border-[#d4a935]/30' : 'bg-[#1a1a24] text-[#a79f8b] border border-[#2e2e3d]'
+                          }`}>
+                            {idx + 1}
+                          </div>
+
+                          <div className="min-w-0 space-y-1">
+                            {/* Delegate Name & Role */}
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <span className={`font-serif-title font-bold text-sm truncate ${isLight ? 'text-[#1c1811]' : 'text-white'}`}>
+                                {p.name}
+                              </span>
+                              <span className={`text-[10px] font-mono px-2 py-0.2 rounded border font-semibold uppercase ${
+                                p.role.includes('Lead')
+                                  ? 'bg-[#d4a935]/15 text-[#d4a935] border-[#d4a935]/40'
+                                  : p.role.includes('Solo')
+                                  ? 'bg-[#0088d4]/15 text-[#0088d4] border-[#0088d4]/40'
+                                  : 'bg-[#9fc7e8]/15 text-[#9fc7e8] border-[#9fc7e8]/40'
+                              }`}>
+                                {p.role}
+                              </span>
+                              {p.isIeeeMember && (
+                                <span className="text-[10px] px-1.5 py-0.2 rounded bg-[#4cc38a]/15 text-[#4cc38a] border border-[#4cc38a]/30 font-mono font-semibold">
+                                  IEEE #{p.ieeeId}
+                                </span>
+                              )}
+                            </div>
+
+                            {/* Roll, Branch, Section, College */}
+                            <div className={`text-xs flex flex-wrap items-center gap-x-2 gap-y-0.5 ${isLight ? 'text-[#6b6250]' : 'text-[#a79f8b]'}`}>
+                              <span className={`font-mono font-bold ${isLight ? 'text-[#1c1811]' : 'text-[#f3ecd9]'}`}>
+                                {p.roll || 'Roll N/A'}
+                              </span>
+                              <span>·</span>
+                              <span>{[p.dept, p.className, p.section ? `Sec ${p.section}` : '', p.year].filter(Boolean).join(' ')}</span>
+                            </div>
+
+                            {p.college && (
+                              <div className={`text-[11px] truncate ${isLight ? 'text-[#8a806c]' : 'text-[#7e7663]'}`}>
+                                🏫 {p.college}
+                              </div>
+                            )}
+
+                            {/* Team name if team */}
+                            {p.teamName && (
+                              <div className="text-[11px] text-[#f2c14e] font-medium truncate">
+                                👥 Team: {p.teamName} ({p.totalTeamMembers} delegates)
+                              </div>
+                            )}
+
+                            {/* Pass Code & Contact */}
+                            <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[10px] text-[#a79f8b] font-mono pt-0.5">
+                              <span>Pass ID: {p.passCode}</span>
+                              {p.phone && (
+                                <a
+                                  href={`https://wa.me/91${p.phone.replace(/\D/g, '')}`}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="text-[#25d366] hover:underline flex items-center gap-1 font-sans"
+                                >
+                                  <MessageCircle className="w-3 h-3 text-[#25d366]" />
+                                  <span>{p.phone}</span>
+                                </a>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Status & Action */}
+                        <div className="flex flex-col items-end gap-2 shrink-0">
+                          {p.isCheckedIn ? (
+                            <span className="text-[10px] font-bold text-[#4cc38a] bg-[#4cc38a]/15 px-2.5 py-1 rounded-lg border border-[#4cc38a]/40 flex items-center gap-1 shadow-sm">
+                              <CheckCircle2 className="w-3.5 h-3.5 text-[#4cc38a]" />
+                              <span>PRESENT ✓</span>
+                            </span>
+                          ) : (
+                            <span className="text-[10px] font-bold text-[#f59e0b] bg-[#f59e0b]/15 px-2.5 py-1 rounded-lg border border-[#f59e0b]/40 flex items-center gap-1">
+                              <Clock className="w-3.5 h-3.5 text-[#f59e0b]" />
+                              <span>ABSENT</span>
+                            </span>
+                          )}
+
+                          {p.isCheckedIn && p.checkInTime && (
+                            <span className={`text-[9px] font-mono ${isLight ? 'text-[#6b6250]' : 'text-[#a79f8b]'}`}>
+                              {new Date(p.checkInTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                            </span>
+                          )}
+
+                          <div className="flex items-center gap-1.5 mt-1">
+                            {p.isCheckedIn ? (
+                              <button
+                                type="button"
+                                onClick={() => handleToggleMemberCheckIn(p.record, p.memberKey, false)}
+                                className="px-2.5 py-1 rounded-lg bg-[#2a1215] hover:bg-[#3d181d] text-[#ff8a80] border border-[#ff8a80]/30 text-[11px] font-semibold transition-colors cursor-pointer"
+                                title="Mark delegate absent"
+                              >
+                                Undo
+                              </button>
+                            ) : (
+                              <button
+                                type="button"
+                                onClick={() => handleToggleMemberCheckIn(p.record, p.memberKey, true)}
+                                className="px-3 py-1 rounded-lg bg-gradient-to-r from-[#22c55e] to-[#16a34a] hover:from-[#16a34a] hover:to-[#15803d] text-white text-[11px] font-bold shadow transition-all cursor-pointer flex items-center gap-1"
+                              >
+                                <Check className="w-3 h-3" />
+                                <span>Check In</span>
+                              </button>
+                            )}
+
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setActiveRecord(p.record);
+                                setMainScannerTab('scanner');
+                              }}
+                              className={`p-1 px-2 rounded-lg border text-[11px] font-medium transition-colors cursor-pointer ${
+                                isLight ? 'bg-[#f4efe0] hover:bg-[#ede4ce] text-[#705600] border-[#d4a935]' : 'bg-[#181820] hover:bg-[#20202c] text-[#f2c14e] border-[#d4a935]/40'
+                              }`}
+                              title="Inspect ticket pass and event details"
+                            >
+                              Inspect
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            );
+          })()}
+        </div>
+      )}
     </div>
   );
 };
