@@ -483,8 +483,14 @@ export default function App() {
     const isAdmin = !isVerify && (p === '/nexusadmin' || p.startsWith('/nexusadmin') || p.endsWith('/nexusadmin') || p.endsWith('/nexusadmin.html') || p === '/nexusscan' || p === '/scan' || search.has('nexusadmin') || window.location.hash.includes('nexusadmin'));
 
     let tab: 'registrations' | 'scan' | 'manual' | 'status' | 'photos' | 'settings' | 'cache' = 'registrations';
-    if (isScanRoute) {
-      tab = 'scan';
+    if (isScanRoute || isVerify) {
+      if (tabParam === 'registrations') {
+        tab = 'registrations';
+      } else if (tabParam === 'manual') {
+        tab = 'manual';
+      } else {
+        tab = 'scan';
+      }
     } else if (tabParam === 'manual') {
       tab = 'manual';
     } else if (tabParam === 'status') {

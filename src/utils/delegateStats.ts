@@ -10,22 +10,32 @@ export function getRecordTeammates(record: RegistrationRecord | undefined | null
     return [];
   }
 
+  const isValidMember = (m: TeamMemberInfo | any): boolean => {
+    if (!m) return false;
+    const name = typeof m === 'object' ? (m.name || '').trim() : String(m).trim();
+    const roll = typeof m === 'object' ? (m.roll || '').trim() : '';
+    return Boolean(name || roll);
+  };
+
   // 1. Try finding by technical eventId (excluding 'spot')
   const nonSpotEvent = record.eventIds?.find(id => id !== 'spot');
-  if (nonSpotEvent && record.teamDetails[nonSpotEvent]?.teamMembers?.length) {
-    return record.teamDetails[nonSpotEvent].teamMembers!;
+  if (nonSpotEvent && Array.isArray(record.teamDetails[nonSpotEvent]?.teamMembers)) {
+    const valid = record.teamDetails[nonSpotEvent].teamMembers!.filter(isValidMember);
+    if (valid.length > 0) return valid;
   }
 
   // 2. Try primary/first eventId
   const firstEvent = record.eventIds?.[0];
-  if (firstEvent && record.teamDetails[firstEvent]?.teamMembers?.length) {
-    return record.teamDetails[firstEvent].teamMembers!;
+  if (firstEvent && Array.isArray(record.teamDetails[firstEvent]?.teamMembers)) {
+    const valid = record.teamDetails[firstEvent].teamMembers!.filter(isValidMember);
+    if (valid.length > 0) return valid;
   }
 
   // 3. Fallback: check any key in teamDetails that has a teamMembers array
   for (const [key, details] of Object.entries(record.teamDetails)) {
     if (!key.startsWith('_') && details && Array.isArray(details.teamMembers) && details.teamMembers.length > 0) {
-      return details.teamMembers;
+      const valid = details.teamMembers.filter(isValidMember);
+      if (valid.length > 0) return valid;
     }
   }
 
@@ -34,11 +44,11 @@ export function getRecordTeammates(record: RegistrationRecord | undefined | null
     if (!key.startsWith('_') && details && Array.isArray(details.members) && details.members.length > 0) {
       // Exclude lead name if it is the first element
       const extraNames = details.members.filter(
-        (m, idx) => !(idx === 0 && m.trim().toLowerCase() === (record.name || '').trim().toLowerCase())
+        (m, idx) => !(idx === 0 && String(m).trim().toLowerCase() === (record.name || '').trim().toLowerCase()) && String(m).trim().length > 0
       );
       if (extraNames.length > 0) {
         return extraNames.map(name => ({
-          name,
+          name: String(name).trim(),
           roll: '',
           className: record.className || 'B.Tech',
           section: record.section || '',
@@ -233,26 +243,19 @@ export function getRecordTrackAttendanceStats(record: RegistrationRecord | undef
 
   const eventIds = record.eventIds || [];
   const techEvents = eventIds.filter(id => id !== 'spot' && id !== 'spot-pass');
-  const hasTech = techEvents.length > 0;
-  const hasSpot = eventIds.some(id => id === 'spot' || id === 'spot-pass');
+  const hasTech = techEvents.length > 0 || 
+    Boolean(record.teamDetails && Object.keys(record.teamDetails).some(k => !k.startsWith('_') && k !== 'spot' && k !== 'spot-pass'));
+  const hasSpot = eventIds.some(id => id === 'spot' || id === 'spot-pass' || id === 'spot_pass' || id === 'spot-events') ||
+    Boolean(record.spotPassCount && record.spotPassCount > 0) ||
+    Boolean((record as any).includeSpotEvents) ||
+    Boolean(record.teamDetails && record.teamDetails['spot']);
 
-  const primaryTechId = techEvents[0] || '';
+  const primaryTechId = techEvents[0] || (record.teamDetails ? Object.keys(record.teamDetails).find(k => !k.startsWith('_') && k !== 'spot' && k !== 'spot-pass') || '' : '');
   const techEventName = ALL_EVENTS.find(e => e.id === primaryTechId)?.name || (hasTech ? 'Technical Event' : 'None');
 
   // Tech status map
   const techStatus: Record<string, boolean> = { ...(record.memberTechStatus || {}) };
   const techTimes: Record<string, string> = { ...(record.memberTechTimes || {}) };
-
-  // Fallback: if record.attendedEvents has tech event and empty map
-  if (hasTech && record.attendedEvents?.some(id => id !== 'spot' && id !== 'spot-pass') && Object.keys(techStatus).length === 0) {
-    techStatus['lead'] = true;
-    if (record.checkInTime) techTimes['lead'] = record.checkInTime;
-    teammates.forEach((_, i) => {
-      const k = `teammate_${i}`;
-      techStatus[k] = true;
-      if (record.checkInTime) techTimes[k] = record.checkInTime;
-    });
-  }
 
   const techAttendedCount = hasTech ? memberKeys.filter(k => Boolean(techStatus[k])).length : 0;
   const isFullyTechAttended = hasTech && techAttendedCount >= totalMembers && totalMembers > 0;
@@ -260,17 +263,6 @@ export function getRecordTrackAttendanceStats(record: RegistrationRecord | undef
   // Spot status map
   const spotStatus: Record<string, boolean> = { ...(record.memberSpotStatus || {}) };
   const spotTimes: Record<string, string> = { ...(record.memberSpotTimes || {}) };
-
-  // Fallback: if record.attendedEvents has 'spot' and empty map
-  if (hasSpot && record.attendedEvents?.some(id => id === 'spot' || id === 'spot-pass') && Object.keys(spotStatus).length === 0) {
-    spotStatus['lead'] = true;
-    if (record.checkInTime) spotTimes['lead'] = record.checkInTime;
-    teammates.forEach((_, i) => {
-      const k = `teammate_${i}`;
-      spotStatus[k] = true;
-      if (record.checkInTime) spotTimes[k] = record.checkInTime;
-    });
-  }
 
   const spotAttendedCount = hasSpot ? memberKeys.filter(k => Boolean(spotStatus[k])).length : 0;
   const isFullySpotAttended = hasSpot && spotAttendedCount >= totalMembers && totalMembers > 0;

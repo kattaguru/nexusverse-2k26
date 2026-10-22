@@ -238,6 +238,8 @@ export const AdminTicketScanner: React.FC<AdminTicketScannerProps> = ({
       if (videoRef.current) {
         videoRef.current.srcObject = stream;
         videoRef.current.setAttribute('playsinline', 'true');
+        videoRef.current.setAttribute('muted', 'true');
+        videoRef.current.muted = true;
         await videoRef.current.play();
         setIsScanning(true);
         startScanLoop();
@@ -293,7 +295,8 @@ export const AdminTicketScanner: React.FC<AdminTicketScannerProps> = ({
     let lastScanTime = 0;
 
     const tick = (now: number) => {
-      if (!videoRef.current || videoRef.current.readyState !== videoRef.current.HAVE_ENOUGH_DATA) {
+      const video = videoRef.current;
+      if (!video || video.readyState < 2 || video.videoWidth === 0 || video.videoHeight === 0) {
         scanLoopRef.current = requestAnimationFrame(tick);
         return;
       }
@@ -308,7 +311,11 @@ export const AdminTicketScanner: React.FC<AdminTicketScannerProps> = ({
           return;
         }
 
-        const video = videoRef.current;
+        if (video.videoWidth === 0 || video.videoHeight === 0) {
+          scanLoopRef.current = requestAnimationFrame(tick);
+          return;
+        }
+
         let canvas = canvasRef.current;
         if (!canvas) {
           canvas = document.createElement('canvas');
@@ -355,8 +362,11 @@ export const AdminTicketScanner: React.FC<AdminTicketScannerProps> = ({
     let targetMemberRoll: string | null = null;
 
     try {
-      if (clean.startsWith('http://') || clean.startsWith('https://')) {
-        const url = new URL(clean);
+      const urlString = (clean.startsWith('http://') || clean.startsWith('https://'))
+        ? clean
+        : (clean.includes('passId=') || clean.includes('regId=') || clean.includes('roll=') || clean.includes('/register') ? `https://${clean.replace(/^\/+/, '')}` : null);
+      if (urlString) {
+        const url = new URL(urlString);
         const passId = url.searchParams.get('passId') || url.searchParams.get('regId') || url.searchParams.get('id');
         if (passId) targetId = passId;
         const mParam = url.searchParams.get('member');
@@ -389,11 +399,11 @@ export const AdminTicketScanner: React.FC<AdminTicketScannerProps> = ({
       const trackStats = getRecordTrackAttendanceStats(matched);
       const lunchStats = getRecordLunchStats(matched);
 
-      // Determine which specific team member is being scanned
-      let scannedMemberKey: string | null = null;
+      // Determine which specific team member is being scanned (deterministically defaults to lead)
+      let scannedMemberKey = 'lead';
       let scannedMemberName = matched.name;
       let scannedMemberRoll = matched.roll || matched.regId;
-      let scannedMemberRole = matchedTotalMembers > 1 ? 'Lead' : 'Delegate';
+      let scannedMemberRole = matchedTotalMembers > 1 ? 'Lead (Member 1)' : 'Solo Delegate';
 
       if (targetMemberIndex !== null) {
         if (targetMemberIndex === 1) {
@@ -423,9 +433,6 @@ export const AdminTicketScanner: React.FC<AdminTicketScannerProps> = ({
             scannedMemberRole = `Member ${tIdx + 2}`;
           }
         }
-      } else if (matchedTotalMembers === 1) {
-        scannedMemberKey = 'lead';
-        scannedMemberRole = 'Solo Delegate';
       }
 
       // -------------------------------------------------------------
@@ -463,180 +470,86 @@ export const AdminTicketScanner: React.FC<AdminTicketScannerProps> = ({
           });
         }
 
-        // Case A: Specific Member QR or Solo Delegate
-        if (scannedMemberKey) {
-          const isAlreadyScanned = Boolean(currentTechStatus[scannedMemberKey]);
-          if (isAlreadyScanned) {
-            // DUPLICATE SCAN ATTEMPT DETECTED! STRICT 1-TIME ENFORCEMENT
-            playBuzzer();
-            try { navigator.vibrate?.([300, 150, 300, 150, 400]); } catch (e) {}
-            const existingTime = currentTechTimes[scannedMemberKey]
-              ? new Date(currentTechTimes[scannedMemberKey]).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })
-              : (matched.checkInTime ? new Date(matched.checkInTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }) : 'Earlier Today');
+        const isAlreadyScanned = Boolean(currentTechStatus[scannedMemberKey]);
+        if (isAlreadyScanned) {
+          // DUPLICATE SCAN ATTEMPT DETECTED! STRICT 1-TIME ENFORCEMENT
+          playBuzzer();
+          try { navigator.vibrate?.([300, 150, 300, 150, 400]); } catch (e) {}
+          const existingTime = currentTechTimes[scannedMemberKey]
+            ? new Date(currentTechTimes[scannedMemberKey]).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })
+            : (matched.checkInTime ? new Date(matched.checkInTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }) : 'Earlier Today');
 
-            setScanResultModal({
-              type: 'already_scanned',
-              scanTrack: 'Technical Event',
-              title: 'ALREADY SCANNED! NO OTHER CHANCE.',
-              message: `This QR code has ALREADY been scanned and counted for Technical Events. Duplicate entry is strictly rejected! Each QR code can only be scanned and counted ONCE.`,
-              delegateName: scannedMemberName,
-              delegateRoll: scannedMemberRoll,
-              delegateRole: scannedMemberRole,
-              teamName: matched.name,
-              scannedAt: existingTime,
-              eventName: trackStats.techEventName
-            });
-          } else {
-            // VALID 1-TIME SCAN FOR THIS INDIVIDUAL DELEGATE
-            playBeep(true);
-            try {
-              navigator.vibrate?.([80, 40, 80]);
-              confetti({
-                particleCount: 70,
-                spread: 70,
-                origin: { y: 0.6 },
-                colors: ['#0088d4', '#4cc38a', '#ffffff', '#f2c14e']
-              });
-            } catch (e) {}
-
-            const now = new Date().toISOString();
-            currentTechStatus[scannedMemberKey] = true;
-            currentTechTimes[scannedMemberKey] = now;
-
-            // Also ensure general reception checkIn is marked
-            const currentCheckInStatus = { ...(matched.memberCheckInStatus || {}) };
-            const currentCheckInTimes = { ...(matched.memberCheckInTimes || {}) };
-            currentCheckInStatus[scannedMemberKey] = true;
-            currentCheckInTimes[scannedMemberKey] = now;
-
-            const techEvents = (matched.eventIds || []).filter(id => id !== 'spot' && id !== 'spot-pass');
-            const newAttended = Array.from(new Set([...(matched.attendedEvents || []), ...techEvents]));
-
-            const memberKeys = ['lead', ...matchedTeammates.map((_, i) => `teammate_${i}`)];
-            const newTechCount = memberKeys.filter(k => Boolean(currentTechStatus[k])).length;
-
-            const updated: RegistrationRecord = {
-              ...matched,
-              memberTechStatus: currentTechStatus,
-              memberTechTimes: currentTechTimes,
-              memberCheckInStatus: currentCheckInStatus,
-              memberCheckInTimes: currentCheckInTimes,
-              checkedIn: true,
-              checkInTime: matched.checkInTime || now,
-              checkedInBy: 'Technical Desk Scanner',
-              attendedEvents: newAttended,
-              kitIssued: true
-            };
-
-            onUpdateRecord(updated);
-            setActiveRecord(updated);
-
-            setScanResultModal({
-              type: 'success',
-              scanTrack: 'Technical Event',
-              title: 'TECHNICAL EVENT ENTRY VERIFIED (1-TIME COUNTED)',
-              message: `1 Technical Delegate Attendance Counted ✓: ${scannedMemberName} (${scannedMemberRoll} · ${scannedMemberRole}) verified for ${trackStats.techEventName}. [${newTechCount} of ${matchedTotalMembers} team delegates counted].`,
-              delegateName: scannedMemberName,
-              delegateRoll: scannedMemberRoll,
-              delegateRole: scannedMemberRole,
-              teamName: matched.name,
-              scannedAt: new Date(now).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }),
-              eventName: trackStats.techEventName,
-              totalTeamCount: matchedTotalMembers,
-              attendedTeamCount: newTechCount
-            });
-          }
+          setScanResultModal({
+            type: 'already_scanned',
+            scanTrack: 'Technical Event',
+            title: 'ALREADY SCANNED! NO OTHER CHANCE.',
+            message: `This QR code has ALREADY been scanned and counted for Technical Events. Duplicate entry is strictly rejected! Each QR code can only be scanned and counted ONCE.`,
+            delegateName: scannedMemberName,
+            delegateRoll: scannedMemberRoll,
+            delegateRole: scannedMemberRole,
+            teamName: matched.name,
+            scannedAt: existingTime,
+            eventName: trackStats.techEventName
+          });
         } else {
-          // Case B: General team pass scanned without specific member code
+          // VALID 1-TIME SCAN FOR THIS INDIVIDUAL DELEGATE
+          playBeep(true);
+          try {
+            navigator.vibrate?.([80, 40, 80]);
+            confetti({
+              particleCount: 70,
+              spread: 70,
+              origin: { y: 0.6 },
+              colors: ['#0088d4', '#4cc38a', '#ffffff', '#f2c14e']
+            });
+          } catch (e) {}
+
+          const now = new Date().toISOString();
+          currentTechStatus[scannedMemberKey] = true;
+          currentTechTimes[scannedMemberKey] = now;
+
+          // Also ensure general reception checkIn is marked
+          const currentCheckInStatus = { ...(matched.memberCheckInStatus || {}) };
+          const currentCheckInTimes = { ...(matched.memberCheckInTimes || {}) };
+          currentCheckInStatus[scannedMemberKey] = true;
+          currentCheckInTimes[scannedMemberKey] = now;
+
+          const techEvents = (matched.eventIds || []).filter(id => id !== 'spot' && id !== 'spot-pass');
+          const newAttended = Array.from(new Set([...(matched.attendedEvents || []), ...techEvents]));
+
           const memberKeys = ['lead', ...matchedTeammates.map((_, i) => `teammate_${i}`)];
-          const alreadyCount = memberKeys.filter(k => Boolean(currentTechStatus[k])).length;
+          const newTechCount = memberKeys.filter(k => Boolean(currentTechStatus[k])).length;
 
-          if (alreadyCount >= matchedTotalMembers && matchedTotalMembers > 0) {
-            playBuzzer();
-            try { navigator.vibrate?.([300, 150, 300, 150, 400]); } catch (e) {}
-            setScanResultModal({
-              type: 'already_scanned',
-              scanTrack: 'Technical Event',
-              title: 'ALREADY SCANNED! NO OTHER CHANCE.',
-              message: `ALL ${matchedTotalMembers} delegates of team "${matched.name}" have ALREADY been scanned and counted for Technical Events. Duplicate team entry is strictly rejected!`,
-              delegateName: matched.name,
-              delegateRoll: matched.roll || matched.regId,
-              teamName: matched.name,
-              eventName: trackStats.techEventName
-            });
-          } else {
-            // Find next un-scanned member in team
-            let nextKey = 'lead';
-            let nextName = matched.name;
-            let nextRoll = matched.roll || matched.regId;
-            let nextRole = 'Lead (Member 1)';
+          const updated: RegistrationRecord = {
+            ...matched,
+            memberTechStatus: currentTechStatus,
+            memberTechTimes: currentTechTimes,
+            memberCheckInStatus: currentCheckInStatus,
+            memberCheckInTimes: currentCheckInTimes,
+            checkedIn: true,
+            checkInTime: matched.checkInTime || now,
+            checkedInBy: 'Technical Desk Scanner',
+            attendedEvents: newAttended,
+            kitIssued: true
+          };
 
-            if (currentTechStatus['lead']) {
-              const nextIdx = matchedTeammates.findIndex((_, i) => !currentTechStatus[`teammate_${i}`]);
-              if (nextIdx >= 0) {
-                nextKey = `teammate_${nextIdx}`;
-                const tMem = matchedTeammates[nextIdx];
-                nextName = tMem?.name || `Member ${nextIdx + 2}`;
-                nextRoll = tMem?.roll || `M${nextIdx + 2}`;
-                nextRole = `Member ${nextIdx + 2}`;
-              }
-            }
+          onUpdateRecord(updated);
+          setActiveRecord(updated);
 
-            playBeep(true);
-            try {
-              navigator.vibrate?.([80, 40, 80]);
-              confetti({
-                particleCount: 70,
-                spread: 70,
-                origin: { y: 0.6 },
-                colors: ['#0088d4', '#4cc38a', '#ffffff', '#f2c14e']
-              });
-            } catch (e) {}
-
-            const now = new Date().toISOString();
-            currentTechStatus[nextKey] = true;
-            currentTechTimes[nextKey] = now;
-
-            const currentCheckInStatus = { ...(matched.memberCheckInStatus || {}) };
-            const currentCheckInTimes = { ...(matched.memberCheckInTimes || {}) };
-            currentCheckInStatus[nextKey] = true;
-            currentCheckInTimes[nextKey] = now;
-
-            const techEvents = (matched.eventIds || []).filter(id => id !== 'spot' && id !== 'spot-pass');
-            const newAttended = Array.from(new Set([...(matched.attendedEvents || []), ...techEvents]));
-            const newTechCount = memberKeys.filter(k => Boolean(currentTechStatus[k])).length;
-
-            const updated: RegistrationRecord = {
-              ...matched,
-              memberTechStatus: currentTechStatus,
-              memberTechTimes: currentTechTimes,
-              memberCheckInStatus: currentCheckInStatus,
-              memberCheckInTimes: currentCheckInTimes,
-              checkedIn: true,
-              checkInTime: matched.checkInTime || now,
-              checkedInBy: 'Technical Desk Scanner',
-              attendedEvents: newAttended,
-              kitIssued: true
-            };
-
-            onUpdateRecord(updated);
-            setActiveRecord(updated);
-
-            setScanResultModal({
-              type: 'success',
-              scanTrack: 'Technical Event',
-              title: 'TECHNICAL EVENT ENTRY VERIFIED (1-TIME COUNTED)',
-              message: `1 Team Member Counted ✓: ${nextName} (${nextRoll} · ${nextRole}) counted for ${trackStats.techEventName}. [${newTechCount} of ${matchedTotalMembers} team delegates counted].`,
-              delegateName: nextName,
-              delegateRoll: nextRoll,
-              delegateRole: nextRole,
-              teamName: matched.name,
-              scannedAt: new Date(now).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }),
-              eventName: trackStats.techEventName,
-              totalTeamCount: matchedTotalMembers,
-              attendedTeamCount: newTechCount
-            });
-          }
+          setScanResultModal({
+            type: 'success',
+            scanTrack: 'Technical Event',
+            title: 'TECHNICAL EVENT ENTRY VERIFIED (1-TIME COUNTED)',
+            message: `1 Technical Delegate Attendance Counted ✓: ${scannedMemberName} (${scannedMemberRoll} · ${scannedMemberRole}) verified for ${trackStats.techEventName}. [${newTechCount} of ${matchedTotalMembers} team delegates counted].`,
+            delegateName: scannedMemberName,
+            delegateRoll: scannedMemberRoll,
+            delegateRole: scannedMemberRole,
+            teamName: matched.name,
+            scannedAt: new Date(now).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }),
+            eventName: trackStats.techEventName,
+            totalTeamCount: matchedTotalMembers,
+            attendedTeamCount: newTechCount
+          });
         }
       }
 
@@ -675,176 +588,84 @@ export const AdminTicketScanner: React.FC<AdminTicketScannerProps> = ({
           });
         }
 
-        // Case A: Specific Member QR or Solo Delegate
-        if (scannedMemberKey) {
-          const isAlreadyScanned = Boolean(currentSpotStatus[scannedMemberKey]);
-          if (isAlreadyScanned) {
-            // DUPLICATE SCAN ATTEMPT DETECTED! STRICT 1-TIME ENFORCEMENT
-            playBuzzer();
-            try { navigator.vibrate?.([300, 150, 300, 150, 400]); } catch (e) {}
-            const existingTime = currentSpotTimes[scannedMemberKey]
-              ? new Date(currentSpotTimes[scannedMemberKey]).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })
-              : (matched.checkInTime ? new Date(matched.checkInTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }) : 'Earlier Today');
+        const isAlreadyScanned = Boolean(currentSpotStatus[scannedMemberKey]);
+        if (isAlreadyScanned) {
+          // DUPLICATE SCAN ATTEMPT DETECTED! STRICT 1-TIME ENFORCEMENT
+          playBuzzer();
+          try { navigator.vibrate?.([300, 150, 300, 150, 400]); } catch (e) {}
+          const existingTime = currentSpotTimes[scannedMemberKey]
+            ? new Date(currentSpotTimes[scannedMemberKey]).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })
+            : (matched.checkInTime ? new Date(matched.checkInTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }) : 'Earlier Today');
 
-            setScanResultModal({
-              type: 'already_scanned',
-              scanTrack: 'Spot Event',
-              title: 'ALREADY SCANNED! NO OTHER CHANCE.',
-              message: `This QR code has ALREADY been scanned and counted for Spot Events. Duplicate entry is strictly rejected! Each QR code can only be scanned and counted ONCE.`,
-              delegateName: scannedMemberName,
-              delegateRoll: scannedMemberRoll,
-              delegateRole: scannedMemberRole,
-              teamName: matched.name,
-              scannedAt: existingTime,
-              eventName: 'Spot Events Pass (Arena Activities)'
-            });
-          } else {
-            // VALID 1-TIME SCAN FOR THIS INDIVIDUAL DELEGATE
-            playBeep(true);
-            try {
-              navigator.vibrate?.([80, 40, 80]);
-              confetti({
-                particleCount: 70,
-                spread: 70,
-                origin: { y: 0.6 },
-                colors: ['#8b5cf6', '#ec4899', '#ffffff', '#f2c14e']
-              });
-            } catch (e) {}
-
-            const now = new Date().toISOString();
-            currentSpotStatus[scannedMemberKey] = true;
-            currentSpotTimes[scannedMemberKey] = now;
-
-            // Also ensure general reception checkIn is marked
-            const currentCheckInStatus = { ...(matched.memberCheckInStatus || {}) };
-            const currentCheckInTimes = { ...(matched.memberCheckInTimes || {}) };
-            currentCheckInStatus[scannedMemberKey] = true;
-            currentCheckInTimes[scannedMemberKey] = now;
-
-            const newAttended = Array.from(new Set([...(matched.attendedEvents || []), 'spot']));
-            const memberKeys = ['lead', ...matchedTeammates.map((_, i) => `teammate_${i}`)];
-            const newSpotCount = memberKeys.filter(k => Boolean(currentSpotStatus[k])).length;
-
-            const updated: RegistrationRecord = {
-              ...matched,
-              memberSpotStatus: currentSpotStatus,
-              memberSpotTimes: currentSpotTimes,
-              memberCheckInStatus: currentCheckInStatus,
-              memberCheckInTimes: currentCheckInTimes,
-              checkedIn: true,
-              checkInTime: matched.checkInTime || now,
-              checkedInBy: 'Spot Desk Scanner',
-              attendedEvents: newAttended,
-              kitIssued: true
-            };
-
-            onUpdateRecord(updated);
-            setActiveRecord(updated);
-
-            setScanResultModal({
-              type: 'success',
-              scanTrack: 'Spot Event',
-              title: 'SPOT EVENT ENTRY VERIFIED (1-TIME COUNTED)',
-              message: `1 Spot Delegate Attendance Counted ✓: ${scannedMemberName} (${scannedMemberRoll} · ${scannedMemberRole}) verified for Track 2 Spot Events Pass. [${newSpotCount} of ${matchedTotalMembers} team delegates counted].`,
-              delegateName: scannedMemberName,
-              delegateRoll: scannedMemberRoll,
-              delegateRole: scannedMemberRole,
-              teamName: matched.name,
-              scannedAt: new Date(now).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }),
-              eventName: 'Spot Events Pass (Arena Activities)',
-              totalTeamCount: matchedTotalMembers,
-              attendedTeamCount: newSpotCount
-            });
-          }
+          setScanResultModal({
+            type: 'already_scanned',
+            scanTrack: 'Spot Event',
+            title: 'ALREADY SCANNED! NO OTHER CHANCE.',
+            message: `This QR code has ALREADY been scanned and counted for Spot Events. Duplicate entry is strictly rejected! Each QR code can only be scanned and counted ONCE.`,
+            delegateName: scannedMemberName,
+            delegateRoll: scannedMemberRoll,
+            delegateRole: scannedMemberRole,
+            teamName: matched.name,
+            scannedAt: existingTime,
+            eventName: 'Spot Events Pass (Arena Activities)'
+          });
         } else {
-          // Case B: General team pass scanned without specific member code
+          // VALID 1-TIME SCAN FOR THIS INDIVIDUAL DELEGATE
+          playBeep(true);
+          try {
+            navigator.vibrate?.([80, 40, 80]);
+            confetti({
+              particleCount: 70,
+              spread: 70,
+              origin: { y: 0.6 },
+              colors: ['#8b5cf6', '#ec4899', '#ffffff', '#f2c14e']
+            });
+          } catch (e) {}
+
+          const now = new Date().toISOString();
+          currentSpotStatus[scannedMemberKey] = true;
+          currentSpotTimes[scannedMemberKey] = now;
+
+          // Also ensure general reception checkIn is marked
+          const currentCheckInStatus = { ...(matched.memberCheckInStatus || {}) };
+          const currentCheckInTimes = { ...(matched.memberCheckInTimes || {}) };
+          currentCheckInStatus[scannedMemberKey] = true;
+          currentCheckInTimes[scannedMemberKey] = now;
+
+          const newAttended = Array.from(new Set([...(matched.attendedEvents || []), 'spot']));
           const memberKeys = ['lead', ...matchedTeammates.map((_, i) => `teammate_${i}`)];
-          const alreadyCount = memberKeys.filter(k => Boolean(currentSpotStatus[k])).length;
+          const newSpotCount = memberKeys.filter(k => Boolean(currentSpotStatus[k])).length;
 
-          if (alreadyCount >= matchedTotalMembers && matchedTotalMembers > 0) {
-            playBuzzer();
-            try { navigator.vibrate?.([300, 150, 300, 150, 400]); } catch (e) {}
-            setScanResultModal({
-              type: 'already_scanned',
-              scanTrack: 'Spot Event',
-              title: 'ALREADY SCANNED! NO OTHER CHANCE.',
-              message: `ALL ${matchedTotalMembers} delegates of team "${matched.name}" have ALREADY been scanned and counted for Spot Events. Duplicate team entry is strictly rejected!`,
-              delegateName: matched.name,
-              delegateRoll: matched.roll || matched.regId,
-              teamName: matched.name,
-              eventName: 'Spot Events Pass (Arena Activities)'
-            });
-          } else {
-            let nextKey = 'lead';
-            let nextName = matched.name;
-            let nextRoll = matched.roll || matched.regId;
-            let nextRole = 'Lead (Member 1)';
+          const updated: RegistrationRecord = {
+            ...matched,
+            memberSpotStatus: currentSpotStatus,
+            memberSpotTimes: currentSpotTimes,
+            memberCheckInStatus: currentCheckInStatus,
+            memberCheckInTimes: currentCheckInTimes,
+            checkedIn: true,
+            checkInTime: matched.checkInTime || now,
+            checkedInBy: 'Spot Desk Scanner',
+            attendedEvents: newAttended,
+            kitIssued: true
+          };
 
-            if (currentSpotStatus['lead']) {
-              const nextIdx = matchedTeammates.findIndex((_, i) => !currentSpotStatus[`teammate_${i}`]);
-              if (nextIdx >= 0) {
-                nextKey = `teammate_${nextIdx}`;
-                const tMem = matchedTeammates[nextIdx];
-                nextName = tMem?.name || `Member ${nextIdx + 2}`;
-                nextRoll = tMem?.roll || `M${nextIdx + 2}`;
-                nextRole = `Member ${nextIdx + 2}`;
-              }
-            }
+          onUpdateRecord(updated);
+          setActiveRecord(updated);
 
-            playBeep(true);
-            try {
-              navigator.vibrate?.([80, 40, 80]);
-              confetti({
-                particleCount: 70,
-                spread: 70,
-                origin: { y: 0.6 },
-                colors: ['#8b5cf6', '#ec4899', '#ffffff', '#f2c14e']
-              });
-            } catch (e) {}
-
-            const now = new Date().toISOString();
-            currentSpotStatus[nextKey] = true;
-            currentSpotTimes[nextKey] = now;
-
-            const currentCheckInStatus = { ...(matched.memberCheckInStatus || {}) };
-            const currentCheckInTimes = { ...(matched.memberCheckInTimes || {}) };
-            currentCheckInStatus[nextKey] = true;
-            currentCheckInTimes[nextKey] = now;
-
-            const newAttended = Array.from(new Set([...(matched.attendedEvents || []), 'spot']));
-            const newSpotCount = memberKeys.filter(k => Boolean(currentSpotStatus[k])).length;
-
-            const updated: RegistrationRecord = {
-              ...matched,
-              memberSpotStatus: currentSpotStatus,
-              memberSpotTimes: currentSpotTimes,
-              memberCheckInStatus: currentCheckInStatus,
-              memberCheckInTimes: currentCheckInTimes,
-              checkedIn: true,
-              checkInTime: matched.checkInTime || now,
-              checkedInBy: 'Spot Desk Scanner',
-              attendedEvents: newAttended,
-              kitIssued: true
-            };
-
-            onUpdateRecord(updated);
-            setActiveRecord(updated);
-
-            setScanResultModal({
-              type: 'success',
-              scanTrack: 'Spot Event',
-              title: 'SPOT EVENT ENTRY VERIFIED (1-TIME COUNTED)',
-              message: `1 Team Member Counted ✓: ${nextName} (${nextRoll} · ${nextRole}) counted for Spot Events. [${newSpotCount} of ${matchedTotalMembers} team delegates counted].`,
-              delegateName: nextName,
-              delegateRoll: nextRoll,
-              delegateRole: nextRole,
-              teamName: matched.name,
-              scannedAt: new Date(now).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }),
-              eventName: 'Spot Events Pass (Arena Activities)',
-              totalTeamCount: matchedTotalMembers,
-              attendedTeamCount: newSpotCount
-            });
-          }
+          setScanResultModal({
+            type: 'success',
+            scanTrack: 'Spot Event',
+            title: 'SPOT EVENT ENTRY VERIFIED (1-TIME COUNTED)',
+            message: `1 Spot Delegate Attendance Counted ✓: ${scannedMemberName} (${scannedMemberRoll} · ${scannedMemberRole}) verified for Track 2 Spot Events Pass. [${newSpotCount} of ${matchedTotalMembers} team delegates counted].`,
+            delegateName: scannedMemberName,
+            delegateRoll: scannedMemberRoll,
+            delegateRole: scannedMemberRole,
+            teamName: matched.name,
+            scannedAt: new Date(now).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }),
+            eventName: 'Spot Events Pass (Arena Activities)',
+            totalTeamCount: matchedTotalMembers,
+            attendedTeamCount: newSpotCount
+          });
         }
       }
 
@@ -858,138 +679,64 @@ export const AdminTicketScanner: React.FC<AdminTicketScannerProps> = ({
           matchedTeammates.forEach((_, i) => { currentMemberStatus[`teammate_${i}`] = true; });
         }
 
-        if (scannedMemberKey) {
-          const isAlreadyCollected = Boolean(currentMemberStatus[scannedMemberKey]);
-          if (isAlreadyCollected) {
-            playBuzzer();
-            try { navigator.vibrate?.([300, 150, 300, 150, 400]); } catch (e) {}
-            const claimTime = matched.lunchCollectedTime ? new Date(matched.lunchCollectedTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }) : 'Earlier Today';
-            setScanResultModal({
-              type: 'already_scanned',
-              scanTrack: 'Food Meal Token',
-              title: 'ALREADY SCANNED! NO OTHER CHANCE.',
-              message: `DUPLICATE MEAL CLAIM! Meal tray for ${scannedMemberName} (${scannedMemberRoll} · ${scannedMemberRole}) was already dispensed at ${claimTime}. Duplicate meal rejected!`,
-              delegateName: scannedMemberName,
-              delegateRoll: scannedMemberRoll,
-              delegateRole: scannedMemberRole,
-              teamName: matched.name,
-              scannedAt: claimTime,
-              eventName: 'Lunch Catering Token'
-            });
-          } else {
-            playBeep(true);
-            try {
-              navigator.vibrate?.([80, 40, 80]);
-              confetti({
-                particleCount: 50,
-                spread: 60,
-                origin: { y: 0.6 },
-                colors: ['#22c55e', '#f59e0b', '#ffffff']
-              });
-            } catch (e) {}
-
-            currentMemberStatus[scannedMemberKey] = true;
-            const newDispensed = Object.values(currentMemberStatus).filter(Boolean).length;
-            const allCollected = newDispensed >= matchedTotalMembers && matchedTotalMembers > 0;
-            const now = new Date().toISOString();
-            const updated: RegistrationRecord = {
-              ...matched,
-              memberLunchStatus: currentMemberStatus,
-              lunchCollectedCount: newDispensed,
-              lunchCollected: allCollected,
-              lunchCollectedTime: now,
-              lunchCollectedBy: 'Catering Counter'
-            };
-            onUpdateRecord(updated);
-            setActiveRecord(updated);
-
-            setScanResultModal({
-              type: 'success',
-              scanTrack: 'Food Meal Token',
-              title: 'MEAL TRAY DISPENSED (1-TIME TOKEN USED)',
-              message: `1 Meal Tray Dispensed ✓: Lunch token verified for ${scannedMemberName} (${scannedMemberRoll} · ${scannedMemberRole}). [${newDispensed} of ${matchedTotalMembers} team meal trays collected].`,
-              delegateName: scannedMemberName,
-              delegateRoll: scannedMemberRoll,
-              delegateRole: scannedMemberRole,
-              teamName: matched.name,
-              scannedAt: new Date(now).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }),
-              eventName: 'Lunch Catering Token',
-              totalTeamCount: matchedTotalMembers,
-              attendedTeamCount: newDispensed
-            });
-          }
+        const isAlreadyCollected = Boolean(currentMemberStatus[scannedMemberKey]);
+        if (isAlreadyCollected) {
+          playBuzzer();
+          try { navigator.vibrate?.([300, 150, 300, 150, 400]); } catch (e) {}
+          const claimTime = matched.lunchCollectedTime ? new Date(matched.lunchCollectedTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }) : 'Earlier Today';
+          setScanResultModal({
+            type: 'already_scanned',
+            scanTrack: 'Food Meal Token',
+            title: 'ALREADY SCANNED! NO OTHER CHANCE.',
+            message: `DUPLICATE MEAL CLAIM! Meal tray for ${scannedMemberName} (${scannedMemberRoll} · ${scannedMemberRole}) was already dispensed at ${claimTime}. Duplicate meal rejected!`,
+            delegateName: scannedMemberName,
+            delegateRoll: scannedMemberRoll,
+            delegateRole: scannedMemberRole,
+            teamName: matched.name,
+            scannedAt: claimTime,
+            eventName: 'Lunch Catering Token'
+          });
         } else {
-          if (lunchStats.isFullyCollected) {
-            playBuzzer();
-            try { navigator.vibrate?.([300, 150, 300, 150, 400]); } catch (e) {}
-            setScanResultModal({
-              type: 'already_scanned',
-              scanTrack: 'Food Meal Token',
-              title: 'ALREADY SCANNED! NO OTHER CHANCE.',
-              message: `DUPLICATE MEAL CLAIM! All ${matchedTotalMembers} lunch meal trays for team "${matched.name}" have already been collected. No tokens remaining.`,
-              delegateName: matched.name,
-              delegateRoll: matched.roll || matched.regId,
-              teamName: matched.name,
-              eventName: 'Lunch Catering Token'
+          playBeep(true);
+          try {
+            navigator.vibrate?.([80, 40, 80]);
+            confetti({
+              particleCount: 50,
+              spread: 60,
+              origin: { y: 0.6 },
+              colors: ['#22c55e', '#f59e0b', '#ffffff']
             });
-          } else {
-            let nextKey = 'lead';
-            let nextName = matched.name;
-            let nextRoll = matched.roll || matched.regId;
-            let nextRole = matchedTotalMembers > 1 ? 'Lead' : 'Delegate';
+          } catch (e) {}
 
-            if (currentMemberStatus['lead']) {
-              const uncollectedIdx = matchedTeammates.findIndex((_, i) => !currentMemberStatus[`teammate_${i}`]);
-              if (uncollectedIdx >= 0) {
-                nextKey = `teammate_${uncollectedIdx}`;
-                const tMem = matchedTeammates[uncollectedIdx];
-                nextName = tMem?.name || `Member ${uncollectedIdx + 2}`;
-                nextRoll = tMem?.roll || `M${uncollectedIdx + 2}`;
-                nextRole = `Member ${uncollectedIdx + 2}`;
-              }
-            }
+          currentMemberStatus[scannedMemberKey] = true;
+          const newDispensed = Object.values(currentMemberStatus).filter(Boolean).length;
+          const allCollected = newDispensed >= matchedTotalMembers && matchedTotalMembers > 0;
+          const now = new Date().toISOString();
+          const updated: RegistrationRecord = {
+            ...matched,
+            memberLunchStatus: currentMemberStatus,
+            lunchCollectedCount: newDispensed,
+            lunchCollected: allCollected,
+            lunchCollectedTime: now,
+            lunchCollectedBy: 'Catering Counter'
+          };
+          onUpdateRecord(updated);
+          setActiveRecord(updated);
 
-            playBeep(true);
-            try {
-              navigator.vibrate?.([80, 40, 80]);
-              confetti({
-                particleCount: 50,
-                spread: 60,
-                origin: { y: 0.6 },
-                colors: ['#22c55e', '#f59e0b', '#ffffff']
-              });
-            } catch (e) {}
-
-            currentMemberStatus[nextKey] = true;
-            const newDispensed = Object.values(currentMemberStatus).filter(Boolean).length;
-            const allCollected = newDispensed >= matchedTotalMembers && matchedTotalMembers > 0;
-            const now = new Date().toISOString();
-            const updated: RegistrationRecord = {
-              ...matched,
-              memberLunchStatus: currentMemberStatus,
-              lunchCollectedCount: newDispensed,
-              lunchCollected: allCollected,
-              lunchCollectedTime: now,
-              lunchCollectedBy: 'Catering Counter'
-            };
-            onUpdateRecord(updated);
-            setActiveRecord(updated);
-
-            setScanResultModal({
-              type: 'success',
-              scanTrack: 'Food Meal Token',
-              title: 'MEAL TRAY DISPENSED (1-TIME TOKEN USED)',
-              message: `1 Meal Tray Dispensed ✓: 1 meal tray dispensed for ${nextName} (${nextRoll} · ${nextRole}). [${newDispensed} of ${matchedTotalMembers} team meal trays collected].`,
-              delegateName: nextName,
-              delegateRoll: nextRoll,
-              delegateRole: nextRole,
-              teamName: matched.name,
-              scannedAt: new Date(now).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }),
-              eventName: 'Lunch Catering Token',
-              totalTeamCount: matchedTotalMembers,
-              attendedTeamCount: newDispensed
-            });
-          }
+          setScanResultModal({
+            type: 'success',
+            scanTrack: 'Food Meal Token',
+            title: 'MEAL TRAY DISPENSED (1-TIME TOKEN USED)',
+            message: `1 Meal Tray Dispensed ✓: Lunch token verified for ${scannedMemberName} (${scannedMemberRoll} · ${scannedMemberRole}). [${newDispensed} of ${matchedTotalMembers} team meal trays collected].`,
+            delegateName: scannedMemberName,
+            delegateRoll: scannedMemberRoll,
+            delegateRole: scannedMemberRole,
+            teamName: matched.name,
+            scannedAt: new Date(now).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }),
+            eventName: 'Lunch Catering Token',
+            totalTeamCount: matchedTotalMembers,
+            attendedTeamCount: newDispensed
+          });
         }
       }
 
@@ -1006,12 +753,56 @@ export const AdminTicketScanner: React.FC<AdminTicketScannerProps> = ({
   const handleToggleMemberTech = (targetRecord: RegistrationRecord, memberKey: string, forceStatus?: boolean) => {
     const currentTech = { ...(targetRecord.memberTechStatus || {}) };
     const currentTimes = { ...(targetRecord.memberTechTimes || {}) };
+    const teammates = getRecordTeammates(targetRecord);
+    const totalMembers = 1 + teammates.length;
+    const trackStats = getRecordTrackAttendanceStats(targetRecord);
+
+    let mName = targetRecord.name;
+    let mRoll = targetRecord.roll || targetRecord.regId;
+    let mRole = totalMembers > 1 ? 'Lead' : 'Delegate';
+    if (memberKey !== 'lead') {
+      const idx = parseInt(memberKey.replace('teammate_', ''), 10);
+      const t = teammates[idx];
+      if (t) {
+        mName = t.name || `Member ${idx + 2}`;
+        mRoll = t.roll || `M${idx + 2}`;
+        mRole = `Member ${idx + 2}`;
+      }
+    }
+
+    if (forceStatus === true && currentTech[memberKey]) {
+      playBuzzer();
+      try { navigator.vibrate?.([300, 150, 300, 150, 400]); } catch (e) {}
+      setScanResultModal({
+        type: 'already_scanned',
+        scanTrack: 'Technical Event',
+        title: 'ALREADY SCANNED! NO OTHER CHANCE.',
+        message: `This QR code has ALREADY been scanned and counted for Technical Events. Duplicate entry is strictly rejected! Each QR code can only be scanned and counted ONCE.`,
+        delegateName: mName,
+        delegateRoll: mRoll,
+        delegateRole: mRole,
+        teamName: targetRecord.name,
+        scannedAt: currentTimes[memberKey] ? new Date(currentTimes[memberKey]).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }) : 'Earlier Today',
+        eventName: trackStats.techEventName
+      });
+      return;
+    }
+
     const nextState = forceStatus !== undefined ? forceStatus : !Boolean(currentTech[memberKey]);
     currentTech[memberKey] = nextState;
     const now = new Date().toISOString();
     if (nextState) {
       currentTimes[memberKey] = now;
       playBeep(true);
+      try {
+        navigator.vibrate?.([80, 40, 80]);
+        confetti({
+          particleCount: 70,
+          spread: 70,
+          origin: { y: 0.6 },
+          colors: ['#0088d4', '#4cc38a', '#ffffff', '#f2c14e']
+        });
+      } catch (e) {}
     } else {
       delete currentTimes[memberKey];
     }
@@ -1020,15 +811,46 @@ export const AdminTicketScanner: React.FC<AdminTicketScannerProps> = ({
       ? Array.from(new Set([...(targetRecord.attendedEvents || []), ...techEvents]))
       : targetRecord.attendedEvents;
 
+    const currentCheckInStatus = { ...(targetRecord.memberCheckInStatus || {}) };
+    const currentCheckInTimes = { ...(targetRecord.memberCheckInTimes || {}) };
+    if (nextState) {
+      currentCheckInStatus[memberKey] = true;
+      currentCheckInTimes[memberKey] = now;
+    }
+
+    const memberKeys = ['lead', ...teammates.map((_, i) => `teammate_${i}`)];
+    const newTechCount = memberKeys.filter(k => Boolean(currentTech[k])).length;
+
     const updated: RegistrationRecord = {
       ...targetRecord,
       memberTechStatus: currentTech,
       memberTechTimes: currentTimes,
+      memberCheckInStatus: currentCheckInStatus,
+      memberCheckInTimes: currentCheckInTimes,
+      checkedIn: nextState ? true : targetRecord.checkedIn,
+      checkInTime: targetRecord.checkInTime || (nextState ? now : undefined),
       attendedEvents: updatedAttended
     };
     onUpdateRecord(updated);
     if (activeRecord && activeRecord.regId === targetRecord.regId) {
       setActiveRecord(updated);
+    }
+
+    if (nextState) {
+      setScanResultModal({
+        type: 'success',
+        scanTrack: 'Technical Event',
+        title: 'TECHNICAL EVENT ENTRY VERIFIED (1-TIME COUNTED)',
+        message: `1 Technical Delegate Attendance Counted ✓: ${mName} (${mRoll} · ${mRole}) verified for ${trackStats.techEventName}. [${newTechCount} of ${totalMembers} team delegates counted].`,
+        delegateName: mName,
+        delegateRoll: mRoll,
+        delegateRole: mRole,
+        teamName: targetRecord.name,
+        scannedAt: new Date(now).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }),
+        eventName: trackStats.techEventName,
+        totalTeamCount: totalMembers,
+        attendedTeamCount: newTechCount
+      });
     }
   };
 
@@ -1036,12 +858,55 @@ export const AdminTicketScanner: React.FC<AdminTicketScannerProps> = ({
   const handleToggleMemberSpot = (targetRecord: RegistrationRecord, memberKey: string, forceStatus?: boolean) => {
     const currentSpot = { ...(targetRecord.memberSpotStatus || {}) };
     const currentTimes = { ...(targetRecord.memberSpotTimes || {}) };
+    const teammates = getRecordTeammates(targetRecord);
+    const totalMembers = 1 + teammates.length;
+
+    let mName = targetRecord.name;
+    let mRoll = targetRecord.roll || targetRecord.regId;
+    let mRole = totalMembers > 1 ? 'Lead' : 'Delegate';
+    if (memberKey !== 'lead') {
+      const idx = parseInt(memberKey.replace('teammate_', ''), 10);
+      const t = teammates[idx];
+      if (t) {
+        mName = t.name || `Member ${idx + 2}`;
+        mRoll = t.roll || `M${idx + 2}`;
+        mRole = `Member ${idx + 2}`;
+      }
+    }
+
+    if (forceStatus === true && currentSpot[memberKey]) {
+      playBuzzer();
+      try { navigator.vibrate?.([300, 150, 300, 150, 400]); } catch (e) {}
+      setScanResultModal({
+        type: 'already_scanned',
+        scanTrack: 'Spot Event',
+        title: 'ALREADY SCANNED! NO OTHER CHANCE.',
+        message: `This QR code has ALREADY been scanned and counted for Spot Events. Duplicate entry is strictly rejected! Each QR code can only be scanned and counted ONCE.`,
+        delegateName: mName,
+        delegateRoll: mRoll,
+        delegateRole: mRole,
+        teamName: targetRecord.name,
+        scannedAt: currentTimes[memberKey] ? new Date(currentTimes[memberKey]).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }) : 'Earlier Today',
+        eventName: 'Spot Events Pass (Arena Activities)'
+      });
+      return;
+    }
+
     const nextState = forceStatus !== undefined ? forceStatus : !Boolean(currentSpot[memberKey]);
     currentSpot[memberKey] = nextState;
     const now = new Date().toISOString();
     if (nextState) {
       currentTimes[memberKey] = now;
       playBeep(true);
+      try {
+        navigator.vibrate?.([80, 40, 80]);
+        confetti({
+          particleCount: 70,
+          spread: 70,
+          origin: { y: 0.6 },
+          colors: ['#8b5cf6', '#ec4899', '#ffffff', '#f2c14e']
+        });
+      } catch (e) {}
     } else {
       delete currentTimes[memberKey];
     }
@@ -1049,15 +914,46 @@ export const AdminTicketScanner: React.FC<AdminTicketScannerProps> = ({
       ? Array.from(new Set([...(targetRecord.attendedEvents || []), 'spot']))
       : targetRecord.attendedEvents;
 
+    const currentCheckInStatus = { ...(targetRecord.memberCheckInStatus || {}) };
+    const currentCheckInTimes = { ...(targetRecord.memberCheckInTimes || {}) };
+    if (nextState) {
+      currentCheckInStatus[memberKey] = true;
+      currentCheckInTimes[memberKey] = now;
+    }
+
+    const memberKeys = ['lead', ...teammates.map((_, i) => `teammate_${i}`)];
+    const newSpotCount = memberKeys.filter(k => Boolean(currentSpot[k])).length;
+
     const updated: RegistrationRecord = {
       ...targetRecord,
       memberSpotStatus: currentSpot,
       memberSpotTimes: currentTimes,
+      memberCheckInStatus: currentCheckInStatus,
+      memberCheckInTimes: currentCheckInTimes,
+      checkedIn: nextState ? true : targetRecord.checkedIn,
+      checkInTime: targetRecord.checkInTime || (nextState ? now : undefined),
       attendedEvents: updatedAttended
     };
     onUpdateRecord(updated);
     if (activeRecord && activeRecord.regId === targetRecord.regId) {
       setActiveRecord(updated);
+    }
+
+    if (nextState) {
+      setScanResultModal({
+        type: 'success',
+        scanTrack: 'Spot Event',
+        title: 'SPOT EVENT ENTRY VERIFIED (1-TIME COUNTED)',
+        message: `1 Spot Delegate Attendance Counted ✓: ${mName} (${mRoll} · ${mRole}) verified for Track 2 Spot Events Pass. [${newSpotCount} of ${totalMembers} team delegates counted].`,
+        delegateName: mName,
+        delegateRoll: mRoll,
+        delegateRole: mRole,
+        teamName: targetRecord.name,
+        scannedAt: new Date(now).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }),
+        eventName: 'Spot Events Pass (Arena Activities)',
+        totalTeamCount: totalMembers,
+        attendedTeamCount: newSpotCount
+      });
     }
   };
 
@@ -2874,7 +2770,27 @@ export const AdminTicketScanner: React.FC<AdminTicketScannerProps> = ({
                               <div className="shrink-0 flex items-center gap-2">
                                 {m.isAttended ? (
                                   <div className="flex items-center gap-1.5">
-                                    <span className="text-[10px] font-bold text-[#4cc38a] flex items-center gap-1 bg-[#4cc38a]/15 px-2 py-1 rounded-lg border border-[#4cc38a]/30">
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        playBuzzer();
+                                        try { navigator.vibrate?.([300, 150, 300, 150, 400]); } catch (e) {}
+                                        setScanResultModal({
+                                          type: 'already_scanned',
+                                          scanTrack: 'Technical Event',
+                                          title: 'ALREADY SCANNED! NO OTHER CHANCE.',
+                                          message: `This QR code has ALREADY been scanned and counted for Technical Events. Duplicate entry is strictly rejected! Each QR code can only be scanned and counted ONCE.`,
+                                          delegateName: m.name,
+                                          delegateRoll: m.roll,
+                                          delegateRole: m.role,
+                                          teamName: activeRecord.name,
+                                          scannedAt: m.time ? new Date(m.time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }) : 'Earlier Today',
+                                          eventName: trackStats.techEventName
+                                        });
+                                      }}
+                                      className="text-[10px] font-bold text-[#4cc38a] flex items-center gap-1 bg-[#4cc38a]/15 hover:bg-[#4cc38a]/25 px-2 py-1 rounded-lg border border-[#4cc38a]/30 cursor-pointer transition-colors"
+                                      title="Already counted · Click to test duplicate scan alert"
+                                    >
                                       <CheckCircle2 className="w-3 h-3 text-[#4cc38a]" />
                                       <span>1-TIME SCANNED ✓</span>
                                       {m.time && (
@@ -2882,7 +2798,7 @@ export const AdminTicketScanner: React.FC<AdminTicketScannerProps> = ({
                                           ({new Date(m.time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })})
                                         </span>
                                       )}
-                                    </span>
+                                    </button>
                                     <button
                                       type="button"
                                       onClick={() => handleToggleMemberTech(activeRecord, m.key, false)}
@@ -3008,7 +2924,27 @@ export const AdminTicketScanner: React.FC<AdminTicketScannerProps> = ({
                             <div className="shrink-0 flex items-center gap-2">
                               {m.isAttended ? (
                                 <div className="flex items-center gap-1.5">
-                                  <span className="text-[10px] font-bold text-[#4cc38a] flex items-center gap-1 bg-[#4cc38a]/15 px-2 py-1 rounded-lg border border-[#4cc38a]/30">
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      playBuzzer();
+                                      try { navigator.vibrate?.([300, 150, 300, 150, 400]); } catch (e) {}
+                                      setScanResultModal({
+                                        type: 'already_scanned',
+                                        scanTrack: 'Spot Event',
+                                        title: 'ALREADY SCANNED! NO OTHER CHANCE.',
+                                        message: `This QR code has ALREADY been scanned and counted for Spot Events. Duplicate entry is strictly rejected! Each QR code can only be scanned and counted ONCE.`,
+                                        delegateName: m.name,
+                                        delegateRoll: m.roll,
+                                        delegateRole: m.role,
+                                        teamName: activeRecord.name,
+                                        scannedAt: m.time ? new Date(m.time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }) : 'Earlier Today',
+                                        eventName: 'Spot Events Pass (Arena Activities)'
+                                      });
+                                    }}
+                                    className="text-[10px] font-bold text-[#4cc38a] flex items-center gap-1 bg-[#4cc38a]/15 hover:bg-[#4cc38a]/25 px-2 py-1 rounded-lg border border-[#4cc38a]/30 cursor-pointer transition-colors"
+                                    title="Already counted · Click to test duplicate scan alert"
+                                  >
                                     <CheckCircle2 className="w-3 h-3 text-[#4cc38a]" />
                                     <span>1-TIME SCANNED ✓</span>
                                     {m.time && (
@@ -3016,7 +2952,7 @@ export const AdminTicketScanner: React.FC<AdminTicketScannerProps> = ({
                                         ({new Date(m.time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })})
                                       </span>
                                     )}
-                                  </span>
+                                  </button>
                                   <button
                                     type="button"
                                     onClick={() => handleToggleMemberSpot(activeRecord, m.key, false)}
