@@ -144,6 +144,13 @@ export async function saveRegistrationApi(record: RegistrationRecord): Promise<R
         .single();
 
       if (!error && data) {
+        // Guarantee backend receives registration to dispatch admin mobile alert
+        fetch(`${API_BASE}/registrations`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(record)
+        }).catch(err => console.warn('Backend admin alert dispatch notice:', err));
+
         return mapDbToRegistrationRecord(data);
       } else if (error) {
         console.warn('Supabase upsert warning:', error.message);
@@ -758,6 +765,25 @@ export async function testEmailApi(recipient: string): Promise<{ success: boolea
       body: JSON.stringify({ recipient })
     });
     return await res.json();
+  } catch (err: any) {
+    return { success: false, error: err.message };
+  }
+}
+
+/**
+ * Dispatch explicit mobile alert to admin phone whenever a registration completes
+ */
+export async function notifyAdminMobileApi(record: RegistrationRecord): Promise<{ success: boolean; messageId?: string; error?: string }> {
+  try {
+    const res = await fetch(`${API_BASE}/notify-admin`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(record)
+    });
+    if (res.ok) {
+      return await res.json();
+    }
+    return { success: false, error: 'Failed to notify admin.' };
   } catch (err: any) {
     return { success: false, error: err.message };
   }

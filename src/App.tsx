@@ -41,7 +41,8 @@ import {
   deleteRegistrationApi, 
   fetchSettingsApi, 
   updateSettingsApi,
-  sendTicketEmailApi
+  sendTicketEmailApi,
+  notifyAdminMobileApi
 } from './services/api';
 import { 
   ShieldCheck, 
@@ -1409,6 +1410,9 @@ export default function App() {
       saveStoredParticipant(autoUser);
       setCurrentUser(autoUser);
     }
+
+    // Instant Mobile Notification to Admin Phone for every registration
+    notifyAdminMobileApi(newRecord).catch(() => {});
 
     // UPI mode: Display "your ticket will be sent to your mail at 8 PM and you can access your ticket in your space find my ticket"
     // Razorpay mode: Automatic instant pass and immediate email

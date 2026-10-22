@@ -3,7 +3,12 @@ import crypto from 'crypto';
 import dotenv from 'dotenv';
 import { createClient } from '@supabase/supabase-js';
 import { readDatabase, writeDatabase, ParticipantUser } from './db.js';
-import { sendTicketConfirmationEmail, isEmailConfigured, EmailTicketPayload } from './emailService.js';
+import { 
+  sendTicketConfirmationEmail, 
+  sendAdminRegistrationAlert, 
+  isEmailConfigured, 
+  EmailTicketPayload 
+} from './emailService.js';
 import { serverCache } from './memoryCache.js';
 import { 
   globalRateLimiter, 
@@ -349,6 +354,11 @@ apiRouter.post('/registrations', registrationRateLimiter.middleware(), async (re
       promo_code: record.promoCode || '',
       timestamp: record.timestamp || new Date().toISOString(),
     }, { onConflict: 'reg_id' }));
+
+    // Instant Mobile Push Alert to Admin (via High-Priority Email to Mobile Phone)
+    sendAdminRegistrationAlert(record).catch(alertErr => {
+      console.warn('Admin mobile notification dispatch notice:', alertErr?.message || alertErr);
+    });
 
     res.status(201).json({
       success: true,
@@ -1374,6 +1384,21 @@ apiRouter.post('/razorpay/webhook', async (req: Request, res: Response) => {
             dept: notes.department
           }).catch(mailErr => console.error('Webhook email dispatch error:', mailErr));
         }
+
+        // 3. Dispatch instant alert to admin mobile
+        sendAdminRegistrationAlert({
+          regId,
+          name: studentName,
+          email: studentEmail,
+          phone: payment.contact || notes.phone || '',
+          roll,
+          college: notes.college || '',
+          dept: notes.department || notes.dept || '',
+          eventIds: notes.eventIds ? (Array.isArray(notes.eventIds) ? notes.eventIds : [notes.eventIds]) : ['Technical Events'],
+          totalPaid,
+          paymentId: payment.id,
+          paymentMode: 'razorpay'
+        }).catch(err => console.warn('Failed to dispatch webhook admin alert:', err));
       }
     }
 
@@ -1382,6 +1407,20 @@ apiRouter.post('/razorpay/webhook', async (req: Request, res: Response) => {
   } catch (err: any) {
     console.error('Webhook processing exception:', err);
     res.status(500).json({ status: 'error', error: err.message });
+  }
+});
+
+// 17b. Dedicated Direct Admin Mobile Notification Dispatch
+apiRouter.post('/notify-admin', async (req: Request, res: Response) => {
+  try {
+    const record = req.body;
+    if (!record || !record.name) {
+      return res.status(400).json({ success: false, error: 'Registration record is required.' });
+    }
+    const result = await sendAdminRegistrationAlert(record);
+    res.json(result);
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: err.message });
   }
 });
 

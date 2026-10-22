@@ -51,7 +51,8 @@ import {
   Cpu,
   UserCheck,
   UserX,
-  MessageCircle
+  MessageCircle,
+  Bell
 } from 'lucide-react';
 import { TicketPass, RegistrationRecord, TeamMemberInfo } from './TicketPass';
 import { 
@@ -299,6 +300,102 @@ export const AdminModal: React.FC<AdminModalProps> = ({
   const isRefreshingRef = useRef(false);
   const activeAdminKeyRef = useRef<string>('');
 
+  // Web Audio Synthesizer bell chime for instant, zero-asset notification sound
+  const playAdminNotificationChime = () => {
+    try {
+      const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
+      if (!AudioCtx) return;
+      const ctx = new AudioCtx();
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(1046.5, ctx.currentTime);
+      osc.frequency.exponentialRampToValueAtTime(1567.98, ctx.currentTime + 0.15);
+      gain.gain.setValueAtTime(0.3, ctx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.6);
+      osc.start(ctx.currentTime);
+      osc.stop(ctx.currentTime + 0.6);
+    } catch {}
+  };
+
+  const [mobileAlertsEnabled, setMobileAlertsEnabled] = useState(() => {
+    try {
+      return localStorage.getItem('nexusverse_admin_mobile_alerts') === 'true';
+    } catch {
+      return false;
+    }
+  });
+
+  const handleToggleMobileAlerts = async () => {
+    if (!mobileAlertsEnabled) {
+      if ('Notification' in window) {
+        const perm = await Notification.requestPermission();
+        if (perm === 'granted') {
+          setMobileAlertsEnabled(true);
+          localStorage.setItem('nexusverse_admin_mobile_alerts', 'true');
+          playAdminNotificationChime();
+          if ('vibrate' in navigator) navigator.vibrate([150, 80, 150]);
+          new Notification('🔔 Mobile Alerts Active!', {
+            body: 'You will receive immediate mobile & audio alerts when any delegate registers.',
+            icon: '/ieee-sb-logo.png'
+          });
+          setEmailSendToast('🔔 Mobile & audio alerts activated! You will be notified on every new registration.');
+          setTimeout(() => setEmailSendToast(null), 4000);
+          return;
+        } else {
+          alert('Please allow notification permissions in your mobile browser to receive alerts.');
+          return;
+        }
+      } else {
+        alert('Browser notifications are not supported on this device.');
+      }
+    } else {
+      setMobileAlertsEnabled(false);
+      localStorage.setItem('nexusverse_admin_mobile_alerts', 'false');
+      setEmailSendToast('🔕 Mobile alerts muted.');
+      setTimeout(() => setEmailSendToast(null), 3000);
+    }
+  };
+
+  const prevRecordIdsRef = useRef<Set<string>>(new Set());
+  const initialRecordsLoadedRef = useRef(false);
+
+  // Monitor incoming registrations to trigger mobile chime, vibration, and push alert
+  useEffect(() => {
+    if (!savedRecords || savedRecords.length === 0) return;
+    const currentIds = new Set(savedRecords.map(r => r.regId));
+
+    if (!initialRecordsLoadedRef.current) {
+      initialRecordsLoadedRef.current = true;
+      prevRecordIdsRef.current = currentIds;
+      return;
+    }
+
+    const newRecords = savedRecords.filter(r => !prevRecordIdsRef.current.has(r.regId));
+    if (newRecords.length > 0) {
+      prevRecordIdsRef.current = currentIds;
+      const latest = newRecords[0];
+
+      // Play audio chime & trigger vibration
+      playAdminNotificationChime();
+      if ('vibrate' in navigator) navigator.vibrate([250, 100, 250]);
+
+      if (typeof window !== 'undefined' && 'Notification' in window && Notification.permission === 'granted' && mobileAlertsEnabled) {
+        new Notification(`🚨 New Delegate: ${latest.name}`, {
+          body: `${latest.roll} · ₹${latest.totalPaid} (${(latest.paymentMode || 'Online').toUpperCase()}) · ${latest.dept || ''}`,
+          icon: '/ieee-sb-logo.png'
+        });
+      }
+
+      setEmailSendToast(`🚨 NEW REGISTRATION: ${latest.name} (${latest.roll}) · ₹${latest.totalPaid}!`);
+      setTimeout(() => setEmailSendToast(null), 6000);
+    } else {
+      prevRecordIdsRef.current = currentIds;
+    }
+  }, [savedRecords, mobileAlertsEnabled]);
+
   const handleManualRefresh = async () => {
     if (isRefreshingRef.current) return;
     isRefreshingRef.current = true;
@@ -315,17 +412,16 @@ export const AdminModal: React.FC<AdminModalProps> = ({
     }
   };
 
-  // Continuous auto-refresh every 3 seconds while in admin portal
+  // Continuous auto-refresh every 3 seconds while in admin portal (or 6s if minimized)
   useEffect(() => {
     if (!isOpen || !isAuthenticated) return;
 
     const interval = setInterval(() => {
-      if (typeof document !== 'undefined' && document.hidden) return;
       if (isRefreshingRef.current) return;
       if (onRefreshRecords) {
         onRefreshRecords();
       }
-    }, 3000);
+    }, typeof document !== 'undefined' && document.hidden ? 6000 : 3000);
 
     return () => clearInterval(interval);
   }, [isOpen, isAuthenticated, onRefreshRecords]);
@@ -1746,6 +1842,23 @@ export const AdminModal: React.FC<AdminModalProps> = ({
               >
                 <RefreshCw className={`w-3.5 h-3.5 text-[#4cc38a] ${isRefreshing ? 'animate-spin' : ''}`} />
                 <span className="inline">Live</span>
+              </button>
+            )}
+
+            {/* Mobile Push & Sound Alerts Toggle */}
+            {isAuthenticated && (
+              <button
+                type="button"
+                onClick={handleToggleMobileAlerts}
+                className={`admin-header-btn px-2 sm:px-2.5 py-1.5 text-[11px] sm:text-xs font-semibold rounded-lg border transition-all flex items-center gap-1 cursor-pointer shadow-sm ${
+                  mobileAlertsEnabled 
+                    ? 'border-[#d4a935] text-[#f2c14e] bg-[#2a2008]' 
+                    : 'border-[#2e2b22] text-[#8e8574] hover:text-[#d4a935]'
+                }`}
+                title={mobileAlertsEnabled ? 'Mobile & Browser Push Alerts are ACTIVE' : 'Enable Mobile & Browser Alerts for New Registrations'}
+              >
+                <Bell className={`w-3.5 h-3.5 ${mobileAlertsEnabled ? 'text-[#f2c14e] animate-bounce' : 'text-[#8e8574]'}`} />
+                <span className="inline">{mobileAlertsEnabled ? 'Alerts ON' : 'Alerts'}</span>
               </button>
             )}
 

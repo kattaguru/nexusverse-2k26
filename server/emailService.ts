@@ -342,3 +342,153 @@ export async function sendTicketConfirmationEmail(payload: EmailTicketPayload): 
     };
   }
 }
+
+/**
+ * Send instant mobile alert to symposium organizer / admin whenever a new registration occurs
+ */
+export async function sendAdminRegistrationAlert(payload: any): Promise<{
+  success: boolean;
+  messageId?: string;
+  error?: string;
+}> {
+  if (!payload || !payload.name) {
+    return { success: false, error: 'Registration payload is required.' };
+  }
+
+  const adminEmail = (process.env.ADMIN_ALERT_EMAIL || process.env.SMTP_USER || DEFAULT_SMTP_USER).trim();
+  if (!adminEmail || !adminEmail.includes('@')) {
+    return { success: false, error: 'No admin alert recipient email configured.' };
+  }
+
+  const rawAppUrl = (process.env.APP_URL || '').trim();
+  const appUrl = (rawAppUrl && !rawAppUrl.includes('localhost') ? rawAppUrl : 'https://www.nbkristieee.in').replace(/\/$/, '');
+  const passUrl = `${appUrl}/register.html?passId=${encodeURIComponent(payload.regId || '')}&roll=${encodeURIComponent(payload.roll || '')}`;
+  const adminUrl = `${appUrl}/nexusadmin`;
+
+  const safeName = escapeHtml(payload.name || 'Delegate');
+  const safeRoll = escapeHtml(payload.roll || 'N/A');
+  const safePhone = escapeHtml(payload.phone || 'N/A');
+  const cleanPhone = (payload.phone || '').replace(/\D/g, '').slice(-10);
+  const safeEmail = escapeHtml(payload.email || 'N/A');
+  const safeCollege = escapeHtml(payload.college || 'NBKRIST');
+  const safeDept = escapeHtml(payload.dept || 'N/A');
+  const safeYear = escapeHtml(payload.year || 'Student');
+  const safeRegId = escapeHtml(payload.regId || 'N/A');
+  const safePaymentMode = escapeHtml((payload.paymentMode || 'Online').toUpperCase());
+  const safePaymentId = escapeHtml(payload.paymentId || 'N/A');
+  const safeAmount = payload.totalPaid || 0;
+  const eventsList = (payload.eventIds || []).map((e: string) => escapeHtml(String(e).toUpperCase())).join(', ') || 'Symposium Events';
+
+  const textBody = `🚨 NEW NEXUSVERSE 2K26 REGISTRATION ALERT!
+
+A new delegate has just registered:
+
+• Name: ${payload.name}
+• Roll: ${payload.roll}
+• Phone: ${payload.phone}
+• Email: ${payload.email}
+• College: ${payload.college || 'NBKRIST'}
+• Dept / Year: ${payload.dept || ''} (${payload.year || 'Student'})
+• Registered Events: ${eventsList}
+• Amount Paid: ₹${safeAmount} (${safePaymentMode})
+• Payment Reference: ${payload.paymentId || 'N/A'}
+• Registration ID: ${payload.regId}
+
+QUICK ACTIONS:
+- Open Executive Admin Portal: ${adminUrl}
+- View Delegate Pass: ${passUrl}
+- Call Delegate: tel:${cleanPhone}
+- WhatsApp Delegate: https://wa.me/91${cleanPhone}
+`;
+
+  const htmlBody = `
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>New Registration Alert</title>
+</head>
+<body style="margin:0;padding:0;background-color:#09090d;font-family:'Segoe UI',Roboto,Helvetica,sans-serif;color:#f3ecd9;">
+  <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="padding:20px 10px;background:#09090d;">
+    <tr>
+      <td align="center">
+        <table role="presentation" width="100%" style="max-width:540px;background:#13131a;border:1px solid #d4a935;border-radius:16px;overflow:hidden;box-shadow:0 8px 30px rgba(0,0,0,0.8);">
+          <tr>
+            <td style="padding:20px;background:linear-gradient(135deg, #1f1b0e 0%, #151520 100%);border-bottom:1px solid #2e2b22;text-align:center;">
+              <span style="display:inline-block;padding:4px 12px;background:#2a1a08;border:1px solid #d4a935;border-radius:20px;color:#f2c14e;font-size:11px;font-weight:700;letter-spacing:1px;text-transform:uppercase;">
+                🚨 Executive Mobile Alert
+              </span>
+              <h1 style="margin:10px 0 4px 0;font-size:22px;color:#ffffff;font-weight:800;">
+                New Registration Received!
+              </h1>
+              <p style="margin:0;font-size:16px;color:#3ecf8e;font-weight:700;">
+                ₹${safeAmount} · ${safePaymentMode}
+              </p>
+            </td>
+          </tr>
+          <tr>
+            <td style="padding:20px;">
+              <table width="100%" style="font-size:13px;line-height:1.8;">
+                <tr><td style="color:#a79f8b;width:120px;">Delegate:</td><td style="color:#ffffff;font-weight:700;">${safeName}</td></tr>
+                <tr><td style="color:#a79f8b;">Roll Number:</td><td style="color:#f2c14e;font-weight:700;">${safeRoll}</td></tr>
+                <tr><td style="color:#a79f8b;">Phone:</td><td style="color:#ffffff;"><a href="tel:${cleanPhone}" style="color:#3ecf8e;text-decoration:none;font-weight:600;">${safePhone}</a></td></tr>
+                <tr><td style="color:#a79f8b;">Email:</td><td style="color:#ffffff;"><a href="mailto:${safeEmail}" style="color:#d4a935;text-decoration:none;">${safeEmail}</a></td></tr>
+                <tr><td style="color:#a79f8b;">College:</td><td style="color:#ffffff;">${safeCollege}</td></tr>
+                <tr><td style="color:#a79f8b;">Branch / Year:</td><td style="color:#ffffff;">${safeDept} (${safeYear})</td></tr>
+                <tr><td style="color:#a79f8b;">Events:</td><td style="color:#ffffff;font-weight:600;">${eventsList}</td></tr>
+                <tr><td style="color:#a79f8b;">Pass ID:</td><td style="color:#ffffff;font-family:monospace;font-size:12px;">${safeRegId}</td></tr>
+                <tr><td style="color:#a79f8b;">Payment Ref:</td><td style="color:#ffffff;font-family:monospace;font-size:12px;">${safePaymentId}</td></tr>
+              </table>
+
+              <div style="margin-top:20px;text-align:center;">
+                <a href="${adminUrl}" style="display:inline-block;padding:12px 20px;margin:4px;background:#d4a935;color:#000000;text-decoration:none;font-weight:800;border-radius:10px;font-size:13px;">
+                  🛡️ Open Admin Center
+                </a>
+                <a href="${passUrl}" style="display:inline-block;padding:12px 20px;margin:4px;background:#1f1b0e;border:1px solid #d4a935;color:#f2c14e;text-decoration:none;font-weight:700;border-radius:10px;font-size:13px;">
+                  🎟️ View Pass
+                </a>
+                ${cleanPhone ? `
+                <a href="https://wa.me/91${cleanPhone}" style="display:inline-block;padding:12px 20px;margin:4px;background:#25d366;color:#052e16;text-decoration:none;font-weight:800;border-radius:10px;font-size:13px;">
+                  💬 WhatsApp
+                </a>` : ''}
+              </div>
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>
+  `;
+
+  try {
+    const transporter = getTransporter();
+    const fromAddress = process.env.EMAIL_FROM || `"NexusVerse 2K26 Alerts" <${process.env.SMTP_USER || DEFAULT_SMTP_USER}>`;
+
+    const info = await transporter.sendMail({
+      from: fromAddress,
+      to: adminEmail,
+      subject: `🚨 [NEW REGISTRATION] ${payload.name} (${payload.roll}) - ₹${safeAmount} [${payload.regId}]`,
+      text: textBody,
+      html: htmlBody,
+      headers: {
+        'X-Priority': '1',
+        'Importance': 'high',
+        'X-MSMail-Priority': 'High'
+      }
+    });
+
+    console.log(`[ADMIN ALERT SUCCESS] Sent mobile registration alert to ${adminEmail} (ID: ${info.messageId})`);
+    return {
+      success: true,
+      messageId: info.messageId
+    };
+  } catch (err: any) {
+    console.error(`[ADMIN ALERT ERROR] Failed to send admin alert to ${adminEmail}:`, err.message);
+    return {
+      success: false,
+      error: err.message
+    };
+  }
+}
