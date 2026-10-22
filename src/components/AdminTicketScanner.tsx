@@ -44,7 +44,7 @@ import {
   ShieldAlert
 } from 'lucide-react';
 import { RegistrationRecord } from './TicketPass';
-import { computeDelegatesStats } from '../utils/delegateStats';
+import { computeDelegatesStats, getRecordTeammates, getRecordMemberCount, getRecordLunchStats } from '../utils/delegateStats';
 import { EVENTS, SPOT_EVENT, ALL_EVENTS, SYMPOSIUM_CONFIG } from '../data/symposiumData';
 
 interface AdminTicketScannerProps {
@@ -276,65 +276,204 @@ export const AdminTicketScanner: React.FC<AdminTicketScannerProps> = ({
     if (!payload || !payload.trim()) return;
     const clean = payload.trim();
 
-    // Check if URL with passId
+    // Check if URL with passId, member index, or roll
     let targetId = clean;
+    let targetMemberIndex: number | null = null;
+    let targetMemberRoll: string | null = null;
+
     try {
       if (clean.startsWith('http://') || clean.startsWith('https://')) {
         const url = new URL(clean);
         const passId = url.searchParams.get('passId') || url.searchParams.get('regId') || url.searchParams.get('id');
         if (passId) targetId = passId;
+        const mParam = url.searchParams.get('member');
+        if (mParam) {
+          const parsedM = parseInt(mParam, 10);
+          if (!isNaN(parsedM)) targetMemberIndex = parsedM;
+        }
+        const rParam = url.searchParams.get('roll');
+        if (rParam) targetMemberRoll = rParam.trim().toLowerCase();
       }
     } catch (e) {}
 
-    // Find record in records
-    const matched = findRecord(targetId);
+    // Check if targetId has -M1, -M2 suffix (individual member pass code)
+    const subMemberMatch = targetId.match(/-m(\d+)$/i);
+    if (subMemberMatch) {
+      targetMemberIndex = parseInt(subMemberMatch[1], 10);
+      targetId = targetId.replace(/-m\d+$/i, '');
+    }
+
+    // Find record in records (also searches teammate rolls and names)
+    const matched = findRecord(targetId) || (targetMemberRoll ? findRecord(targetMemberRoll) : undefined);
 
     if (matched) {
       // Trigger scan flash
       setScanFlash(true);
       setTimeout(() => setScanFlash(false), 400);
 
+      const matchedTeammates = getRecordTeammates(matched);
+      const matchedTotalMembers = 1 + matchedTeammates.length;
+      const lunchStats = getRecordLunchStats(matched);
+
+      // Determine which specific team member is being scanned (if individual pass was presented)
+      let scannedMemberKey: string | null = null;
+      let scannedMemberName = matched.name;
+      let scannedMemberRoll = matched.roll || matched.regId;
+      let scannedMemberRole = matchedTotalMembers > 1 ? 'Lead' : 'Delegate';
+
+      if (targetMemberIndex !== null) {
+        if (targetMemberIndex === 1) {
+          scannedMemberKey = 'lead';
+          scannedMemberRole = matchedTotalMembers > 1 ? 'Lead (Member 1)' : 'Delegate';
+        } else if (targetMemberIndex > 1 && targetMemberIndex <= matchedTotalMembers) {
+          const tIdx = targetMemberIndex - 2;
+          scannedMemberKey = `teammate_${tIdx}`;
+          const tMember = matchedTeammates[tIdx];
+          if (tMember) {
+            scannedMemberName = tMember.name || `Member ${targetMemberIndex}`;
+            scannedMemberRoll = tMember.roll || `M${targetMemberIndex}`;
+            scannedMemberRole = `Member ${targetMemberIndex}`;
+          }
+        }
+      } else if (targetMemberRoll) {
+        if (matched.roll && matched.roll.toLowerCase() === targetMemberRoll) {
+          scannedMemberKey = 'lead';
+          scannedMemberRole = matchedTotalMembers > 1 ? 'Lead (Member 1)' : 'Delegate';
+        } else {
+          const tIdx = matchedTeammates.findIndex(m => m.roll && m.roll.toLowerCase() === targetMemberRoll);
+          if (tIdx >= 0) {
+            scannedMemberKey = `teammate_${tIdx}`;
+            const tMember = matchedTeammates[tIdx];
+            scannedMemberName = tMember?.name || `Member ${tIdx + 2}`;
+            scannedMemberRoll = tMember?.roll || `M${tIdx + 2}`;
+            scannedMemberRole = `Member ${tIdx + 2}`;
+          }
+        }
+      }
+
       // Handle based on current desk station mode
       if (scannerMode === 'lunch') {
-        if (matched.lunchCollected) {
-          // DUPLICATE MEAL CLAIM DETECTED! PREVENT DISPUTE
-          playBuzzer();
-          try {
-            navigator.vibrate?.([200, 100, 200, 100, 200]);
-          } catch (e) {}
-          const claimTime = matched.lunchCollectedTime ? new Date(matched.lunchCollectedTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'Earlier Today';
-          setLunchAlert({
-            type: 'duplicate',
-            message: `DUPLICATE MEAL CLAIM! Lunch token was already claimed for ${matched.name} (${matched.roll || matched.regId}) at ${claimTime} by ${matched.lunchCollectedBy || 'Catering Counter'}. Duplicate meal rejected.`,
-            delegateName: matched.name,
-            delegateRoll: matched.roll
-          });
-        } else {
-          // VALID CLAIM - IMMEDIATELY ISSUE 1 MEAL BOX & PERSIST
-          playBeep(true);
-          try {
-            navigator.vibrate?.([80, 40, 80]);
-            confetti({
-              particleCount: 50,
-              spread: 60,
-              origin: { y: 0.6 },
-              colors: ['#22c55e', '#f59e0b', '#ffffff']
+        const currentMemberStatus = { ...(matched.memberLunchStatus || {}) };
+        // If older record had lunchCollected=true but empty map, backfill all as collected
+        if (matched.lunchCollected && Object.keys(currentMemberStatus).length === 0) {
+          currentMemberStatus['lead'] = true;
+          matchedTeammates.forEach((_, i) => { currentMemberStatus[`teammate_${i}`] = true; });
+        }
+
+        // Case A: Specific team member QR was scanned
+        if (scannedMemberKey) {
+          const isAlreadyCollected = Boolean(currentMemberStatus[scannedMemberKey]);
+          if (isAlreadyCollected) {
+            // DUPLICATE MEAL CLAIM DETECTED! PREVENT DISPUTE
+            playBuzzer();
+            try {
+              navigator.vibrate?.([200, 100, 200, 100, 200]);
+            } catch (e) {}
+            const claimTime = matched.lunchCollectedTime ? new Date(matched.lunchCollectedTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'Earlier Today';
+            setLunchAlert({
+              type: 'duplicate',
+              message: `DUPLICATE MEAL CLAIM! Meal tray for ${scannedMemberName} (${scannedMemberRoll} · ${scannedMemberRole}) was already dispensed at ${claimTime}. Duplicate meal rejected.`,
+              delegateName: scannedMemberName,
+              delegateRoll: scannedMemberRoll
             });
-          } catch (e) {}
-          const now = new Date().toISOString();
-          const updated: RegistrationRecord = {
-            ...matched,
-            lunchCollected: true,
-            lunchCollectedTime: now,
-            lunchCollectedBy: 'Catering Counter'
-          };
-          onUpdateRecord(updated);
-          setLunchAlert({
-            type: 'success',
-            message: `1 MEAL BOX DISPENSED ✓: Lunch token successfully verified and marked redeemed for ${matched.name} (${matched.roll || matched.regId}).`,
-            delegateName: matched.name,
-            delegateRoll: matched.roll
-          });
+          } else {
+            // VALID CLAIM FOR THIS INDIVIDUAL MEMBER
+            playBeep(true);
+            try {
+              navigator.vibrate?.([80, 40, 80]);
+              confetti({
+                particleCount: 50,
+                spread: 60,
+                origin: { y: 0.6 },
+                colors: ['#22c55e', '#f59e0b', '#ffffff']
+              });
+            } catch (e) {}
+
+            currentMemberStatus[scannedMemberKey] = true;
+            const newDispensed = Object.values(currentMemberStatus).filter(Boolean).length;
+            const allCollected = newDispensed >= matchedTotalMembers && matchedTotalMembers > 0;
+            const now = new Date().toISOString();
+            const updated: RegistrationRecord = {
+              ...matched,
+              memberLunchStatus: currentMemberStatus,
+              lunchCollectedCount: newDispensed,
+              lunchCollected: allCollected,
+              lunchCollectedTime: now,
+              lunchCollectedBy: 'Catering Counter'
+            };
+            onUpdateRecord(updated);
+            setActiveRecord(updated);
+            setLunchAlert({
+              type: 'success',
+              message: `1 MEAL TRAY DISPENSED ✓: Lunch token verified and meal tray dispensed for ${scannedMemberName} (${scannedMemberRoll} · ${scannedMemberRole}). [${newDispensed} of ${matchedTotalMembers} team meal trays collected].`,
+              delegateName: scannedMemberName,
+              delegateRoll: scannedMemberRoll
+            });
+          }
+        } else {
+          // Case B: General team pass scanned without specific member
+          if (lunchStats.isFullyCollected) {
+            // ALL MEALS ALREADY CLAIMED
+            playBuzzer();
+            try {
+              navigator.vibrate?.([200, 100, 200, 100, 200]);
+            } catch (e) {}
+            setLunchAlert({
+              type: 'duplicate',
+              message: `DUPLICATE MEAL CLAIM! All ${matchedTotalMembers} lunch meal trays for team "${matched.name}" have already been collected. No tokens remaining.`,
+              delegateName: matched.name,
+              delegateRoll: matched.roll
+            });
+          } else {
+            // Find first uncollected member
+            let nextKey = 'lead';
+            let nextName = matched.name;
+            let nextRoll = matched.roll || matched.regId;
+            let nextRole = matchedTotalMembers > 1 ? 'Lead' : 'Delegate';
+
+            if (currentMemberStatus['lead']) {
+              const uncollectedIdx = matchedTeammates.findIndex((_, i) => !currentMemberStatus[`teammate_${i}`]);
+              if (uncollectedIdx >= 0) {
+                nextKey = `teammate_${uncollectedIdx}`;
+                const tMem = matchedTeammates[uncollectedIdx];
+                nextName = tMem?.name || `Member ${uncollectedIdx + 2}`;
+                nextRoll = tMem?.roll || `M${uncollectedIdx + 2}`;
+                nextRole = `Member ${uncollectedIdx + 2}`;
+              }
+            }
+
+            playBeep(true);
+            try {
+              navigator.vibrate?.([80, 40, 80]);
+              confetti({
+                particleCount: 50,
+                spread: 60,
+                origin: { y: 0.6 },
+                colors: ['#22c55e', '#f59e0b', '#ffffff']
+              });
+            } catch (e) {}
+
+            currentMemberStatus[nextKey] = true;
+            const newDispensed = Object.values(currentMemberStatus).filter(Boolean).length;
+            const allCollected = newDispensed >= matchedTotalMembers && matchedTotalMembers > 0;
+            const now = new Date().toISOString();
+            const updated: RegistrationRecord = {
+              ...matched,
+              memberLunchStatus: currentMemberStatus,
+              lunchCollectedCount: newDispensed,
+              lunchCollected: allCollected,
+              lunchCollectedTime: now,
+              lunchCollectedBy: 'Catering Counter'
+            };
+            onUpdateRecord(updated);
+            setActiveRecord(updated);
+            setLunchAlert({
+              type: 'success',
+              message: `1 MEAL TRAY DISPENSED ✓: 1 meal tray dispensed for ${nextName} (${nextRoll} · ${nextRole}). [${newDispensed} of ${matchedTotalMembers} team meal trays collected].`,
+              delegateName: nextName,
+              delegateRoll: nextRoll
+            });
+          }
         }
       } else {
         // Standard check-in desk mode
@@ -343,10 +482,17 @@ export const AdminTicketScanner: React.FC<AdminTicketScannerProps> = ({
           navigator.vibrate?.([80, 40, 80]);
         } catch (e) {}
 
-        if (matched.lunchCollected) {
+        if (lunchStats.isFullyCollected) {
           setLunchAlert({
             type: 'info',
-            message: `Food Note: Delegate has already collected lunch at ${new Date(matched.lunchCollectedTime || '').toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}.`,
+            message: `Food Note: All ${matchedTotalMembers} delegate lunch meal trays have been collected.`,
+            delegateName: matched.name,
+            delegateRoll: matched.roll
+          });
+        } else if (lunchStats.mealsDispensed > 0) {
+          setLunchAlert({
+            type: 'info',
+            message: `Food Note: ${lunchStats.mealsDispensed} of ${matchedTotalMembers} meal trays collected (${lunchStats.mealsRemaining} remaining).`,
             delegateName: matched.name,
             delegateRoll: matched.roll
           });
@@ -364,19 +510,32 @@ export const AdminTicketScanner: React.FC<AdminTicketScannerProps> = ({
     }
   };
 
-  // Flexible record finder
+  // Flexible record finder (checks regId, sub-member passes, lead roll/phone, and all teammate rolls/phones/names)
   const findRecord = (query: string): RegistrationRecord | undefined => {
     const q = query.trim().toLowerCase();
     if (!q) return undefined;
+    const cleanId = q.replace(/-m\d+$/i, '');
 
     return records.find(r => {
-      const regIdMatch = r.regId ? (r.regId.toLowerCase() === q || r.regId.toLowerCase().includes(q) || q.includes(r.regId.toLowerCase())) : false;
+      const regIdMatch = r.regId ? (
+        r.regId.toLowerCase() === q || 
+        r.regId.toLowerCase() === cleanId ||
+        r.regId.toLowerCase().includes(q) || 
+        q.includes(r.regId.toLowerCase())
+      ) : false;
       const rollMatch = r.roll ? r.roll.toLowerCase() === q : false;
       const phoneMatch = r.phone ? r.phone.replace(/\D/g, '') === q.replace(/\D/g, '') : false;
       const emailMatch = r.email ? r.email.toLowerCase() === q : false;
       const nameMatch = r.name ? r.name.toLowerCase() === q : false;
       const paymentMatch = r.paymentId ? r.paymentId.toLowerCase() === q : false;
-      return regIdMatch || rollMatch || phoneMatch || emailMatch || nameMatch || paymentMatch;
+
+      // Also search through registered teammates
+      const teammates = getRecordTeammates(r);
+      const teammateRollMatch = teammates.some(m => m.roll && m.roll.toLowerCase() === q);
+      const teammatePhoneMatch = teammates.some(m => m.phone && m.phone.replace(/\D/g, '') === q.replace(/\D/g, ''));
+      const teammateNameMatch = teammates.some(m => m.name && m.name.toLowerCase() === q);
+
+      return regIdMatch || rollMatch || phoneMatch || emailMatch || nameMatch || paymentMatch || teammateRollMatch || teammatePhoneMatch || teammateNameMatch;
     });
   };
 
@@ -502,34 +661,141 @@ export const AdminTicketScanner: React.FC<AdminTicketScannerProps> = ({
     setActiveRecord(updated);
   };
 
-  // Toggle Food / Lunch Token (Anti-Dispute Check)
-  const handleToggleLunch = () => {
+  // Toggle Individual Member Food / Lunch Token (Anti-Dispute Check)
+  const handleToggleMemberLunch = (memberKey: string, forceState?: boolean) => {
     if (!activeRecord) return;
-    const isNowCollected = !activeRecord.lunchCollected;
+    const teammates = getRecordTeammates(activeRecord);
+    const totalMembers = 1 + teammates.length;
+    const currentMap = { ...(activeRecord.memberLunchStatus || {}) };
+
+    // If older record was marked lunchCollected but had empty map, initialize all
+    if (activeRecord.lunchCollected && Object.keys(currentMap).length === 0) {
+      currentMap['lead'] = true;
+      teammates.forEach((_, i) => { currentMap[`teammate_${i}`] = true; });
+    }
+
+    const currentState = Boolean(currentMap[memberKey]);
+    const nextState = forceState !== undefined ? forceState : !currentState;
+    currentMap[memberKey] = nextState;
+
+    const collectedCount = Object.values(currentMap).filter(Boolean).length;
+    const allCollected = collectedCount >= totalMembers && totalMembers > 0;
     const now = new Date().toISOString();
+
     const updated: RegistrationRecord = {
       ...activeRecord,
-      lunchCollected: isNowCollected,
-      lunchCollectedTime: isNowCollected ? now : undefined,
-      lunchCollectedBy: isNowCollected ? 'Admin Desk' : undefined
+      memberLunchStatus: currentMap,
+      lunchCollectedCount: collectedCount,
+      lunchCollected: allCollected,
+      lunchCollectedTime: nextState ? now : activeRecord.lunchCollectedTime,
+      lunchCollectedBy: nextState ? 'Admin Desk' : activeRecord.lunchCollectedBy
     };
+
     onUpdateRecord(updated);
     setActiveRecord(updated);
-    if (isNowCollected) {
+
+    // Get display name of member
+    let memberName = activeRecord.name;
+    let memberRole = totalMembers > 1 ? 'Lead' : 'Delegate';
+    let memberRoll = activeRecord.roll;
+    if (memberKey.startsWith('teammate_')) {
+      const idx = parseInt(memberKey.replace('teammate_', ''), 10);
+      const tm = teammates[idx];
+      if (tm) {
+        memberName = tm.name || `Member ${idx + 2}`;
+        memberRole = `Member ${idx + 2}`;
+        memberRoll = tm.roll;
+      }
+    }
+
+    if (nextState) {
       playBeep(true);
       setLunchAlert({
         type: 'success',
-        message: `1 Meal Box Dispensed ✓: Lunch token marked as collected for ${activeRecord.name}.`,
-        delegateName: activeRecord.name,
-        delegateRoll: activeRecord.roll
+        message: `1 Meal Tray Dispensed ✓: Lunch token redeemed for ${memberName} (${memberRole}). [${collectedCount} of ${totalMembers} team meal trays dispensed].`,
+        delegateName: memberName,
+        delegateRoll: memberRoll
       });
     } else {
       setLunchAlert({
         type: 'info',
-        message: `Lunch token reset to uncollected for ${activeRecord.name}.`,
-        delegateName: activeRecord.name,
-        delegateRoll: activeRecord.roll
+        message: `Lunch token reset to unredeemed for ${memberName} (${memberRole}). [${collectedCount} of ${totalMembers} team meal trays dispensed].`,
+        delegateName: memberName,
+        delegateRoll: memberRoll
       });
+    }
+  };
+
+  // Dispense All Meal Trays for Team
+  const handleDispenseAllLunch = () => {
+    if (!activeRecord) return;
+    const teammates = getRecordTeammates(activeRecord);
+    const totalMembers = 1 + teammates.length;
+    const newMap: Record<string, boolean> = { lead: true };
+    teammates.forEach((_, i) => { newMap[`teammate_${i}`] = true; });
+    const now = new Date().toISOString();
+
+    const updated: RegistrationRecord = {
+      ...activeRecord,
+      memberLunchStatus: newMap,
+      lunchCollectedCount: totalMembers,
+      lunchCollected: true,
+      lunchCollectedTime: now,
+      lunchCollectedBy: 'Admin Desk'
+    };
+
+    onUpdateRecord(updated);
+    setActiveRecord(updated);
+    playBeep(true);
+    try {
+      confetti({
+        particleCount: 60,
+        spread: 60,
+        origin: { y: 0.6 },
+        colors: ['#22c55e', '#f59e0b', '#ffffff']
+      });
+    } catch (e) {}
+
+    setLunchAlert({
+      type: 'success',
+      message: `All ${totalMembers} Meal Trays Dispensed ✓: Full lunch allocation redeemed for team "${activeRecord.name}".`,
+      delegateName: activeRecord.name,
+      delegateRoll: activeRecord.roll
+    });
+  };
+
+  // Reset All Lunch Tokens
+  const handleResetLunch = () => {
+    if (!activeRecord) return;
+    const teammates = getRecordTeammates(activeRecord);
+    const newMap: Record<string, boolean> = { lead: false };
+    teammates.forEach((_, i) => { newMap[`teammate_${i}`] = false; });
+
+    const updated: RegistrationRecord = {
+      ...activeRecord,
+      memberLunchStatus: newMap,
+      lunchCollectedCount: 0,
+      lunchCollected: false,
+      lunchCollectedTime: undefined,
+      lunchCollectedBy: undefined
+    };
+
+    onUpdateRecord(updated);
+    setActiveRecord(updated);
+    setLunchAlert({
+      type: 'info',
+      message: `Lunch tokens reset to 0 redeemed for team "${activeRecord.name}".`,
+      delegateName: activeRecord.name,
+      delegateRoll: activeRecord.roll
+    });
+  };
+
+  const handleToggleLunch = () => {
+    if (!activeRecord) return;
+    if (activeRecord.lunchCollected) {
+      handleResetLunch();
+    } else {
+      handleDispenseAllLunch();
     }
   };
 
@@ -616,7 +882,7 @@ export const AdminTicketScanner: React.FC<AdminTicketScannerProps> = ({
   const techAttendedCount = records.filter(r => r.attendedEvents?.some(id => id !== 'spot')).length;
   const spotAttendedCount = records.filter(r => r.attendedEvents?.includes('spot')).length;
   const kitsIssuedCount = records.filter(r => r.kitIssued).length;
-  const lunchCollectedCount = records.filter(r => r.lunchCollected).length;
+  const lunchCollectedCount = scannerStats.totalLunchMealsDispensed;
   const lunchPercent = totalDelegates > 0 ? Math.round((lunchCollectedCount / totalDelegates) * 100) : 0;
 
   // Recent checked in delegates (last 8)
@@ -813,7 +1079,7 @@ export const AdminTicketScanner: React.FC<AdminTicketScannerProps> = ({
           }`}>
             <span className={`text-[11px] font-medium flex items-center gap-1 block ${isLight ? 'text-[#425d78]' : 'text-[#9fc7e8]'}`}>
               <Utensils className="w-3.5 h-3.5 text-[#f59e0b]" />
-              <span>Lunch Tokens Redeemed</span>
+              <span>Lunch Meal Trays Dispensed</span>
             </span>
             <div className="flex items-baseline gap-2">
               <span className="text-xl sm:text-2xl font-bold font-mono text-[#f59e0b]">{lunchCollectedCount}</span>
@@ -1210,17 +1476,32 @@ export const AdminTicketScanner: React.FC<AdminTicketScannerProps> = ({
                       </span>
                     )}
 
-                    {activeRecord.lunchCollected ? (
-                      <span className="text-xs font-bold px-2 py-0.5 rounded bg-[#4cc38a]/20 text-[#4cc38a] border border-[#4cc38a]/40 flex items-center gap-1 font-mono">
-                        <Utensils className="w-3 h-3 text-[#4cc38a]" />
-                        <span>Lunch Redeemed ✓</span>
-                      </span>
-                    ) : (
-                      <span className="text-xs font-bold px-2 py-0.5 rounded bg-[#f59e0b]/20 text-[#f59e0b] border border-[#f59e0b]/40 flex items-center gap-1 font-mono">
-                        <Utensils className="w-3 h-3 text-[#f59e0b]" />
-                        <span>Lunch Available</span>
-                      </span>
-                    )}
+                    {(() => {
+                      const lStats = getRecordLunchStats(activeRecord);
+                      const totalM = 1 + getRecordTeammates(activeRecord).length;
+                      if (lStats.isFullyCollected) {
+                        return (
+                          <span className="text-xs font-bold px-2 py-0.5 rounded bg-[#4cc38a]/20 text-[#4cc38a] border border-[#4cc38a]/40 flex items-center gap-1 font-mono">
+                            <Utensils className="w-3 h-3 text-[#4cc38a]" />
+                            <span>All {totalM} Meals Claimed ✓</span>
+                          </span>
+                        );
+                      }
+                      if (lStats.mealsDispensed > 0) {
+                        return (
+                          <span className="text-xs font-bold px-2 py-0.5 rounded bg-[#f59e0b]/20 text-[#f59e0b] border border-[#f59e0b]/40 flex items-center gap-1 font-mono">
+                            <Utensils className="w-3 h-3 text-[#f59e0b]" />
+                            <span>{lStats.mealsDispensed}/{totalM} Meals Dispensed</span>
+                          </span>
+                        );
+                      }
+                      return (
+                        <span className="text-xs font-bold px-2 py-0.5 rounded bg-[#f59e0b]/20 text-[#f59e0b] border border-[#f59e0b]/40 flex items-center gap-1 font-mono">
+                          <Utensils className="w-3 h-3 text-[#f59e0b]" />
+                          <span>{totalM} {totalM === 1 ? 'Meal Available' : 'Meals Available'}</span>
+                        </span>
+                      );
+                    })()}
                   </div>
 
                   <h3 className={`font-serif-title text-2xl font-bold mt-1 ${isLight ? 'text-[#1c1811]' : 'text-white'}`}>
@@ -1353,59 +1634,150 @@ export const AdminTicketScanner: React.FC<AdminTicketScannerProps> = ({
                   </span>
                 </div>
 
-                {/* Food / Lunch Token Check & Anti-Dispute Verification */}
-                <div className={`mt-3 pt-3 border-t ${isLight ? 'border-[#d8d0ba]' : 'border-white/10'} space-y-2.5`}>
-                  <div className="flex items-center justify-between text-xs">
-                    <label className="flex items-center gap-2.5 cursor-pointer select-none">
-                      <input
-                        type="checkbox"
-                        checked={Boolean(activeRecord.lunchCollected)}
-                        onChange={handleToggleLunch}
-                        className="w-4 h-4 rounded text-[#f59e0b] accent-[#f59e0b] cursor-pointer"
-                      />
-                      <span className={`font-semibold flex items-center gap-1.5 ${isLight ? 'text-[#1c1811]' : 'text-white'}`}>
-                        <Utensils className="w-3.5 h-3.5 text-[#f59e0b]" />
-                        <span>Food / Lunch Token Check (1 Meal Tray)</span>
-                      </span>
-                    </label>
-                    <span className={`text-[11px] font-bold px-2 py-0.5 rounded border uppercase ${
-                      activeRecord.lunchCollected 
-                        ? 'bg-[#4cc38a]/15 text-[#4cc38a] border-[#4cc38a]/40' 
-                        : (isLight ? 'bg-[#fef3c7] text-[#b45309] border-[#f59e0b]/40' : 'bg-[#291b00] text-[#f2c14e] border-[#d4a935]/40')
-                    }`}>
-                      {activeRecord.lunchCollected ? 'Lunch Collected ✓' : 'Token Available'}
-                    </span>
-                  </div>
+                {/* Food / Lunch Token Check & Anti-Dispute Verification (Based on Members) */}
+                {(() => {
+                  const lunchStats = getRecordLunchStats(activeRecord);
+                  const teammates = getRecordTeammates(activeRecord);
+                  const totalMembers = 1 + teammates.length;
+                  const memberList = [
+                    {
+                      key: 'lead',
+                      role: totalMembers > 1 ? 'Lead' : 'Delegate',
+                      name: activeRecord.name,
+                      roll: activeRecord.roll || 'N/A',
+                      isCollected: Boolean(lunchStats.memberStatus['lead'] || lunchStats.isFullyCollected)
+                    },
+                    ...teammates.map((m, idx) => ({
+                      key: `teammate_${idx}`,
+                      role: `Member ${idx + 2}`,
+                      name: m.name || `Member ${idx + 2}`,
+                      roll: m.roll || 'N/A',
+                      isCollected: Boolean(lunchStats.memberStatus[`teammate_${idx}`] || lunchStats.isFullyCollected)
+                    }))
+                  ];
 
-                  {/* Lunch timestamp / dispute prevention audit trail */}
-                  {activeRecord.lunchCollected ? (
-                    <div className="p-2.5 rounded-xl bg-[#142318] border border-[#4cc38a]/40 text-[11px] text-[#a7f3d0] flex items-center justify-between">
-                      <div className="flex items-center gap-1.5">
-                        <CheckCircle2 className="w-4 h-4 text-[#4cc38a] shrink-0" />
-                        <span>
-                          Meal redeemed on <strong>{new Date(activeRecord.lunchCollectedTime || '').toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</strong> by <em>{activeRecord.lunchCollectedBy || 'Catering Desk'}</em>
+                  return (
+                    <div className={`mt-3 pt-3 border-t ${isLight ? 'border-[#d8d0ba]' : 'border-white/10'} space-y-3`}>
+                      {/* Section Header */}
+                      <div className="flex flex-wrap items-center justify-between gap-2">
+                        <div className="flex items-center gap-2">
+                          <Utensils className="w-4 h-4 text-[#f59e0b]" />
+                          <span className={`text-xs font-bold uppercase tracking-wider ${isLight ? 'text-[#1c1811]' : 'text-white'}`}>
+                            Food & Lunch Tokens ({lunchStats.mealsDispensed} of {lunchStats.totalMealsAllocated} Meal Trays)
+                          </span>
+                        </div>
+
+                        <span className={`text-[11px] font-bold px-2.5 py-0.5 rounded-full border uppercase font-mono ${
+                          lunchStats.isFullyCollected
+                            ? 'bg-[#4cc38a]/15 text-[#4cc38a] border-[#4cc38a]/40'
+                            : lunchStats.mealsDispensed > 0
+                            ? 'bg-[#f59e0b]/15 text-[#f59e0b] border-[#f59e0b]/40'
+                            : (isLight ? 'bg-[#fef3c7] text-[#b45309] border-[#f59e0b]/40' : 'bg-[#291b00] text-[#f2c14e] border-[#d4a935]/40')
+                        }`}>
+                          {lunchStats.isFullyCollected 
+                            ? `All ${lunchStats.totalMealsAllocated} Trays Collected ✓` 
+                            : lunchStats.mealsDispensed > 0
+                            ? `${lunchStats.mealsRemaining} Trays Remaining`
+                            : `${lunchStats.totalMealsAllocated} Trays Available`}
                         </span>
                       </div>
-                      <span className="text-[10px] text-[#4cc38a] font-mono font-bold bg-[#4cc38a]/20 px-2 py-0.5 rounded">
-                        1 MEAL DISPENSED
-                      </span>
+
+                      {/* Member-by-Member Lunch Trays Checklist */}
+                      <div className="space-y-2">
+                        {memberList.map((m) => (
+                          <div 
+                            key={m.key} 
+                            className={`p-2.5 rounded-xl border flex items-center justify-between gap-2 transition-all ${
+                              m.isCollected
+                                ? (isLight ? 'bg-[#f0fdf4] border-[#86efac]' : 'bg-[#0f1f14] border-[#4cc38a]/40')
+                                : (isLight ? 'bg-white border-[#d8d0ba]' : 'bg-[#14141d] border-[#2e2b22]')
+                            }`}
+                          >
+                            <label className="flex items-center gap-2.5 cursor-pointer select-none min-w-0 flex-1">
+                              <input
+                                type="checkbox"
+                                checked={m.isCollected}
+                                onChange={() => handleToggleMemberLunch(m.key)}
+                                className="w-4 h-4 rounded text-[#f59e0b] accent-[#f59e0b] cursor-pointer shrink-0"
+                              />
+                              <div className="min-w-0">
+                                <div className="flex items-center gap-1.5 flex-wrap">
+                                  <span className={`text-xs font-bold truncate ${isLight ? 'text-[#1c1811]' : 'text-white'}`}>
+                                    {m.name}
+                                  </span>
+                                  <span className="text-[10px] font-mono text-[#f59e0b] px-1.5 py-0.2 rounded bg-[#f59e0b]/10 border border-[#f59e0b]/30 font-semibold uppercase">
+                                    {m.role}
+                                  </span>
+                                </div>
+                                <div className="text-[10px] text-[#a79f8b] font-mono">
+                                  Roll: {m.roll} · 1 Lunch Meal Tray
+                                </div>
+                              </div>
+                            </label>
+
+                            <div className="shrink-0">
+                              {m.isCollected ? (
+                                <span className="text-[10px] font-bold text-[#4cc38a] flex items-center gap-1 bg-[#4cc38a]/15 px-2 py-1 rounded-lg border border-[#4cc38a]/30">
+                                  <CheckCircle2 className="w-3 h-3 text-[#4cc38a]" />
+                                  <span>Tray Dispensed ✓</span>
+                                </span>
+                              ) : (
+                                <button
+                                  type="button"
+                                  onClick={() => handleToggleMemberLunch(m.key, true)}
+                                  className="px-2.5 py-1 rounded-lg bg-gradient-to-r from-[#f59e0b] to-[#d97706] text-white font-bold text-[10px] hover:opacity-90 transition-all flex items-center gap-1 shadow cursor-pointer"
+                                >
+                                  <Utensils className="w-3 h-3" />
+                                  <span>Dispense Meal</span>
+                                </button>
+                              )}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+
+                      {/* Quick Bulk Actions for Team */}
+                      {totalMembers > 1 && (
+                        <div className="flex items-center justify-between pt-1 gap-2 flex-wrap">
+                          <span className="text-[10px] text-[#a79f8b]">
+                            Team Allocation: <strong>{totalMembers} Meal Trays</strong> ({lunchStats.mealsDispensed} Claimed, {lunchStats.mealsRemaining} Remaining)
+                          </span>
+                          <div className="flex items-center gap-2">
+                            {lunchStats.mealsRemaining > 0 && (
+                              <button
+                                type="button"
+                                onClick={handleDispenseAllLunch}
+                                className="px-2.5 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-[10px] flex items-center gap-1 transition-all cursor-pointer shadow"
+                              >
+                                <Check className="w-3 h-3" />
+                                <span>Dispense All ({lunchStats.mealsRemaining} Trays)</span>
+                              </button>
+                            )}
+                            {lunchStats.mealsDispensed > 0 && (
+                              <button
+                                type="button"
+                                onClick={handleResetLunch}
+                                className="px-2 py-1 rounded-lg bg-white/5 hover:bg-white/10 text-[#a79f8b] hover:text-white border border-white/10 text-[10px] transition-all cursor-pointer"
+                              >
+                                Reset Lunch
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Audit Trail Note */}
+                      {activeRecord.lunchCollectedTime && (
+                        <div className="text-[10px] text-[#a79f8b] italic flex items-center gap-1">
+                          <Clock className="w-3 h-3 text-[#d4a935]" />
+                          <span>
+                            Last meal activity at {new Date(activeRecord.lunchCollectedTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} by {activeRecord.lunchCollectedBy || 'Admin Desk'}.
+                          </span>
+                        </div>
+                      )}
                     </div>
-                  ) : (
-                    <div className="flex items-center justify-between p-2.5 rounded-xl bg-amber-500/10 border border-amber-500/20 text-xs">
-                      <span className="text-amber-300 text-[11px]">
-                        Delegate has not redeemed lunch yet. 1 meal token available.
-                      </span>
-                      <button
-                        type="button"
-                        onClick={handleToggleLunch}
-                        className="px-3 py-1 rounded-lg bg-gradient-to-r from-[#f59e0b] to-[#d97706] text-white font-bold text-[11px] hover:opacity-90 transition-all cursor-pointer flex items-center gap-1 shadow"
-                      >
-                        <Utensils className="w-3 h-3" />
-                        <span>Dispense Meal</span>
-                      </button>
-                    </div>
-                  )}
-                </div>
+                  );
+                })()}
               </div>
 
               {/* EVENT-LEVEL ATTENDANCE CARDS */}

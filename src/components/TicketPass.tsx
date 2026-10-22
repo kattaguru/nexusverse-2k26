@@ -21,9 +21,12 @@ import {
   QrCode as QrIcon,
   CheckCircle2,
   Hash,
-  BookOpen
+  BookOpen,
+  Utensils,
+  Share2
 } from 'lucide-react';
 import { SymposiumEvent, SYMPOSIUM_CONFIG, SPOT_EVENT } from '../data/symposiumData';
+import { getRecordTeammates, getRecordMemberCount, getRecordLunchStats } from '../utils/delegateStats';
 
 export interface TeamMemberInfo {
   name: string;
@@ -80,6 +83,8 @@ export interface RegistrationRecord {
   lunchCollected?: boolean;
   lunchCollectedTime?: string;
   lunchCollectedBy?: string;
+  lunchCollectedCount?: number;
+  memberLunchStatus?: Record<string, boolean>;
 }
 
 interface TicketPassProps {
@@ -105,19 +110,108 @@ export const TicketPass: React.FC<TicketPassProps> = ({
   const [copiedUrl, setCopiedUrl] = useState(false);
   const [copiedWa, setCopiedWa] = useState(false);
 
-  // Compute live verification URL for QR code & sharing
+  const teammates = getRecordTeammates(record);
+  const totalMembers = 1 + teammates.length;
+  const lunchStats = getRecordLunchStats(record);
+
+  // Parse if URL opened with a specific member (?member=2)
+  const initialMemberIdx = (() => {
+    if (typeof window !== 'undefined') {
+      const p = new URLSearchParams(window.location.search);
+      const mNum = parseInt(p.get('member') || '1', 10);
+      if (!isNaN(mNum) && mNum >= 1 && mNum <= totalMembers) {
+        return mNum - 1;
+      }
+    }
+    return 0;
+  })();
+
+  const [selectedMemberIdx, setSelectedMemberIdx] = useState<number>(initialMemberIdx);
+  const [memberQrMap, setMemberQrMap] = useState<Record<string, string>>({});
+
+  // Compute live verification URL origin
   const origin = typeof window !== 'undefined' && window.location.origin 
     ? window.location.origin 
     : 'https://www.nbkristieee.in';
-  const passVerificationUrl = `${origin}/register.html?passId=${encodeURIComponent(record.regId)}`;
 
-  // Generate crisp, high-contrast QR Code onto canvas (pure black on white for 100% camera readability)
+  // Build structured Member List with individual passCodes & verifyUrls
+  const memberList = [
+    {
+      key: 'lead',
+      index: 1,
+      role: totalMembers > 1 ? 'Team Lead (Member 1)' : 'Lead Delegate',
+      name: record.name,
+      roll: record.roll || '',
+      phone: record.phone || '',
+      branch: record.dept || '',
+      year: record.year || '',
+      className: record.className || '',
+      section: record.section || '',
+      isIeeeMember: record.isIeeeMember,
+      ieeeId: record.ieeeId,
+      passCode: totalMembers > 1 ? `${record.regId}-M1` : record.regId,
+      verifyUrl: `${origin}/register.html?passId=${encodeURIComponent(record.regId)}&member=1&roll=${encodeURIComponent(record.roll || '')}`,
+      isLunchCollected: Boolean(lunchStats.memberStatus['lead'] || lunchStats.isFullyCollected)
+    },
+    ...teammates.map((m, idx) => {
+      const mIdx = idx + 2;
+      const key = `teammate_${idx}`;
+      return {
+        key,
+        index: mIdx,
+        role: `Team Member ${mIdx}`,
+        name: m.name || `Member ${mIdx}`,
+        roll: m.roll || '',
+        phone: m.phone || '',
+        branch: m.branch || record.dept || '',
+        year: m.year || record.year || '',
+        className: m.className || record.className || '',
+        section: m.section || record.section || '',
+        isIeeeMember: m.isIeeeMember,
+        ieeeId: m.ieeeId,
+        passCode: `${record.regId}-M${mIdx}`,
+        verifyUrl: `${origin}/register.html?passId=${encodeURIComponent(record.regId)}&member=${mIdx}&roll=${encodeURIComponent(m.roll || '')}`,
+        isLunchCollected: Boolean(lunchStats.memberStatus[key] || lunchStats.isFullyCollected)
+      };
+    })
+  ];
+
+  const selectedMember = memberList[selectedMemberIdx] || memberList[0];
+  const passVerificationUrl = selectedMember.verifyUrl;
+
+  // Pre-generate crisp QR Data URLs for all members
   useEffect(() => {
-    if (!canvasRef.current) return;
+    let isMounted = true;
+    const generateAll = async () => {
+      const map: Record<string, string> = {};
+      for (const m of memberList) {
+        try {
+          const url = await QRCode.toDataURL(m.verifyUrl, {
+            width: 280,
+            margin: 2,
+            errorCorrectionLevel: 'H',
+            color: { dark: '#000000', light: '#ffffff' }
+          });
+          map[m.key] = url;
+        } catch (e) {
+          console.error('Failed QR generation for', m.passCode, e);
+        }
+      }
+      if (isMounted) {
+        setMemberQrMap(map);
+      }
+    };
+    generateAll();
+    return () => { isMounted = false; };
+  }, [record.regId, teammates.length, origin]);
+
+  // Generate crisp, high-contrast QR Code onto canvas for active member
+  useEffect(() => {
+    if (!canvasRef.current || !selectedMember) return;
     
     QRCode.toCanvas(
       canvasRef.current, 
-      passVerificationUrl, 
+      selectedMember.verifyUrl, 
       {
         width: 210,
         margin: 2,
@@ -131,16 +225,16 @@ export const TicketPass: React.FC<TicketPassProps> = ({
         if (error) console.error('QR code generation error:', error);
       }
     );
-  }, [passVerificationUrl, record]);
+  }, [selectedMemberIdx, selectedMember?.verifyUrl]);
 
   const copyRegId = () => {
-    navigator.clipboard.writeText(record.regId);
+    navigator.clipboard.writeText(selectedMember.passCode || record.regId);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   };
 
   const copyPassUrl = () => {
-    navigator.clipboard.writeText(passVerificationUrl);
+    navigator.clipboard.writeText(selectedMember.verifyUrl);
     setCopiedUrl(true);
     setTimeout(() => setCopiedUrl(false), 2000);
   };
@@ -162,8 +256,9 @@ export const TicketPass: React.FC<TicketPassProps> = ({
   const hasTech = registeredEvents.some(e => e.id !== 'spot');
   const hasSpot = registeredEvents.some(e => e.id === 'spot') || record.eventIds.includes('spot');
 
-  // Generate WhatsApp Direct Share link for Participant Ticket
-  const getWhatsAppShareUrl = () => {
+  // Generate WhatsApp Direct Share link for Participant Ticket (Customized per member)
+  const getWhatsAppShareUrl = (memberIdx?: number) => {
+    const target = memberList[memberIdx ?? selectedMemberIdx] || memberList[0];
     const eventNames = record.eventIds
       .map(id => allKnownEvents.find(e => e.id === id)?.name || id)
       .join(', ');
@@ -171,21 +266,22 @@ export const TicketPass: React.FC<TicketPassProps> = ({
     const shareText = 
 `🎟️ *NEXUSVERSE 2K26 - OFFICIAL ENTRY PASS*
 ━━━━━━━━━━━━━━━━━━━━
-👤 *Delegate:* ${record.name}
-🆔 *Pass ID:* ${record.regId}
-🎓 *Roll No:* ${record.roll || 'N/A'}
+👤 *Delegate:* ${target.name} (${target.role})
+🆔 *Pass ID:* ${target.passCode}
+🎓 *Roll No:* ${target.roll || 'N/A'}
 🏛️ *College:* ${record.college || 'NBKRIST'}
-📚 *Branch:* ${record.dept || ''} (${record.year || ''} Year, Sec ${record.section || 'A'})
+📚 *Branch:* ${target.branch || record.dept || ''} (${target.year || record.year || ''} Year, Sec ${target.section || record.section || 'A'})
 🎯 *Event(s):* ${eventNames}
+👥 *Team Registration:* ${totalMembers > 1 ? `${totalMembers} Members Registered` : 'Single Delegate'}
 💳 *Status:* ${record.isVerified || record.paymentMode === 'razorpay' ? 'Confirmed & Verified ✅' : 'Registered ⏳'} (₹${record.totalPaid})
-🍽️ *Food Token:* 1 Delegate Meal Included
+🍽️ *Food Token:* 1 Delegate Meal Tray Included (${target.name})
 📍 *Venue:* N.B.K.R. Institute of Science & Technology, Vidyanagar
 📅 *Date:* 29th October 2026
 
-🔗 *View Live Ticket & QR Pass:*
-${passVerificationUrl}
+🔗 *View Live Ticket & Individual QR Pass:*
+${target.verifyUrl}
 
-_(Show this pass or QR code at the registration desk for badge, kit, and food token collection)_`;
+_(Show this pass or QR code at the registration desk for badge, kit, and meal tray collection)_`;
 
     return `https://api.whatsapp.com/send?text=${encodeURIComponent(shareText)}`;
   };
@@ -612,58 +708,182 @@ _(Show this pass or QR code at the registration desk for badge, kit, and food to
                       {/* Structured Team Members Roster */}
                       {structuredMembers.length > 0 && (
                         <div className="pt-2 border-t border-[#2e2b22] space-y-2">
-                          <div className="flex items-center gap-1.5 text-[11px] text-[#d4a935] font-semibold">
-                            <Users className="w-3.5 h-3.5" />
-                            <span>Registered Team Members ({structuredMembers.length + 1} Total with Lead):</span>
+                          <div className="flex items-center justify-between text-[11px] text-[#d4a935] font-semibold">
+                            <span className="flex items-center gap-1.5">
+                              <Users className="w-3.5 h-3.5" />
+                              <span>Registered Team Members ({structuredMembers.length + 1} Total with Lead):</span>
+                            </span>
+                            <span className="text-[10px] text-[#f59e0b] bg-[#f59e0b]/10 px-2 py-0.5 rounded border border-[#f59e0b]/30">
+                              {totalMembers} Meal Trays Allocated
+                            </span>
                           </div>
-                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
                             {/* Member 1 (Lead) */}
-                            <div className="p-2.5 rounded-xl bg-[#14141d] border border-[#d4a935]/40 text-[11px] space-y-0.5">
+                            <div className={`p-3 rounded-2xl border text-[11px] space-y-2 transition-all ${
+                              selectedMemberIdx === 0
+                                ? 'bg-[#1a1711] border-[#f2c14e] shadow-lg shadow-[#d4a935]/15'
+                                : 'bg-[#14141d] border-[#d4a935]/40'
+                            }`}>
                               <div className="flex items-center justify-between font-bold text-[#ffffff]">
-                                <span>{record.name}</span>
-                                <span className="text-[10px] text-[#f2c14e] font-mono px-1.5 py-0.2 rounded bg-[#f2c14e]/10 border border-[#f2c14e]/30">
-                                  LEAD
+                                <span className="text-sm truncate" title={record.name}>{record.name}</span>
+                                <span className="text-[10px] text-[#f2c14e] font-mono px-2 py-0.5 rounded-full bg-[#f2c14e]/10 border border-[#f2c14e]/30 font-bold shrink-0">
+                                  LEAD (M1)
                                 </span>
                               </div>
                               <div className="text-[#a79f8b] font-mono">Roll: {record.roll} · {record.phone}</div>
                               <div className="text-[#a79f8b]">{record.className} {record.section} · {record.dept} ({record.year})</div>
-                              <div className="text-[10px] pt-0.5">
+                              <div className="flex flex-wrap items-center justify-between gap-1.5 pt-1 border-t border-[#2e2b22]">
+                                <div className="flex items-center gap-1">
+                                  <Utensils className="w-3.5 h-3.5 text-[#f59e0b]" />
+                                  <span className={`text-[10px] font-bold ${
+                                    lunchStats.memberStatus['lead'] || lunchStats.isFullyCollected
+                                      ? 'text-[#4cc38a]'
+                                      : 'text-[#f59e0b]'
+                                  }`}>
+                                    {lunchStats.memberStatus['lead'] || lunchStats.isFullyCollected
+                                      ? '1 Meal Tray Claimed ✓'
+                                      : '1 Meal Tray Included'}
+                                  </span>
+                                </div>
                                 {record.isIeeeMember ? (
-                                  <span className="text-[#f2c14e] font-medium flex items-center gap-1">
+                                  <span className="text-[#f2c14e] font-medium flex items-center gap-1 text-[10px]">
                                     <Award className="w-3 h-3 text-[#f2c14e]" />
                                     <span>IEEE: {record.ieeeId || 'Verified'}</span>
                                   </span>
                                 ) : (
-                                  <span className="text-[#a79f8b]">Non-IEEE Member</span>
+                                  <span className="text-[#a79f8b] text-[10px]">Non-IEEE</span>
                                 )}
+                              </div>
+
+                              {/* Individual QR Preview & WhatsApp Quick Share */}
+                              <div className="pt-2 border-t border-[#2e2b22] flex items-center justify-between gap-2">
+                                <button
+                                  type="button"
+                                  onClick={() => setSelectedMemberIdx(0)}
+                                  className="flex items-center gap-2 p-1.5 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 text-left cursor-pointer transition-all flex-1"
+                                  title="View Lead Individual QR Code"
+                                >
+                                  {memberQrMap['lead'] ? (
+                                    <img 
+                                      src={memberQrMap['lead']} 
+                                      alt={`${record.name} QR`} 
+                                      className="w-10 h-10 rounded-lg bg-white p-0.5 shrink-0 border border-[#d4a935]" 
+                                    />
+                                  ) : (
+                                    <div className="w-10 h-10 rounded-lg bg-white/10 flex items-center justify-center shrink-0">
+                                      <QrIcon className="w-5 h-5 text-[#f2c14e]" />
+                                    </div>
+                                  )}
+                                  <div className="min-w-0">
+                                    <span className="text-[10px] font-bold text-white block truncate">Individual QR Pass</span>
+                                    <span className="text-[9px] text-[#f2c14e] font-mono block">
+                                      {selectedMemberIdx === 0 ? '● Active in View' : 'Click to View Pass'}
+                                    </span>
+                                  </div>
+                                </button>
+
+                                <a
+                                  href={getWhatsAppShareUrl(0)}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="p-2.5 rounded-xl bg-[#25d366]/15 hover:bg-[#25d366] text-[#25d366] hover:text-[#052e16] border border-[#25d366]/40 transition-all cursor-pointer flex items-center justify-center shrink-0"
+                                  title={`Share ${record.name}'s pass on WhatsApp`}
+                                >
+                                  <MessageCircle className="w-4 h-4 fill-current" />
+                                </a>
                               </div>
                             </div>
 
                             {/* Additional Members */}
-                            {structuredMembers.map((m, idx) => (
-                              <div key={idx} className="p-2.5 rounded-xl bg-[#14141d] border border-[#2e2b22] text-[11px] space-y-0.5">
-                                <div className="flex items-center justify-between font-bold text-[#ffffff]">
-                                  <span>{m.name || `Member ${idx + 2}`}</span>
-                                  <span className="text-[10px] text-[#a79f8b] font-mono px-1.5 py-0.2 rounded bg-white/5 border border-white/10">
-                                    MEMBER {idx + 2}
-                                  </span>
-                                </div>
-                                <div className="text-[#a79f8b] font-mono">Roll: {m.roll || 'N/A'} {m.phone ? `· ${m.phone}` : ''}</div>
-                                <div className="text-[#a79f8b]">
-                                  {m.className || 'Class'} {m.section ? `Sec ${m.section}` : ''} {m.branch ? `· ${m.branch}` : ''} {m.year ? `(${m.year})` : ''}
-                                </div>
-                                <div className="text-[10px] pt-0.5">
-                                  {m.isIeeeMember ? (
-                                    <span className="text-[#f2c14e] font-medium flex items-center gap-1">
-                                      <Award className="w-3 h-3 text-[#f2c14e]" />
-                                      <span>IEEE: {m.ieeeId || 'Verified'}</span>
+                            {structuredMembers.map((m, idx) => {
+                              const mIdx = idx + 2;
+                              const key = `teammate_${idx}`;
+                              const isSelected = selectedMemberIdx === idx + 1;
+                              const isCollected = Boolean(lunchStats.memberStatus[key] || lunchStats.isFullyCollected);
+
+                              return (
+                                <div 
+                                  key={idx} 
+                                  className={`p-3 rounded-2xl border text-[11px] space-y-2 transition-all ${
+                                    isSelected
+                                      ? 'bg-[#1a1711] border-[#f2c14e] shadow-lg shadow-[#d4a935]/15'
+                                      : 'bg-[#14141d] border-[#2e2b22]'
+                                  }`}
+                                >
+                                  <div className="flex items-center justify-between font-bold text-[#ffffff]">
+                                    <span className="text-sm truncate" title={m.name || `Member ${mIdx}`}>
+                                      {m.name || `Member ${mIdx}`}
                                     </span>
-                                  ) : (
-                                    <span className="text-[#a79f8b]">Non-IEEE Member</span>
-                                  )}
+                                    <span className="text-[10px] text-[#a79f8b] font-mono px-2 py-0.5 rounded-full bg-white/5 border border-white/10 font-bold shrink-0">
+                                      MEMBER {mIdx}
+                                    </span>
+                                  </div>
+
+                                  <div className="text-[#a79f8b] font-mono">Roll: {m.roll || 'N/A'} {m.phone ? `· ${m.phone}` : ''}</div>
+                                  <div className="text-[#a79f8b]">
+                                    {m.className || record.className} {m.section ? `Sec ${m.section}` : record.section} {m.branch ? `· ${m.branch}` : `· ${record.dept}`} {m.year ? `(${m.year})` : ''}
+                                  </div>
+
+                                  <div className="flex flex-wrap items-center justify-between gap-1.5 pt-1 border-t border-[#2e2b22]">
+                                    <div className="flex items-center gap-1">
+                                      <Utensils className="w-3.5 h-3.5 text-[#f59e0b]" />
+                                      <span className={`text-[10px] font-bold ${
+                                        isCollected ? 'text-[#4cc38a]' : 'text-[#f59e0b]'
+                                      }`}>
+                                        {isCollected ? '1 Meal Tray Claimed ✓' : '1 Meal Tray Included'}
+                                      </span>
+                                    </div>
+
+                                    {m.isIeeeMember ? (
+                                      <span className="text-[#f2c14e] font-medium flex items-center gap-1 text-[10px]">
+                                        <Award className="w-3 h-3 text-[#f2c14e]" />
+                                        <span>IEEE: {m.ieeeId || 'Verified'}</span>
+                                      </span>
+                                    ) : (
+                                      <span className="text-[#a79f8b] text-[10px]">Non-IEEE</span>
+                                    )}
+                                  </div>
+
+                                  {/* Individual QR Preview & WhatsApp Quick Share */}
+                                  <div className="pt-2 border-t border-[#2e2b22] flex items-center justify-between gap-2">
+                                    <button
+                                      type="button"
+                                      onClick={() => setSelectedMemberIdx(idx + 1)}
+                                      className="flex items-center gap-2 p-1.5 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 text-left cursor-pointer transition-all flex-1"
+                                      title={`View ${m.name || `Member ${mIdx}`} Individual QR Code`}
+                                    >
+                                      {memberQrMap[key] ? (
+                                        <img 
+                                          src={memberQrMap[key]} 
+                                          alt={`${m.name || `Member ${mIdx}`} QR`} 
+                                          className="w-10 h-10 rounded-lg bg-white p-0.5 shrink-0 border border-[#d4a935]" 
+                                        />
+                                      ) : (
+                                        <div className="w-10 h-10 rounded-lg bg-white/10 flex items-center justify-center shrink-0">
+                                          <QrIcon className="w-5 h-5 text-[#f2c14e]" />
+                                        </div>
+                                      )}
+                                      <div className="min-w-0">
+                                        <span className="text-[10px] font-bold text-white block truncate">Individual QR Pass</span>
+                                        <span className="text-[9px] text-[#f2c14e] font-mono block">
+                                          {isSelected ? '● Active in View' : 'Click to View Pass'}
+                                        </span>
+                                      </div>
+                                    </button>
+
+                                    <a
+                                      href={getWhatsAppShareUrl(idx + 1)}
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                      className="p-2.5 rounded-xl bg-[#25d366]/15 hover:bg-[#25d366] text-[#25d366] hover:text-[#052e16] border border-[#25d366]/40 transition-all cursor-pointer flex items-center justify-center shrink-0"
+                                      title={`Share ${m.name || `Member ${mIdx}`}'s pass on WhatsApp`}
+                                    >
+                                      <MessageCircle className="w-4 h-4 fill-current" />
+                                    </a>
+                                  </div>
                                 </div>
-                              </div>
-                            ))}
+                              );
+                            })}
                           </div>
                         </div>
                       )}
@@ -676,18 +896,53 @@ _(Show this pass or QR code at the registration desk for badge, kit, and food to
 
           {/* Right Column: High-Contrast Scannable QR Security Column (4 Cols) */}
           <div className="lg:col-span-4 flex flex-col items-center justify-center p-5 bg-[#0e0e14] rounded-2xl border-2 border-[#d4a935]/50 text-center space-y-4 shadow-xl">
+            {/* Member Switcher Tabs (When Team Pass has > 1 member) */}
+            {totalMembers > 1 && (
+              <div className="w-full space-y-2 no-print">
+                <div className="flex items-center justify-between text-[11px] text-[#f2c14e] font-semibold">
+                  <span className="flex items-center gap-1">
+                    <Users className="w-3.5 h-3.5" />
+                    <span>Select Member QR Pass:</span>
+                  </span>
+                  <span className="text-[10px] text-[#a79f8b] font-mono">
+                    {selectedMemberIdx + 1} of {totalMembers}
+                  </span>
+                </div>
+                <div className="flex flex-wrap gap-1.5 p-1 bg-[#14141d] rounded-xl border border-[#2e2b22]">
+                  {memberList.map((m, idx) => (
+                    <button
+                      key={m.key}
+                      type="button"
+                      onClick={() => setSelectedMemberIdx(idx)}
+                      className={`flex-1 min-w-[100px] px-2 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-1 cursor-pointer ${
+                        selectedMemberIdx === idx
+                          ? 'bg-gradient-to-r from-[#d4a935] to-[#f2c14e] text-[#1a1300] shadow-md shadow-[#d4a935]/20'
+                          : 'text-[#d8cea7] hover:text-white hover:bg-white/5'
+                      }`}
+                    >
+                      <span>{idx === 0 ? '👑 Lead' : `M${idx + 1}`}:</span>
+                      <span className="truncate max-w-[80px]">{m.name.split(' ')[0]}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+
             {/* Scannable QR Container with Crisp White Background */}
-            <div className="p-3 bg-white rounded-2xl shadow-2xl border-2 border-[#d4a935] ring-4 ring-[#d4a935]/20 flex flex-col items-center">
+            <div className="p-3 bg-white rounded-2xl shadow-2xl border-2 border-[#d4a935] ring-4 ring-[#d4a935]/20 flex flex-col items-center w-full max-w-[240px]">
               <canvas 
                 ref={canvasRef} 
                 className="block w-[180px] h-[180px] sm:w-[200px] sm:h-[200px] rounded-lg" 
               />
-              <div className="mt-2 text-center">
+              <div className="mt-2 text-center w-full px-1">
                 <span className="text-[10px] font-mono font-bold tracking-wider text-black block uppercase">
-                  INSTANT CAMERA SCAN
+                  {totalMembers > 1 ? `${selectedMember.role.toUpperCase()} QR PASS` : 'INSTANT CAMERA SCAN'}
                 </span>
-                <span className="text-[9px] text-[#555] font-medium block">
-                  Scan to Open & Verify Online
+                <span className="text-[10px] font-bold text-[#1f2937] block mt-0.5 truncate" title={selectedMember.name}>
+                  {selectedMember.name}
+                </span>
+                <span className="text-[9px] text-[#555] font-mono block">
+                  {selectedMember.roll ? `Roll: ${selectedMember.roll}` : selectedMember.passCode}
                 </span>
               </div>
             </div>
@@ -697,10 +952,10 @@ _(Show this pass or QR code at the registration desk for badge, kit, and food to
               <div className="text-center">
                 <span className="text-[11px] font-mono font-bold text-[#f2c14e] block flex items-center justify-center gap-1.5">
                   <QrIcon className="w-3.5 h-3.5 text-[#f2c14e]" />
-                  <span>OFFICIAL DIGITAL PASS</span>
+                  <span>INDIVIDUAL VERIFIED PASS</span>
                 </span>
                 <p className="text-[10px] text-[#a79f8b] mt-1 leading-relaxed">
-                  Scan with any phone camera or Google Lens to immediately verify delegate identity and hall allocation.
+                  Scan at admin desk to verify {selectedMember.name}&apos;s identity, lab attendance, and meal tray dispensing.
                 </p>
               </div>
 
@@ -713,17 +968,17 @@ _(Show this pass or QR code at the registration desk for badge, kit, and food to
                   className="w-full py-2.5 px-3 rounded-xl bg-gradient-to-r from-[#25d366] to-[#128c7e] text-white hover:brightness-105 font-bold text-xs flex items-center justify-center gap-2 transition-all cursor-pointer shadow-md shadow-[#25d366]/20 no-print"
                 >
                   <MessageCircle className="w-4 h-4 fill-current" />
-                  <span>Share Pass on WhatsApp</span>
+                  <span>Share {totalMembers > 1 ? `${selectedMember.name.split(' ')[0]}'s Pass` : 'Pass'} on WhatsApp</span>
                   <ExternalLink className="w-3 h-3 opacity-80" />
                 </a>
 
                 <a
-                  href={passVerificationUrl}
+                  href={selectedMember.verifyUrl}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="w-full py-2 px-3 rounded-xl bg-[#1f1b0e] border border-[#d4a935]/60 text-[#f2c14e] hover:bg-[#f2c14e] hover:text-[#1a1300] font-bold text-xs flex items-center justify-center gap-1.5 transition-all cursor-pointer shadow-sm no-print"
                 >
-                  <span>Open Live Pass Link</span>
+                  <span>Open {totalMembers > 1 ? `${selectedMember.name.split(' ')[0]}'s Link` : 'Live Pass Link'}</span>
                   <ExternalLink className="w-3.5 h-3.5" />
                 </a>
 
@@ -748,10 +1003,15 @@ _(Show this pass or QR code at the registration desk for badge, kit, and food to
                   <strong className="text-[#4cc38a]">AUTHORIZED ✓</strong>
                 </div>
                 <div className="flex items-center justify-between">
-                  <span>Food / Lunch Token:</span>
-                  <strong className={record.lunchCollected ? 'text-[#4cc38a]' : 'text-[#f2c14e]'}>
-                    {record.lunchCollected ? 'COLLECTED ✓' : '1 MEAL INCLUDED'}
+                  <span>Food / Lunch Tokens:</span>
+                  <strong className={lunchStats.isFullyCollected ? 'text-[#4cc38a]' : 'text-[#f2c14e]'}>
+                    {lunchStats.isFullyCollected
+                      ? `ALL ${totalMembers} MEALS CLAIMED ✓`
+                      : `${lunchStats.mealsDispensed} / ${totalMembers} MEALS CLAIMED`}
                   </strong>
+                </div>
+                <div className="text-[9px] text-[#d4a935] text-right font-medium">
+                  ({totalMembers} {totalMembers === 1 ? 'Meal Tray' : 'Meal Trays'} Included · 1 per member)
                 </div>
               </div>
             </div>

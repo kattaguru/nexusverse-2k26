@@ -4,7 +4,7 @@
  * network-first for APIs, and programmatic cache purge capability.
  */
 
-const CACHE_NAME = 'nexusverse-cache-v2';
+const CACHE_NAME = 'nexusverse-cache-v3';
 const PRECACHE_URLS = [
   '/',
   '/register.html',

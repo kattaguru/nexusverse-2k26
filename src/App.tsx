@@ -28,7 +28,7 @@ import {
   formatDraftAge 
 } from './utils/formCache';
 import { registerServiceWorker } from './utils/cacheManager';
-import { computeDelegatesStats } from './utils/delegateStats';
+import { computeDelegatesStats, getRecordTeammates } from './utils/delegateStats';
 import { TimelineSection } from './components/TimelineSection';
 import { FaqSection } from './components/FaqSection';
 import { ContactSection } from './components/ContactSection';
@@ -634,11 +634,22 @@ export default function App() {
         // Direct QR Code Scan & Pass Verification Handling (?passId=NV26-... or ?verify=...)
         const urlParams = new URLSearchParams(window.location.search);
         const targetPassId = urlParams.get('passId') || urlParams.get('regId') || urlParams.get('verify');
-        if (targetPassId && mounted) {
-          const cleanTarget = targetPassId.trim().toLowerCase();
+        const targetRoll = urlParams.get('roll');
+        if ((targetPassId || targetRoll) && mounted) {
+          const cleanTarget = (targetPassId || '').trim().toLowerCase();
+          const cleanRoll = (targetRoll || '').trim().toLowerCase();
+          const baseRegId = cleanTarget.replace(/-m\d+$/i, '');
           const matched = (records || []).find((r: RegistrationRecord) => 
-            r.regId.toLowerCase() === cleanTarget || 
-            (r.roll && r.roll.toLowerCase() === cleanTarget)
+            (cleanTarget && (
+              r.regId.toLowerCase() === cleanTarget || 
+              r.regId.toLowerCase() === baseRegId ||
+              (r.roll && r.roll.toLowerCase() === cleanTarget) ||
+              getRecordTeammates(r).some(m => m.roll && m.roll.toLowerCase() === cleanTarget)
+            )) ||
+            (cleanRoll && (
+              (r.roll && r.roll.toLowerCase() === cleanRoll) ||
+              getRecordTeammates(r).some(m => m.roll && m.roll.toLowerCase() === cleanRoll)
+            ))
           );
           if (matched) {
             setConfirmedRecord(matched);
@@ -649,7 +660,8 @@ export default function App() {
             }, 300);
           } else {
             try {
-              const singleRes = await fetch(`/api/registrations/${encodeURIComponent(cleanTarget)}`);
+              const lookupId = baseRegId || cleanTarget || cleanRoll;
+              const singleRes = await fetch(`/api/registrations/${encodeURIComponent(lookupId)}`);
               if (singleRes.ok) {
                 const singleJson = await singleRes.json();
                 if (singleJson.success && singleJson.data && mounted) {

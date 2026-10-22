@@ -83,6 +83,51 @@ export function getRecordNonIeeeMemberCount(record: RegistrationRecord | undefin
   return leadCount + teammateCount;
 }
 
+export interface RecordLunchStats {
+  totalMealsAllocated: number;
+  mealsDispensed: number;
+  mealsRemaining: number;
+  isFullyCollected: boolean;
+  memberStatus: Record<string, boolean>;
+}
+
+/**
+ * Computes individual and total lunch meal tray allocation and redemption state for a record.
+ */
+export function getRecordLunchStats(record: RegistrationRecord | undefined | null): RecordLunchStats {
+  if (!record) {
+    return {
+      totalMealsAllocated: 0,
+      mealsDispensed: 0,
+      mealsRemaining: 0,
+      isFullyCollected: false,
+      memberStatus: {}
+    };
+  }
+
+  const memberCount = getRecordMemberCount(record);
+  const statusMap = record.memberLunchStatus || {};
+
+  const hasMemberMap = Object.keys(statusMap).length > 0;
+  let dispensed = 0;
+
+  if (hasMemberMap) {
+    dispensed = Object.values(statusMap).filter(Boolean).length;
+  } else if (record.lunchCollectedCount !== undefined) {
+    dispensed = Math.min(memberCount, Math.max(0, record.lunchCollectedCount));
+  } else if (record.lunchCollected) {
+    dispensed = memberCount;
+  }
+
+  return {
+    totalMealsAllocated: memberCount,
+    mealsDispensed: dispensed,
+    mealsRemaining: Math.max(0, memberCount - dispensed),
+    isFullyCollected: dispensed >= memberCount && memberCount > 0,
+    memberStatus: statusMap
+  };
+}
+
 export interface DelegateStats {
   totalRegistrations: number;
   totalDelegates: number;
@@ -95,6 +140,7 @@ export interface DelegateStats {
   verifiedCount: number;
   upiTotalCount: number;
   razorpayTotalCount: number;
+  totalLunchMealsDispensed: number;
 }
 
 /**
@@ -111,6 +157,7 @@ export function computeDelegatesStats(records: RegistrationRecord[]): DelegateSt
   let verifiedCount = 0;
   let upiTotalCount = 0;
   let razorpayTotalCount = 0;
+  let totalLunchMealsDispensed = 0;
 
   for (const r of records) {
     const teammates = getRecordTeammates(r);
@@ -138,6 +185,9 @@ export function computeDelegatesStats(records: RegistrationRecord[]): DelegateSt
       checkedInRegistrations++;
       checkedInDelegates += memberCount;
     }
+
+    // Lunch Trays
+    totalLunchMealsDispensed += getRecordLunchStats(r).mealsDispensed;
 
     // Revenue
     totalRevenue += r.totalPaid || 0;
@@ -167,6 +217,7 @@ export function computeDelegatesStats(records: RegistrationRecord[]): DelegateSt
     upiPendingCount,
     verifiedCount,
     upiTotalCount,
-    razorpayTotalCount
+    razorpayTotalCount,
+    totalLunchMealsDispensed
   };
 }
