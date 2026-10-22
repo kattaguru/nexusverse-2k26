@@ -20,7 +20,13 @@ function adminRoutePlugin() {
           res.writeHead(302, { Location: '/' });
           res.end();
           return;
-        } else if (pathname === '/nexusadmin' || pathname === '/nexusadmin.html') {
+        } else if (
+          pathname === '/nexusadmin' || 
+          pathname.startsWith('/nexusadmin/') || 
+          pathname === '/nexusadmin.html' ||
+          pathname === '/nexusscan' ||
+          pathname === '/scan'
+        ) {
           const query = req.url.includes('?') ? req.url.slice(req.url.indexOf('?')) : '';
           req.url = '/register.html' + query;
         } else if (pathname.startsWith('/pass/') || pathname.startsWith('/verify/')) {

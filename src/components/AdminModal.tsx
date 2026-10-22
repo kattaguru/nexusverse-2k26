@@ -258,7 +258,13 @@ export const AdminModal: React.FC<AdminModalProps> = ({
     return () => window.removeEventListener('storage', handleStorage);
   }, []);
 
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [isAuthenticated, setIsAuthenticated] = useState(() => {
+    try {
+      return sessionStorage.getItem('nexusverse_admin_auth') === 'true';
+    } catch {
+      return false;
+    }
+  });
   const [passwordInput, setPasswordInput] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [passwordError, setPasswordError] = useState('');
@@ -317,6 +323,58 @@ export const AdminModal: React.FC<AdminModalProps> = ({
       setActiveTab(initialTab);
     }
   }, [isOpen, initialTab]);
+
+  const handleTabChange = (tab: 'registrations' | 'scan' | 'manual' | 'status' | 'photos' | 'settings' | 'cache') => {
+    setActiveTab(tab);
+    if (typeof window !== 'undefined' && window.history?.pushState) {
+      if (tab === 'scan') {
+        window.history.pushState(null, '', '/nexusadmin/scan');
+      } else if (tab === 'registrations') {
+        window.history.pushState(null, '', '/nexusadmin');
+      } else {
+        window.history.pushState(null, '', `/nexusadmin?tab=${tab}`);
+      }
+    }
+  };
+
+  useEffect(() => {
+    const handlePopState = () => {
+      const p = window.location.pathname.toLowerCase().replace(/\/+$/, '');
+      const search = new URLSearchParams(window.location.search);
+      const tabParam = search.get('tab') || search.get('page');
+      if (p === '/nexusadmin/scan' || p.endsWith('/nexusadmin/scan') || p === '/nexusscan' || p === '/scan' || tabParam === 'scan') {
+        setActiveTab('scan');
+      } else if (tabParam === 'manual') {
+        setActiveTab('manual');
+      } else if (tabParam === 'status') {
+        setActiveTab('status');
+      } else if (tabParam === 'photos') {
+        setActiveTab('photos');
+      } else if (tabParam === 'settings') {
+        setActiveTab('settings');
+      } else if (tabParam === 'cache') {
+        setActiveTab('cache');
+      } else {
+        setActiveTab('registrations');
+      }
+    };
+
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, []);
+
+  // Sync document page title dynamically with active page
+  useEffect(() => {
+    if (typeof document !== 'undefined') {
+      if (activeTab === 'scan') {
+        document.title = 'NexusVerse 2K26 · Scan & Check-In Desk';
+      } else if (activeTab === 'registrations') {
+        document.title = 'NexusVerse 2K26 · All Registrations & Participants';
+      } else {
+        document.title = `NexusVerse 2K26 · Admin (${activeTab})`;
+      }
+    }
+  }, [activeTab]);
 
   // Search, Filter & Sort
   const [searchQuery, setSearchQuery] = useState('');
@@ -626,16 +684,16 @@ export const AdminModal: React.FC<AdminModalProps> = ({
   const photoUploadRef = useRef<HTMLInputElement>(null);
   const jsonImportRef = useRef<HTMLInputElement>(null);
 
-  // Security: Always purge persistent auth on entry/mount so that entering the site or refreshing always prompts for password in admin mode
+  // Security & Session: Preserve tab session auth, clear stale local passwords
   useEffect(() => {
     if (isOpen || isFullPage) {
       try {
         localStorage.removeItem('nexusverse_admin_pwd');
-        sessionStorage.removeItem('nexusverse_admin_auth');
-        sessionStorage.removeItem('nexusverse_admin_timestamp');
+        const isSessionAuth = sessionStorage.getItem('nexusverse_admin_auth') === 'true';
+        if (isSessionAuth) {
+          setIsAuthenticated(true);
+        }
       } catch (e) {}
-
-      setIsAuthenticated(false);
 
       const handleAuthEvent = (e: any) => {
         if (e?.detail?.isAuthenticated !== undefined) {
@@ -761,8 +819,8 @@ export const AdminModal: React.FC<AdminModalProps> = ({
       setLoginAttempts(0);
       try {
         localStorage.removeItem('nexusverse_admin_pwd');
-        sessionStorage.removeItem('nexusverse_admin_auth');
-        sessionStorage.removeItem('nexusverse_admin_timestamp');
+        sessionStorage.setItem('nexusverse_admin_auth', 'true');
+        sessionStorage.setItem('nexusverse_admin_timestamp', String(Date.now()));
         window.dispatchEvent(new CustomEvent('nexusverse_admin_auth_changed', { detail: { isAuthenticated: true } }));
       } catch (e) {}
       setIsVerifyingLogin(false);
@@ -1439,16 +1497,18 @@ export const AdminModal: React.FC<AdminModalProps> = ({
         <div className="admin-header bg-gradient-to-r from-[#181820] via-[#1f1b0e] to-[#181820] p-4 sm:p-5 border-b border-[#2e2b22] flex items-center justify-between shrink-0 shadow-md">
           <div className="flex items-center gap-3">
             <div className="admin-header-shield w-10 h-10 rounded-xl bg-[#d4a935]/20 border border-[#d4a935]/50 flex items-center justify-center text-[#f2c14e] shadow-md shrink-0">
-              <ShieldCheck className="w-5 h-5" />
+              {activeTab === 'scan' ? <QrCode className="w-5 h-5" /> : <ShieldCheck className="w-5 h-5" />}
             </div>
             <div>
               <div className="text-[10px] sm:text-[11px] text-[#f2c14e] font-mono tracking-wider uppercase font-semibold flex items-center gap-1.5">
                 <span>NexusVerse 2K26</span>
                 <span className="w-1.5 h-1.5 rounded-full bg-[#4cc38a] animate-pulse" />
-                <span className="admin-header-badge-text">Executive Operations Center</span>
+                <span className="admin-header-badge-text">
+                  {activeTab === 'scan' ? 'QR Ticket Scanner & Check-In Desk' : 'Executive Operations Center'}
+                </span>
               </div>
               <h3 id="admin-panel-title" className="admin-header-title text-sm sm:text-lg font-bold text-[#ffffff] leading-tight">
-                Symposium Admin & Delegate Management Portal
+                {activeTab === 'scan' ? 'Scan & Check-In Desk · Delegate Entry Station' : 'Symposium Admin & Delegate Management Portal'}
               </h3>
             </div>
           </div>
@@ -1601,7 +1661,7 @@ export const AdminModal: React.FC<AdminModalProps> = ({
             <div className="bg-[#0a0a0d] border-b border-[#2e2b22] px-3 sm:px-6 flex items-center gap-1 sm:gap-2 overflow-x-auto shrink-0 py-2.5">
               <button
                 type="button"
-                onClick={() => setActiveTab('registrations')}
+                onClick={() => handleTabChange('registrations')}
                 className={`py-2 px-3 text-xs font-semibold rounded-lg flex items-center gap-1.5 transition-all cursor-pointer whitespace-nowrap ${
                   activeTab === 'registrations'
                     ? 'bg-[#1f1b0e] text-[#f2c14e] border border-[#d4a935]/40 shadow-sm'
@@ -1614,7 +1674,7 @@ export const AdminModal: React.FC<AdminModalProps> = ({
 
               <button
                 type="button"
-                onClick={() => setActiveTab('scan')}
+                onClick={() => handleTabChange('scan')}
                 className={`py-2 px-3 text-xs font-semibold rounded-lg flex items-center gap-1.5 transition-all cursor-pointer whitespace-nowrap ${
                   activeTab === 'scan'
                     ? 'bg-gradient-to-r from-[#1f1b0e] to-[#2e250f] text-[#f2c14e] border border-[#d4a935] shadow-md shadow-[#d4a935]/15'
@@ -1630,7 +1690,7 @@ export const AdminModal: React.FC<AdminModalProps> = ({
 
               <button
                 type="button"
-                onClick={() => setActiveTab('manual')}
+                onClick={() => handleTabChange('manual')}
                 className={`py-2 px-3 text-xs font-semibold rounded-lg flex items-center gap-1.5 transition-all cursor-pointer whitespace-nowrap ${
                   activeTab === 'manual'
                     ? 'bg-[#1f1b0e] text-[#f2c14e] border border-[#d4a935]/40 shadow-sm'
@@ -1643,7 +1703,7 @@ export const AdminModal: React.FC<AdminModalProps> = ({
 
               <button
                 type="button"
-                onClick={() => setActiveTab('status')}
+                onClick={() => handleTabChange('status')}
                 className={`py-2 px-3 text-xs font-semibold rounded-lg flex items-center gap-1.5 transition-all cursor-pointer whitespace-nowrap ${
                   activeTab === 'status'
                     ? 'bg-[#1f1b0e] text-[#f2c14e] border border-[#d4a935]/40 shadow-sm'
@@ -1656,7 +1716,7 @@ export const AdminModal: React.FC<AdminModalProps> = ({
 
               <button
                 type="button"
-                onClick={() => setActiveTab('photos')}
+                onClick={() => handleTabChange('photos')}
                 className={`py-2 px-3 text-xs font-semibold rounded-lg flex items-center gap-1.5 transition-all cursor-pointer whitespace-nowrap ${
                   activeTab === 'photos'
                     ? 'bg-[#1f1b0e] text-[#f2c14e] border border-[#d4a935]/40 shadow-sm'
@@ -1669,7 +1729,7 @@ export const AdminModal: React.FC<AdminModalProps> = ({
 
               <button
                 type="button"
-                onClick={() => setActiveTab('settings')}
+                onClick={() => handleTabChange('settings')}
                 className={`py-2 px-3 text-xs font-semibold rounded-lg flex items-center gap-1.5 transition-all cursor-pointer whitespace-nowrap ${
                   activeTab === 'settings'
                     ? 'bg-[#1f1b0e] text-[#f2c14e] border border-[#d4a935]/40 shadow-sm'
@@ -1682,7 +1742,7 @@ export const AdminModal: React.FC<AdminModalProps> = ({
 
               <button
                 type="button"
-                onClick={() => setActiveTab('cache')}
+                onClick={() => handleTabChange('cache')}
                 className={`py-2 px-3 text-xs font-semibold rounded-lg flex items-center gap-1.5 transition-all cursor-pointer whitespace-nowrap ${
                   activeTab === 'cache'
                     ? 'bg-[#1f1b0e] text-[#f2c14e] border border-[#d4a935]/40 shadow-sm'
@@ -1703,6 +1763,7 @@ export const AdminModal: React.FC<AdminModalProps> = ({
                   records={savedRecords}
                   onUpdateRecord={onUpdateRecord}
                   onViewPass={onViewPass}
+                  onNavigateToRegistrations={() => handleTabChange('registrations')}
                   theme={activeTheme}
                 />
               )}

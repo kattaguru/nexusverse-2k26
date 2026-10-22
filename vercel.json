@@ -20,11 +20,27 @@
       "destination": "/api"
     },
     {
+      "source": "/nexusadmin/scan",
+      "destination": "/register.html"
+    },
+    {
+      "source": "/nexusadmin/(.*)",
+      "destination": "/register.html"
+    },
+    {
       "source": "/nexusadmin",
       "destination": "/register.html"
     },
     {
       "source": "/nexusadmin.html",
+      "destination": "/register.html"
+    },
+    {
+      "source": "/nexusscan",
+      "destination": "/register.html"
+    },
+    {
+      "source": "/scan",
       "destination": "/register.html"
     },
     {

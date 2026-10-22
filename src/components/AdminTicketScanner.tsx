@@ -52,6 +52,7 @@ interface AdminTicketScannerProps {
   records: RegistrationRecord[];
   onUpdateRecord: (updated: RegistrationRecord) => void;
   onViewPass?: (record: RegistrationRecord) => void;
+  onNavigateToRegistrations?: () => void;
   theme?: 'dark' | 'light';
 }
 
@@ -59,6 +60,7 @@ export const AdminTicketScanner: React.FC<AdminTicketScannerProps> = ({
   records,
   onUpdateRecord,
   onViewPass,
+  onNavigateToRegistrations,
   theme = 'dark'
 }) => {
   const isLight = theme === 'light';
@@ -920,7 +922,23 @@ export const AdminTicketScanner: React.FC<AdminTicketScannerProps> = ({
             </p>
           </div>
 
-          <div className="flex items-center gap-2 self-start md:self-auto shrink-0">
+          <div className="flex flex-wrap items-center gap-2 self-start md:self-auto shrink-0">
+            {onNavigateToRegistrations && (
+              <button
+                type="button"
+                onClick={onNavigateToRegistrations}
+                className={`px-3 py-2 rounded-xl text-xs font-bold border flex items-center gap-1.5 transition-all shadow cursor-pointer ${
+                  isLight
+                    ? 'bg-white text-[#705600] border-[#d4a935]/40 hover:bg-[#fff9e6]'
+                    : 'bg-[#1f1b0e] text-[#f2c14e] border-[#d4a935]/50 hover:bg-[#2b220d]'
+                }`}
+                title="Switch to All Registrations & Participant Details Page"
+              >
+                <Users className="w-3.5 h-3.5 text-[#f2c14e]" />
+                <span>All Registrations Page</span>
+              </button>
+            )}
+
             <button
               type="button"
               onClick={() => setSoundEnabled(!soundEnabled)}

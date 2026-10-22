@@ -467,26 +467,48 @@ export default function App() {
     if (el) el.scrollIntoView({ behavior: 'smooth' });
   };
 
-  // Dedicated Secure /nexusadmin Route Detection (Only opens when visiting /nexusadmin)
-  const [isAdminRoute, setIsAdminRoute] = useState(() => {
-    if (typeof window === 'undefined') return false;
+  // Dedicated Secure Admin Route & Tab Detection (/nexusadmin for All Registrations, /nexusadmin/scan or /nexusscan for Scanner)
+  const getAdminRouteState = () => {
+    if (typeof window === 'undefined') return { isAdmin: false, tab: 'registrations' as const };
     const p = window.location.pathname.toLowerCase().replace(/\/+$/, '');
-    // If someone visits the legacy /admin route, immediately bounce to home
     if (p === '/admin' || p === '/admin.html' || p.endsWith('/admin') || p.endsWith('/admin.html')) {
       window.location.replace('/');
-      return false;
+      return { isAdmin: false, tab: 'registrations' as const };
     }
-    return p.endsWith('/nexusadmin') || p.endsWith('/nexusadmin.html') || window.location.search.includes('nexusadmin') || window.location.hash.includes('nexusadmin');
-  });
+    const search = new URLSearchParams(window.location.search);
+    const tabParam = search.get('tab') || search.get('page');
+
+    const isScanRoute = p === '/nexusadmin/scan' || p.endsWith('/nexusadmin/scan') || p === '/nexusscan' || p === '/scan' || tabParam === 'scan';
+    const isAdmin = p === '/nexusadmin' || p.startsWith('/nexusadmin') || p.endsWith('/nexusadmin') || p.endsWith('/nexusadmin.html') || p === '/nexusscan' || p === '/scan' || search.has('nexusadmin') || window.location.hash.includes('nexusadmin');
+
+    let tab: 'registrations' | 'scan' | 'manual' | 'status' | 'photos' | 'settings' | 'cache' = 'registrations';
+    if (isScanRoute) {
+      tab = 'scan';
+    } else if (tabParam === 'manual') {
+      tab = 'manual';
+    } else if (tabParam === 'status') {
+      tab = 'status';
+    } else if (tabParam === 'photos') {
+      tab = 'photos';
+    } else if (tabParam === 'settings') {
+      tab = 'settings';
+    } else if (tabParam === 'cache') {
+      tab = 'cache';
+    } else {
+      tab = 'registrations';
+    }
+
+    return { isAdmin, tab };
+  };
+
+  const [isAdminRoute, setIsAdminRoute] = useState(() => getAdminRouteState().isAdmin);
+  const [adminInitialTab, setAdminInitialTab] = useState<'registrations' | 'scan' | 'manual' | 'status' | 'photos' | 'settings' | 'cache'>(() => getAdminRouteState().tab);
 
   useEffect(() => {
     const handleLocationChange = () => {
-      const p = window.location.pathname.toLowerCase().replace(/\/+$/, '');
-      if (p === '/admin' || p === '/admin.html' || p.endsWith('/admin') || p.endsWith('/admin.html')) {
-        window.location.replace('/');
-        return;
-      }
-      setIsAdminRoute(p.endsWith('/nexusadmin') || p.endsWith('/nexusadmin.html') || window.location.search.includes('nexusadmin') || window.location.hash.includes('nexusadmin'));
+      const state = getAdminRouteState();
+      setIsAdminRoute(state.isAdmin);
+      setAdminInitialTab(state.tab);
     };
 
     window.addEventListener('popstate', handleLocationChange);
@@ -526,7 +548,6 @@ export default function App() {
 
   // Admin Portal & Customization States
   const [isAdminOpen, setIsAdminOpen] = useState(false);
-  const [adminInitialTab, setAdminInitialTab] = useState<'registrations' | 'scan' | 'manual' | 'status' | 'photos' | 'settings'>('registrations');
   const [isRegClosed, setIsRegClosed] = useState(false);
   const [closedMessage, setClosedMessage] = useState(() => {
     try {
