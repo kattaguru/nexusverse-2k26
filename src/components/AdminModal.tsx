@@ -1568,20 +1568,6 @@ export const AdminModal: React.FC<AdminModalProps> = ({
     reader.readAsText(file);
   };
 
-  // Clear all registrations with safe confirmation
-  const handleClearAllRegistrations = () => {
-    const verification = prompt('Type "RESET" to confirm clearing all stored delegate registrations:');
-    if (verification === 'RESET') {
-      try {
-        localStorage.removeItem('nexusverse_registrations');
-        alert('All registration records have been cleared.');
-        window.location.reload();
-      } catch (e) {}
-    } else if (verification !== null) {
-      alert('Reset cancelled: verification text did not match.');
-    }
-  };
-
   // Handle Manual Spot Registration Submit
   const handleManualRegisterSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -5259,24 +5245,6 @@ export const AdminModal: React.FC<AdminModalProps> = ({
                         </button>
                       </div>
                     </div>
-                  </div>
-
-                  {/* Danger Zone: Clear Data */}
-                  <div className="p-5 rounded-2xl bg-[#2a1315]/40 border border-[#ff8a80]/30 space-y-3">
-                    <h4 className="text-sm font-bold text-[#ff8a80] flex items-center gap-2">
-                      <AlertCircle className="w-4 h-4" />
-                      <span>Danger Zone: Clear Database</span>
-                    </h4>
-                    <p className="text-xs text-[#ffb4ab]">
-                      Permanently wipes all saved delegate registrations from the browser. Ensure you have downloaded a CSV or JSON backup before proceeding.
-                    </p>
-                    <button
-                      type="button"
-                      onClick={handleClearAllRegistrations}
-                      className="px-4 py-2 text-xs font-bold rounded-xl bg-[#2a1315] border border-[#ff8a80] text-[#ff8a80] hover:bg-[#ff8a80] hover:text-[#1a0505] transition-colors cursor-pointer"
-                    >
-                      Clear All Stored Registrations
-                    </button>
                   </div>
                 </div>
               )}
