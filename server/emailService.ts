@@ -176,9 +176,9 @@ function generateTicketEmailHtml(payload: EmailTicketPayload, passUrl: string): 
                     <strong style="font-size:20px;color:#f2c14e;font-family:monospace;letter-spacing:1px;">${safeRegId}</strong>
                   </td>
                   <td align="right" style="padding-bottom:12px;border-bottom:1px solid #282833;">
-                    <span style="font-size:11px;text-transform:uppercase;color:#a79f8b;display:block;">Amount Paid (Incl. 5% GST)</span>
+                    <span style="font-size:11px;text-transform:uppercase;color:#a79f8b;display:block;">Amount Paid (Incl. 2% GST)</span>
                     <strong style="font-size:20px;color:#3ecf8e;font-family:monospace;">₹${payload.totalPaid}</strong>
-                    ${payload.gstAmount ? `<span style="display:block;font-size:10px;color:#a79f8b;font-family:monospace;">Base: ₹${payload.subtotal || (payload.totalPaid - payload.gstAmount)} + 5% GST: ₹${payload.gstAmount}</span>` : ''}
+                    ${payload.gstAmount ? `<span style="display:block;font-size:10px;color:#a79f8b;font-family:monospace;">Base: ₹${payload.subtotal || (payload.totalPaid - payload.gstAmount)} + 2% GST: ₹${payload.gstAmount}</span>` : ''}
                   </td>
                 </tr>
 

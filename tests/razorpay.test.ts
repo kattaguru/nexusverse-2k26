@@ -45,42 +45,42 @@ describe('Razorpay Utilities & Payment Calculation Unit Tests', () => {
     assert.equal(finalAfterPromo, 315);
   });
 
-  it('should accurately calculate 5% GST (₹5 for every ₹100) on all registration tiers', () => {
-    const calcGstAndTotal = (baseSubtotal: number, gstRate = 5) => {
+  it('should accurately calculate 2% GST (₹2 for every ₹100) on all registration tiers', () => {
+    const calcGstAndTotal = (baseSubtotal: number, gstRate = 2) => {
       const gstAmount = Math.round((baseSubtotal * gstRate) / 100);
       const total = baseSubtotal + gstAmount;
       return { baseSubtotal, gstAmount, total };
     };
 
-    // Tier 1: Spot Events Pass (₹100 base) -> ₹5 GST, Total ₹105
+    // Tier 1: Spot Events Pass (₹100 base) -> ₹2 GST, Total ₹102
     const spot = calcGstAndTotal(100);
-    assert.equal(spot.gstAmount, 5, '₹100 should incur exactly ₹5 GST (₹5 per ₹100)');
-    assert.equal(spot.total, 105, 'Total should be ₹105');
+    assert.equal(spot.gstAmount, 2, '₹100 should incur exactly ₹2 GST (₹2 per ₹100)');
+    assert.equal(spot.total, 102, 'Total should be ₹102');
 
-    // Tier 2: Non-IEEE Member Single Tech Event (₹200 base) -> ₹10 GST, Total ₹210
+    // Tier 2: Non-IEEE Member Single Tech Event (₹200 base) -> ₹4 GST, Total ₹204
     const nonIeeeSingle = calcGstAndTotal(200);
-    assert.equal(nonIeeeSingle.gstAmount, 10, '₹200 should incur ₹10 GST');
-    assert.equal(nonIeeeSingle.total, 210, 'Total should be ₹210');
+    assert.equal(nonIeeeSingle.gstAmount, 4, '₹200 should incur ₹4 GST');
+    assert.equal(nonIeeeSingle.total, 204, 'Total should be ₹204');
 
-    // Tier 3: Non-IEEE Tech Event + Spot Pass (₹300 base) -> ₹15 GST, Total ₹315
+    // Tier 3: Non-IEEE Tech Event + Spot Pass (₹300 base) -> ₹6 GST, Total ₹306
     const techPlusSpot = calcGstAndTotal(300);
-    assert.equal(techPlusSpot.gstAmount, 15, '₹300 should incur ₹15 GST');
-    assert.equal(techPlusSpot.total, 315, 'Total should be ₹315');
+    assert.equal(techPlusSpot.gstAmount, 6, '₹300 should incur ₹6 GST');
+    assert.equal(techPlusSpot.total, 306, 'Total should be ₹306');
 
-    // Tier 4: Two-member team @ ₹200 each (₹400 base) -> ₹20 GST, Total ₹420
+    // Tier 4: Two-member team @ ₹200 each (₹400 base) -> ₹8 GST, Total ₹408
     const teamTwo = calcGstAndTotal(400);
-    assert.equal(teamTwo.gstAmount, 20, '₹400 should incur ₹20 GST');
-    assert.equal(teamTwo.total, 420, 'Total should be ₹420');
+    assert.equal(teamTwo.gstAmount, 8, '₹400 should incur ₹8 GST');
+    assert.equal(teamTwo.total, 408, 'Total should be ₹408');
 
-    // Tier 5: IEEE Member Single Tech Event (₹150 base) -> ₹8 GST (rounded per CGST Section 170), Total ₹158
+    // Tier 5: IEEE Member Single Tech Event (₹150 base) -> ₹3 GST, Total ₹153
     const ieeeSingle = calcGstAndTotal(150);
-    assert.equal(ieeeSingle.gstAmount, 8, '₹150 should incur ₹8 GST rounded');
-    assert.equal(ieeeSingle.total, 158, 'Total should be ₹158');
+    assert.equal(ieeeSingle.gstAmount, 3, '₹150 should incur ₹3 GST');
+    assert.equal(ieeeSingle.total, 153, 'Total should be ₹153');
 
-    // Tier 6: IEEE Member Tech + Spot Pass (₹250 base) -> ₹13 GST, Total ₹263
+    // Tier 6: IEEE Member Tech + Spot Pass (₹250 base) -> ₹5 GST, Total ₹255
     const ieeePlusSpot = calcGstAndTotal(250);
-    assert.equal(ieeePlusSpot.gstAmount, 13, '₹250 should incur ₹13 GST rounded');
-    assert.equal(ieeePlusSpot.total, 263, 'Total should be ₹263');
+    assert.equal(ieeePlusSpot.gstAmount, 5, '₹250 should incur ₹5 GST');
+    assert.equal(ieeePlusSpot.total, 255, 'Total should be ₹255');
   });
 
   it('should support team member spot pass selection for multi-member events like CTF', () => {
@@ -92,25 +92,25 @@ describe('Razorpay Utilities & Payment Calculation Unit Tests', () => {
     const techSubtotal = ctfHeads * nonMemberTechFee; // ₹400
     const bothSpotSubtotal = ctfHeads * spotFee; // ₹200
     const subtotalBoth = techSubtotal + bothSpotSubtotal; // ₹600
-    const gstBoth = Math.round(subtotalBoth * 0.05); // ₹30 (₹5 per ₹100)
-    const totalBoth = subtotalBoth + gstBoth; // ₹630
+    const gstBoth = Math.round(subtotalBoth * 0.02); // ₹12 (₹2 per ₹100)
+    const totalBoth = subtotalBoth + gstBoth; // ₹612
 
     assert.equal(techSubtotal, 400);
     assert.equal(bothSpotSubtotal, 200);
     assert.equal(subtotalBoth, 600);
-    assert.equal(gstBoth, 30);
-    assert.equal(totalBoth, 630);
+    assert.equal(gstBoth, 12);
+    assert.equal(totalBoth, 612);
 
     // Case B: CTF (2 members) + Spot Pass for LEAD ONLY (1 Spot Pass)
     const singleSpotSubtotal = 1 * spotFee; // ₹100
     const subtotalSingle = techSubtotal + singleSpotSubtotal; // ₹500
-    const gstSingle = Math.round(subtotalSingle * 0.05); // ₹25 (₹5 per ₹100)
-    const totalSingle = subtotalSingle + gstSingle; // ₹525
+    const gstSingle = Math.round(subtotalSingle * 0.02); // ₹10 (₹2 per ₹100)
+    const totalSingle = subtotalSingle + gstSingle; // ₹510
 
     assert.equal(singleSpotSubtotal, 100);
     assert.equal(subtotalSingle, 500);
-    assert.equal(gstSingle, 25);
-    assert.equal(totalSingle, 525);
+    assert.equal(gstSingle, 10);
+    assert.equal(totalSingle, 510);
   });
 
   it('should format standard NPCI Direct UPI payment URI correctly with custom UPI ID', () => {

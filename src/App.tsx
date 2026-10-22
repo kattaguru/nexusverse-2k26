@@ -1154,7 +1154,7 @@ export default function App() {
     setSpotMembersSelected(updated);
   };
 
-  // Pricing calculations: Technical events: ₹200 (₹150 IEEE); Spot Events: ₹100 per member; GST: 5% (₹5 for every ₹100)
+  // Pricing calculations: Technical events: ₹200 (₹150 IEEE); Spot Events: ₹100 per member; GST: 2% (₹2 for every ₹100)
   const calculateTotal = () => {
     let subtotal = 0;
 
@@ -1179,8 +1179,8 @@ export default function App() {
       subtotal += spotSubtotal;
     }
 
-    // 3. GST: 5% (₹5 for every ₹100 of base registration fee)
-    const gstPercent = SYMPOSIUM_CONFIG.gstPercent || 5;
+    // 3. GST: 2% (₹2 for every ₹100 of base registration fee)
+    const gstPercent = SYMPOSIUM_CONFIG.gstPercent || 2;
     const gstAmount = Math.round((subtotal * gstPercent) / 100);
     const total = subtotal + gstAmount;
 
@@ -3025,7 +3025,7 @@ export default function App() {
                         </div>
                         <div className="flex justify-between items-center text-[#a79f8b]">
                           <span className="flex items-center gap-1.5">
-                            <span>GST ({gstPercent}% · ₹5 per ₹100)</span>
+                            <span>GST ({gstPercent}% · ₹2 per ₹100)</span>
                             <span className="text-[10px] px-1.5 py-0.2 rounded bg-[#f2c14e]/10 text-[#f2c14e] border border-[#f2c14e]/30 font-mono">
                               Govt. Tax
                             </span>
@@ -3036,7 +3036,7 @@ export default function App() {
                           <span>Total Payable</span>
                           <div className="text-right">
                             <span className="font-mono tabular-nums text-2xl text-[#f2c14e]">₹{total}</span>
-                            <span className="text-[10px] text-[#a79f8b] font-normal block">Razorpay & UPI · Incl. 5% GST</span>
+                            <span className="text-[10px] text-[#a79f8b] font-normal block">Razorpay & UPI · Incl. {gstPercent}% GST</span>
                           </div>
                         </div>
                       </div>
@@ -3116,7 +3116,7 @@ export default function App() {
                       <div className="flex items-baseline gap-1.5">
                         <span className="text-xl font-mono font-extrabold text-[#f2c14e]">₹{total}</span>
                         <span className="text-[10px] text-[#4cc38a] font-medium truncate">
-                          Incl. 5% GST (Base: ₹{subtotal})
+                          Incl. {gstPercent}% GST (Base: ₹{subtotal})
                         </span>
                       </div>
                     </div>

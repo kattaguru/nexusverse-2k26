@@ -1052,7 +1052,7 @@ _(Show this pass or QR code at the registration desk for badge, kit, and meal tr
             Amount Paid: <span className="text-[#f2c14e] font-bold">₹{record.totalPaid}</span>
             {record.gstAmount ? (
               <span className="text-[#a79f8b] text-[10px] ml-1">
-                (Base: ₹{record.subtotal || (record.totalPaid - record.gstAmount)} + 5% GST: ₹{record.gstAmount})
+                (Base: ₹{record.subtotal || (record.totalPaid - record.gstAmount)} + 2% GST: ₹{record.gstAmount})
               </span>
             ) : null}
             {' '}({record.paymentMode === 'upi' ? 'UPI UTR' : 'Razorpay Ref'}: <span className="text-white">{record.paymentId}</span>)

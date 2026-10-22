@@ -1225,7 +1225,7 @@ export const ParticipantSpaceModal: React.FC<ParticipantSpaceModalProps> = ({
                             Total Amount: <span className="font-mono text-[#f3ecd9] font-bold text-sm">₹{rec.totalPaid}</span>
                             {rec.gstAmount ? (
                               <span className="text-[10px] text-[#a79f8b] font-mono ml-1.5">
-                                (Base: ₹{rec.subtotal || (rec.totalPaid - rec.gstAmount)} + 5% GST: ₹{rec.gstAmount})
+                                (Base: ₹{rec.subtotal || (rec.totalPaid - rec.gstAmount)} + 2% GST: ₹{rec.gstAmount})
                               </span>
                             ) : null}
                           </span>

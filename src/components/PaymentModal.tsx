@@ -501,12 +501,12 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
               </span>
               <span className="text-xs text-[#a79f8b] font-mono">INR</span>
               <span className="text-[10px] px-2 py-0.5 rounded-full bg-[#f2c14e]/15 text-[#f2c14e] font-semibold border border-[#f2c14e]/30">
-                Incl. 5% GST (₹5/₹100)
+                Incl. 2% GST (₹2/₹100)
               </span>
             </div>
             {subtotal !== undefined && gstAmount !== undefined && (
               <div className="text-[11px] text-[#8ea8c9] font-mono mt-0.5">
-                Base Fee: ₹{subtotal} + 5% GST: ₹{gstAmount}
+                Base Fee: ₹{subtotal} + 2% GST: ₹{gstAmount}
               </div>
             )}
           </div>

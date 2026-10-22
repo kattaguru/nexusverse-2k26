@@ -1994,18 +1994,18 @@ export const AdminTicketScanner: React.FC<AdminTicketScannerProps> = ({
     if ((activeRecord.eventIds || []).includes('spot')) return;
 
     const spotBase = 100;
-    const spotGst = Math.round((spotBase * (SYMPOSIUM_CONFIG.gstPercent || 5)) / 100);
+    const spotGst = Math.round((spotBase * (SYMPOSIUM_CONFIG.gstPercent || 2)) / 100);
     const spotTotal = spotBase + spotGst;
 
-    if (!confirm(`Add Spot Events Pass (₹${spotTotal} incl. 5% GST) to ${activeRecord.name}'s registration?`)) return;
+    if (!confirm(`Add Spot Events Pass (₹${spotTotal} incl. 2% GST) to ${activeRecord.name}'s registration?`)) return;
 
     const updatedEventIds = [...(activeRecord.eventIds || []), 'spot'];
     const updatedAttended = [...(activeRecord.attendedEvents || []), 'spot'];
     const updated: RegistrationRecord = {
       ...activeRecord,
       eventIds: updatedEventIds,
-      subtotal: (activeRecord.subtotal || (activeRecord.totalPaid ? Math.round(activeRecord.totalPaid / 1.05) : 0)) + spotBase,
-      gstAmount: (activeRecord.gstAmount || (activeRecord.totalPaid ? activeRecord.totalPaid - Math.round(activeRecord.totalPaid / 1.05) : 0)) + spotGst,
+      subtotal: (activeRecord.subtotal || (activeRecord.totalPaid ? Math.round(activeRecord.totalPaid / 1.02) : 0)) + spotBase,
+      gstAmount: (activeRecord.gstAmount || (activeRecord.totalPaid ? activeRecord.totalPaid - Math.round(activeRecord.totalPaid / 1.02) : 0)) + spotGst,
       totalPaid: (activeRecord.totalPaid || 0) + spotTotal,
       attendedEvents: updatedAttended
     };
@@ -3847,7 +3847,7 @@ export const AdminTicketScanner: React.FC<AdminTicketScannerProps> = ({
                     </span>
                     {activeRecord.gstAmount ? (
                       <span className={`text-[10px] font-mono block ${isLight ? 'text-[#8a7f6a]' : 'text-[#a79f8b]'}`}>
-                        (Base: ₹{activeRecord.subtotal || (activeRecord.totalPaid - activeRecord.gstAmount)} + 5% GST: ₹{activeRecord.gstAmount})
+                        (Base: ₹{activeRecord.subtotal || (activeRecord.totalPaid - activeRecord.gstAmount)} + 2% GST: ₹{activeRecord.gstAmount})
                       </span>
                     ) : null}
                   </div>
