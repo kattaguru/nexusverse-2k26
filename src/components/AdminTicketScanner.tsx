@@ -146,7 +146,7 @@ export const AdminTicketScanner: React.FC<AdminTicketScannerProps> = ({
 
   // Strict 1-Time QR Scan Result Popup Modal
   const [scanResultModal, setScanResultModal] = useState<{
-    type: 'already_scanned' | 'not_registered' | 'success';
+    type: 'already_scanned' | 'not_registered' | 'success' | 'info_spot';
     scanTrack: 'Desk 1: Reception & Kit' | 'Desk 2: Technical Event' | 'Desk 3: Food Meal Token' | 'Desk 4: Spot Event' | 'Desk 5: Certificates & Valedictory' | string;
     deskNumber?: number;
     title: string;
@@ -159,6 +159,11 @@ export const AdminTicketScanner: React.FC<AdminTicketScannerProps> = ({
     eventName?: string;
     totalTeamCount?: number;
     attendedTeamCount?: number;
+    targetRecord?: RegistrationRecord;
+    scannedMemberKey?: string;
+    allowSpotScan?: boolean;
+    allowLunchDispense?: boolean;
+    allowReceptionCheckIn?: boolean;
   } | null>(null);
 
   const scanResultModalRef = useRef(scanResultModal);
@@ -168,9 +173,12 @@ export const AdminTicketScanner: React.FC<AdminTicketScannerProps> = ({
 
   const lastScanAttemptRef = useRef<{ payload: string; time: number } | null>(null);
 
-  // Auto-dismiss popup modal after 1.4 seconds to resume scanning snappy and automatically
+  // Auto-dismiss popup modal after 1.4 seconds to resume scanning snappy and automatically (except interactive quick-action modals)
   useEffect(() => {
     if (!scanResultModal) return;
+    if (scanResultModal.allowSpotScan || scanResultModal.allowLunchDispense || scanResultModal.type === 'info_spot') {
+      return;
+    }
     const timer = setTimeout(() => {
       setScanResultModal(null);
       lastScanAttemptRef.current = null;
@@ -657,6 +665,34 @@ export const AdminTicketScanner: React.FC<AdminTicketScannerProps> = ({
       // -------------------------------------------------------------
       else if (scannerMode === 'tech') {
         if (!trackStats.hasTech) {
+          if (trackStats.hasSpot) {
+            playBeep(true);
+            try { navigator.vibrate?.([80, 40, 80]); } catch (e) {}
+            const isSpotDone = Boolean((matched.memberSpotStatus || {})[scannedMemberKey]);
+            const isLunchDone = Boolean((matched.memberLunchStatus || {})[scannedMemberKey]);
+            const isCheckInDone = Boolean((matched.memberCheckInStatus || {})[scannedMemberKey]);
+
+            setScanResultModal({
+              type: 'info_spot',
+              scanTrack: 'Desk 4: Spot Arena & Desk 3: Lunch Token',
+              deskNumber: 4,
+              title: 'SPOT EVENTS & LUNCH DELEGATE (NO TECHNICAL EVENT)',
+              message: `${scannedMemberName} (${scannedMemberRoll} · ${scannedMemberRole}) is registered for Afternoon Spot Events (Track 2) with a Complimentary Lunch Meal Token (Desk 3). They are NOT registered for Morning Technical Events. You can verify their spot entry or dispense lunch below.`,
+              delegateName: scannedMemberName,
+              delegateRoll: scannedMemberRoll,
+              delegateRole: scannedMemberRole,
+              teamName: matched.name,
+              eventName: 'Spot Events Pass (Arena Activities) + Lunch Included',
+              targetRecord: matched,
+              scannedMemberKey,
+              allowSpotScan: !isSpotDone,
+              allowLunchDispense: !isLunchDone,
+              allowReceptionCheckIn: !isCheckInDone
+            });
+            setActiveRecord(matched);
+            return;
+          }
+
           playBuzzer();
           try { navigator.vibrate?.([300, 150, 300]); } catch (e) {}
           setScanResultModal({
@@ -664,7 +700,7 @@ export const AdminTicketScanner: React.FC<AdminTicketScannerProps> = ({
             scanTrack: 'Desk 2: Technical Event',
             deskNumber: 2,
             title: 'NOT REGISTERED FOR TECHNICAL EVENT',
-            message: `${scannedMemberName} (${scannedMemberRoll}) is NOT registered for any Technical Event. Only registered for: ${trackStats.hasSpot ? 'Spot Events' : 'None'}. Technical scan rejected.`,
+            message: `${scannedMemberName} (${scannedMemberRoll}) is NOT registered for any Technical Event. Technical scan rejected.`,
             delegateName: scannedMemberName,
             delegateRoll: scannedMemberRoll,
             delegateRole: scannedMemberRole,
@@ -1726,7 +1762,7 @@ export const AdminTicketScanner: React.FC<AdminTicketScannerProps> = ({
 
   // Export Individual Attendance CSV (All, Present, or Absent)
   const handleExportIndividualAttendanceCsv = (filterType: 'all' | 'present' | 'absent') => {
-    const list = flattenToIndividualParticipants(records).filter(p => {
+    const list = flattenToIndividualParticipants(localRecords).filter(p => {
       if (filterType === 'present') return p.isCheckedIn;
       if (filterType === 'absent') return !p.isCheckedIn;
       return true;
@@ -1840,43 +1876,75 @@ export const AdminTicketScanner: React.FC<AdminTicketScannerProps> = ({
   };
 
   // Toggle Individual Member Food / Lunch Token (Anti-Dispute Check)
-  const handleToggleMemberLunch = (memberKey: string, forceState?: boolean) => {
-    if (!activeRecord) return;
-    const teammates = getRecordTeammates(activeRecord);
-    const totalMembers = 1 + teammates.length;
-    const currentMap = { ...(activeRecord.memberLunchStatus || {}) };
+  const handleToggleMemberLunch = (
+    recordOrKey: RegistrationRecord | string,
+    memberKeyOrForce?: string | boolean,
+    forceState?: boolean
+  ) => {
+    let rec: RegistrationRecord | null = null;
+    let key = 'lead';
+    let force: boolean | undefined = undefined;
+
+    if (typeof recordOrKey === 'string') {
+      rec = activeRecord;
+      key = recordOrKey;
+      if (typeof memberKeyOrForce === 'boolean') {
+        force = memberKeyOrForce;
+      }
+    } else {
+      rec = recordOrKey;
+      if (typeof memberKeyOrForce === 'string') {
+        key = memberKeyOrForce;
+      }
+      force = forceState;
+    }
+
+    if (!rec) return;
+    const teammates = getRecordTeammates(rec);
+    const totalMembers = getRecordMemberCount(rec);
+    const currentMap = { ...(rec.memberLunchStatus || {}) };
 
     // If older record was marked lunchCollected but had empty map, initialize all
-    if (activeRecord.lunchCollected && Object.keys(currentMap).length === 0) {
+    if (rec.lunchCollected && Object.keys(currentMap).length === 0) {
       currentMap['lead'] = true;
       teammates.forEach((_, i) => { currentMap[`teammate_${i}`] = true; });
     }
 
-    const currentState = Boolean(currentMap[memberKey]);
-    const nextState = forceState !== undefined ? forceState : !currentState;
-    currentMap[memberKey] = nextState;
+    const currentState = Boolean(currentMap[key]);
+    const nextState = force !== undefined ? force : !currentState;
+    currentMap[key] = nextState;
 
     const collectedCount = Object.values(currentMap).filter(Boolean).length;
     const allCollected = collectedCount >= totalMembers && totalMembers > 0;
     const now = new Date().toISOString();
 
+    const currentDeskScans = { ...(rec.deskScans || {}) };
+    currentDeskScans['desk3_lunch'] = {
+      scanned: collectedCount > 0,
+      time: now,
+      by: 'Catering Counter',
+      memberStatus: currentMap,
+      memberTimes: rec.lunchCollectedTime ? { lead: rec.lunchCollectedTime } : { lead: now }
+    };
+
     const updated: RegistrationRecord = {
-      ...activeRecord,
+      ...rec,
       memberLunchStatus: currentMap,
       lunchCollectedCount: collectedCount,
       lunchCollected: allCollected,
-      lunchCollectedTime: nextState ? now : activeRecord.lunchCollectedTime,
-      lunchCollectedBy: nextState ? 'Admin Desk' : activeRecord.lunchCollectedBy
+      lunchCollectedTime: nextState ? now : rec.lunchCollectedTime,
+      lunchCollectedBy: nextState ? 'Admin Desk' : rec.lunchCollectedBy,
+      deskScans: currentDeskScans
     };
 
     commitRecordUpdate(updated);
 
     // Get display name of member
-    let memberName = activeRecord.name;
+    let memberName = rec.name;
     let memberRole = totalMembers > 1 ? 'Lead' : 'Delegate';
-    let memberRoll = activeRecord.roll;
-    if (memberKey.startsWith('teammate_')) {
-      const idx = parseInt(memberKey.replace('teammate_', ''), 10);
+    let memberRoll = rec.roll;
+    if (key.startsWith('teammate_')) {
+      const idx = parseInt(key.replace('teammate_', ''), 10);
       const tm = teammates[idx];
       if (tm) {
         memberName = tm.name || `Member ${idx + 2}`;
@@ -1889,7 +1957,7 @@ export const AdminTicketScanner: React.FC<AdminTicketScannerProps> = ({
       playBeep(true);
       setLunchAlert({
         type: 'success',
-        message: `1 Meal Tray Dispensed ✓: Lunch token redeemed for ${memberName} (${memberRole}). [${collectedCount} of ${totalMembers} team meal trays dispensed].`,
+        message: `1 Meal Tray Dispensed ✓: Lunch token claimed for ${memberName} (${memberRole}). [${collectedCount} of ${totalMembers} team meal trays dispensed].`,
         delegateName: memberName,
         delegateRoll: memberRoll
       });
@@ -2048,7 +2116,7 @@ export const AdminTicketScanner: React.FC<AdminTicketScannerProps> = ({
     : [];
 
   // Metrics
-  const scannerStats = computeDelegatesStats(records);
+  const scannerStats = computeDelegatesStats(localRecords);
   const totalDelegates = scannerStats.totalDelegates;
   const totalRegistrations = scannerStats.totalRegistrations;
   const checkedInDelegates = scannerStats.checkedInDelegates;
@@ -2058,12 +2126,12 @@ export const AdminTicketScanner: React.FC<AdminTicketScannerProps> = ({
   const totalTechDelegates = scannerStats.totalTechDelegates;
   const spotAttendedCount = scannerStats.spotAttendedDelegates;
   const totalSpotDelegates = scannerStats.totalSpotDelegates;
-  const kitsIssuedCount = records.filter(r => r.kitIssued).length;
+  const kitsIssuedCount = localRecords.filter(r => r.kitIssued).length;
   const lunchCollectedCount = scannerStats.totalLunchMealsDispensed;
   const lunchPercent = totalDelegates > 0 ? Math.round((lunchCollectedCount / totalDelegates) * 100) : 0;
 
   // Recent checked in delegates (last 8)
-  const recentCheckedIn = records
+  const recentCheckedIn = localRecords
     .filter(r => r.checkedIn && r.checkInTime)
     .sort((a, b) => new Date(b.checkInTime || 0).getTime() - new Date(a.checkInTime || 0).getTime())
     .slice(0, 8);
@@ -2269,7 +2337,7 @@ export const AdminTicketScanner: React.FC<AdminTicketScannerProps> = ({
 
         {/* Live Attendance Metric Cards for All 5 Desks */}
         {(() => {
-          const fiveDeskStats = get5DesksGlobalStats(records);
+          const fiveDeskStats = get5DesksGlobalStats(localRecords);
           const certCount = fiveDeskStats.desk5ScannedDelegates;
           const certPercent = totalDelegates > 0 ? Math.round((certCount / totalDelegates) * 100) : 0;
 
@@ -2658,14 +2726,14 @@ export const AdminTicketScanner: React.FC<AdminTicketScannerProps> = ({
             </div>
 
             {/* Quick Delegate Selector Pills when search is empty */}
-            {!searchQuery && records.length > 0 && (
+            {!searchQuery && localRecords.length > 0 && (
               <div className="space-y-1.5 pt-1">
                 <div className={`text-[11px] font-medium flex items-center justify-between ${isLight ? 'text-[#6b6250]' : 'text-[#a79f8b]'}`}>
-                  <span>Registered Delegates ({records.length}):</span>
+                  <span>Registered Delegates ({localRecords.length}):</span>
                   <span className={`text-[10px] ${isLight ? 'text-[#705600]' : 'text-[#d4a935]'}`}>Click to inspect / check in</span>
                 </div>
                 <div className="flex flex-wrap gap-1.5 max-h-36 overflow-y-auto pr-1">
-                  {records.slice(0, 10).map((rec) => (
+                  {localRecords.slice(0, 10).map((rec) => (
                     <button
                       key={rec.regId}
                       type="button"
@@ -4084,7 +4152,7 @@ export const AdminTicketScanner: React.FC<AdminTicketScannerProps> = ({
 
           {/* Individual Participants List */}
           {(() => {
-            const allParticipants = flattenToIndividualParticipants(records);
+            const allParticipants = flattenToIndividualParticipants(localRecords);
             const filtered = allParticipants.filter(p => {
               if (attendeeFilter === 'present' && !p.isCheckedIn) return false;
               if (attendeeFilter === 'absent' && p.isCheckedIn) return false;
@@ -4304,6 +4372,29 @@ export const AdminTicketScanner: React.FC<AdminTicketScannerProps> = ({
                               </button>
                             )}
 
+                            {/* 1-Time Lunch Meal Dispense Button */}
+                            {!p.isLunchCollected ? (
+                              <button
+                                type="button"
+                                onClick={() => handleToggleMemberLunch(p.record, p.memberKey, true)}
+                                className="px-2 py-1 rounded-lg bg-[#f59e0b]/20 hover:bg-[#f59e0b]/30 text-[#f59e0b] border border-[#f59e0b]/40 text-[10px] font-bold transition-all cursor-pointer flex items-center gap-1"
+                                title="Dispense 1-time lunch meal tray"
+                              >
+                                <Utensils className="w-3 h-3 text-[#f59e0b]" />
+                                <span>Dispense Meal</span>
+                              </button>
+                            ) : (
+                              <button
+                                type="button"
+                                onClick={() => handleToggleMemberLunch(p.record, p.memberKey, false)}
+                                className="px-1.5 py-1 rounded-lg bg-white/5 hover:bg-white/10 text-[#a79f8b] hover:text-[#ff8a80] border border-white/10 text-[9px] font-medium transition-all cursor-pointer flex items-center gap-1"
+                                title="Reset meal claim"
+                              >
+                                <Utensils className="w-2.5 h-2.5 text-[#4cc38a]" />
+                                <span>Reset Meal</span>
+                              </button>
+                            )}
+
                             {p.isCheckedIn ? (
                               <button
                                 type="button"
@@ -4363,7 +4454,9 @@ export const AdminTicketScanner: React.FC<AdminTicketScannerProps> = ({
               ? 'bg-[#180608] border-[#ef4444] shadow-[0_0_60px_rgba(239,68,68,0.55)] text-white ring-2 ring-[#ef4444]/60'
               : scanResultModal.type === 'success'
                 ? 'bg-[#06180f] border-[#22c55e] shadow-[0_0_60px_rgba(34,197,94,0.45)] text-white ring-2 ring-[#22c55e]/60'
-                : 'bg-[#181306] border-[#f59e0b] shadow-[0_0_50px_rgba(245,158,11,0.4)] text-white ring-2 ring-[#f59e0b]/60'
+                : scanResultModal.type === 'info_spot'
+                  ? 'bg-[#120b24] border-[#8b5cf6] shadow-[0_0_60px_rgba(139,92,246,0.5)] text-white ring-2 ring-[#8b5cf6]/60'
+                  : 'bg-[#181306] border-[#f59e0b] shadow-[0_0_50px_rgba(245,158,11,0.4)] text-white ring-2 ring-[#f59e0b]/60'
           }`}>
             {/* Top Track & Station Indicator Badge */}
             <div className="flex items-center justify-between pb-2.5 border-b border-white/10 mb-3 sm:mb-4 gap-2">
@@ -4393,12 +4486,16 @@ export const AdminTicketScanner: React.FC<AdminTicketScannerProps> = ({
                   ? 'bg-[#ef4444] text-white animate-pulse shadow-[#ef4444]/40'
                   : scanResultModal.type === 'success'
                     ? 'bg-[#22c55e] text-white shadow-[#22c55e]/40'
-                    : 'bg-[#f59e0b] text-[#121217] shadow-[#f59e0b]/40'
+                    : scanResultModal.type === 'info_spot'
+                      ? 'bg-[#8b5cf6] text-white shadow-[#8b5cf6]/40'
+                      : 'bg-[#f59e0b] text-[#121217] shadow-[#f59e0b]/40'
               }`}>
                 {scanResultModal.type === 'already_scanned' ? (
                   <ShieldAlert className="w-7 h-7 sm:w-8 sm:h-8" />
                 ) : scanResultModal.type === 'success' ? (
                   <CheckCircle2 className="w-7 h-7 sm:w-8 sm:h-8" />
+                ) : scanResultModal.type === 'info_spot' ? (
+                  <Sparkles className="w-7 h-7 sm:w-8 sm:h-8 text-[#fde68a]" />
                 ) : (
                   <AlertCircle className="w-7 h-7 sm:w-8 sm:h-8" />
                 )}
@@ -4410,7 +4507,9 @@ export const AdminTicketScanner: React.FC<AdminTicketScannerProps> = ({
                     ? 'text-[#ff6b6b]'
                     : scanResultModal.type === 'success'
                       ? 'text-[#4ade80]'
-                      : 'text-[#fbbf24]'
+                      : scanResultModal.type === 'info_spot'
+                        ? 'text-[#c4b5fd]'
+                        : 'text-[#fbbf24]'
                 }`}>
                   {scanResultModal.title}
                 </h2>
@@ -4427,7 +4526,9 @@ export const AdminTicketScanner: React.FC<AdminTicketScannerProps> = ({
                 ? 'bg-black/50 border-[#ef4444]/30'
                 : scanResultModal.type === 'success'
                   ? 'bg-black/50 border-[#22c55e]/30'
-                  : 'bg-black/50 border-[#f59e0b]/30'
+                  : scanResultModal.type === 'info_spot'
+                    ? 'bg-black/50 border-[#8b5cf6]/30'
+                    : 'bg-black/50 border-[#f59e0b]/30'
             }`}>
               <div className="grid grid-cols-2 gap-2 sm:gap-3 text-xs">
                 <div>
@@ -4468,6 +4569,61 @@ export const AdminTicketScanner: React.FC<AdminTicketScannerProps> = ({
               )}
             </div>
 
+            {/* Quick Action Buttons for Spot and Lunch delegates */}
+            {(scanResultModal.allowSpotScan || scanResultModal.allowLunchDispense || scanResultModal.allowReceptionCheckIn) && scanResultModal.targetRecord && (
+              <div className="mt-4 p-3.5 rounded-2xl bg-white/5 border border-white/10 space-y-2.5">
+                <span className="text-[11px] font-bold text-[#fde68a] uppercase tracking-wider block font-mono">
+                  1-Click Desk Actions for this Delegate:
+                </span>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                  {scanResultModal.allowLunchDispense && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        handleToggleMemberLunch(scanResultModal.targetRecord!, scanResultModal.scannedMemberKey || 'lead', true);
+                        setScanResultModal(null);
+                        lastScanAttemptRef.current = null;
+                      }}
+                      className="w-full py-2.5 px-3 rounded-xl bg-gradient-to-r from-[#f59e0b] to-[#d97706] hover:from-[#d97706] hover:to-[#b45309] text-[#121217] font-bold text-xs shadow-lg transition-all cursor-pointer flex items-center justify-center gap-1.5"
+                    >
+                      <Utensils className="w-4 h-4 text-[#121217]" />
+                      <span>Dispense Lunch (Desk 3)</span>
+                    </button>
+                  )}
+
+                  {scanResultModal.allowSpotScan && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        handleToggleMemberSpot(scanResultModal.targetRecord!, scanResultModal.scannedMemberKey || 'lead', true);
+                        setScanResultModal(null);
+                        lastScanAttemptRef.current = null;
+                      }}
+                      className="w-full py-2.5 px-3 rounded-xl bg-gradient-to-r from-[#8b5cf6] to-[#6d28d9] hover:from-[#7c3aed] hover:to-[#5b21b6] text-white font-bold text-xs shadow-lg transition-all cursor-pointer flex items-center justify-center gap-1.5"
+                    >
+                      <Sparkles className="w-4 h-4 text-[#f2c14e]" />
+                      <span>Verify Spot Arena (Desk 4)</span>
+                    </button>
+                  )}
+
+                  {scanResultModal.allowReceptionCheckIn && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        handleToggleMemberCheckIn(scanResultModal.targetRecord!, scanResultModal.scannedMemberKey || 'lead', true);
+                        setScanResultModal(null);
+                        lastScanAttemptRef.current = null;
+                      }}
+                      className="w-full py-2.5 px-3 rounded-xl bg-gradient-to-r from-[#22c55e] to-[#16a34a] hover:from-[#16a34a] hover:to-[#15803d] text-white font-bold text-xs shadow-lg transition-all cursor-pointer flex items-center justify-center gap-1.5 sm:col-span-2"
+                    >
+                      <UserCheck className="w-4 h-4 text-white" />
+                      <span>Reception Check-In & Issue Kit (Desk 1)</span>
+                    </button>
+                  )}
+                </div>
+              </div>
+            )}
+
             {/* Warning Notice Banner for Already Scanned */}
             {scanResultModal.type === 'already_scanned' && (
               <div className="mt-3.5 sm:mt-4 p-2.5 sm:p-3 rounded-xl bg-[#ef4444]/20 border border-[#ef4444]/50 flex items-center gap-2 text-xs text-[#ff9999] font-semibold">
@@ -4487,7 +4643,9 @@ export const AdminTicketScanner: React.FC<AdminTicketScannerProps> = ({
                     ? 'bg-[#ef4444] hover:bg-[#dc2626] text-white shadow-[#ef4444]/30'
                     : scanResultModal.type === 'success'
                       ? 'bg-[#22c55e] hover:bg-[#16a34a] text-white shadow-[#22c55e]/30'
-                      : 'bg-[#f59e0b] hover:bg-[#d97706] text-[#121217] shadow-[#f59e0b]/30'
+                      : scanResultModal.type === 'info_spot'
+                        ? 'bg-[#8b5cf6] hover:bg-[#7c3aed] text-white shadow-[#8b5cf6]/30'
+                        : 'bg-[#f59e0b] hover:bg-[#d97706] text-[#121217] shadow-[#f59e0b]/30'
                 }`}
               >
                 <span>{scanResultModal.type === 'already_scanned' ? 'Acknowledge & Scan Next QR' : 'Done · Scan Next QR'}</span>

@@ -61,15 +61,37 @@ export function getRecordTeammates(record: RegistrationRecord | undefined | null
     }
   }
 
+  // 5. Fallback: check spotMembers if present
+  if (Array.isArray(record.spotMembers) && record.spotMembers.length > 1) {
+    const extraNames = record.spotMembers.filter(
+      (m, idx) => !(idx === 0 && String(m).trim().toLowerCase() === (record.name || '').trim().toLowerCase()) && String(m).trim().length > 0
+    );
+    if (extraNames.length > 0) {
+      return extraNames.map(name => ({
+        name: String(name).trim(),
+        roll: '',
+        className: record.className || 'B.Tech',
+        section: record.section || '',
+        branch: record.dept || '',
+        year: record.year || '',
+        phone: '',
+        isIeeeMember: false
+      }));
+    }
+  }
+
   return [];
 }
 
 /**
  * Returns total number of delegates (Lead + Teammates) in a registration record.
+ * Guarantees that any delegate registered for Technical or Spot events is counted with lunch eligibility.
  */
 export function getRecordMemberCount(record: RegistrationRecord | undefined | null): number {
   if (!record) return 0;
-  return 1 + getRecordTeammates(record).length;
+  const teammatesCount = getRecordTeammates(record).length;
+  const spotCount = record.spotPassCount || (Array.isArray(record.spotMembers) ? record.spotMembers.length : 0);
+  return Math.max(1 + teammatesCount, spotCount || 1);
 }
 
 /**
@@ -752,7 +774,7 @@ export function getRecord5DeskSummary(record: RegistrationRecord | undefined | n
   }
 
   const teammates = getRecordTeammates(record);
-  const totalMembers = 1 + teammates.length;
+  const totalMembers = getRecordMemberCount(record);
   const checkInStats = getRecordCheckInStats(record);
   const trackStats = getRecordTrackAttendanceStats(record);
   const lunchStats = getRecordLunchStats(record);

@@ -692,6 +692,18 @@ _(Show this pass or QR code at the registration desk for badge, kit, and meal tr
                             <Check className="w-3 h-3 text-[#4cc38a]" />
                             <span>Entry to All Non-Technical Spot Competitions</span>
                           </span>
+                          <span className={`text-[10px] px-2.5 py-0.5 rounded-md font-semibold flex items-center gap-1 border ${
+                            lunchStats.memberStatus['lead'] || lunchStats.isFullyCollected
+                              ? 'bg-[#22c55e]/15 border-[#22c55e]/40 text-[#86efac]'
+                              : 'bg-[#f59e0b]/15 border-[#f59e0b]/40 text-[#fde68a]'
+                          }`}>
+                            <Utensils className="w-3 h-3 text-[#f59e0b]" />
+                            <span>
+                              {lunchStats.memberStatus['lead'] || lunchStats.isFullyCollected
+                                ? `${record.spotPassCount && record.spotPassCount > 1 ? `${lunchStats.mealsDispensed}/${totalMembers}` : '1'} Complimentary Lunch Meal Claimed ✓`
+                                : `${record.spotPassCount && record.spotPassCount > 1 ? record.spotPassCount : '1'} Complimentary Lunch Meal ${(record.spotPassCount || 1) === 1 ? 'Tray' : 'Trays'} Included`}
+                            </span>
+                          </span>
                         </div>
                       </div>
                     );
