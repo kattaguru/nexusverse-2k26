@@ -72,4 +72,41 @@ describe('Telegram Mobile Alert Service Unit Tests', () => {
       if (prevChat !== undefined) process.env.TELEGRAM_CHAT_ID = prevChat;
     }
   });
+
+  it('should suppress duplicate Telegram alerts for the same registration ID within TTL', async () => {
+    const originalFetch = global.fetch;
+    let fetchCount = 0;
+    global.fetch = (async () => {
+      fetchCount++;
+      return {
+        ok: true,
+        json: async () => ({ ok: true, result: { message_id: 12345 } })
+      } as any;
+    }) as any;
+
+    try {
+      const payload = {
+        regId: 'NV26-DEDUP-TEST-99',
+        name: 'Duplicate Checker',
+        roll: '2203A51999',
+        email: 'dedup@nbkrist.org',
+        totalPaid: 200,
+        eventIds: ['ctf']
+      };
+
+      // First call records regId in de-dup set
+      const firstCall = await sendAdminTelegramAlert(payload);
+      assert.equal(firstCall.success, true);
+      assert.equal(fetchCount, 1);
+
+      // Second call with same regId should be suppressed as duplicate
+      const secondCall = await sendAdminTelegramAlert(payload);
+      assert.equal(secondCall.success, true);
+      assert.equal(secondCall.messageId, 'duplicate-suppressed');
+      // Verifies no second network request was ever made
+      assert.equal(fetchCount, 1);
+    } finally {
+      global.fetch = originalFetch;
+    }
+  });
 });

@@ -46,8 +46,8 @@ export function isTelegramTestPayload(payload: any): boolean {
  * Check if Telegram bot is configured in environment
  */
 export function isTelegramConfigured(): boolean {
-  const token = (process.env.TELEGRAM_BOT_TOKEN || '8820703265:AAHQBBqrSA4XtyJ7DNI9VlWJROuD7Dw9SJg').trim();
-  const chatId = (process.env.TELEGRAM_CHAT_ID || '6187967922').trim();
+  const token = (process.env.TELEGRAM_BOT_TOKEN || '').trim();
+  const chatId = (process.env.TELEGRAM_CHAT_ID || '').trim();
   return Boolean(token && chatId);
 }
 
@@ -77,6 +77,9 @@ export function formatTelegramAlert(payload: any): string {
   );
 }
 
+// Cache of recently notified registration IDs to prevent duplicate alerts
+const dispatchedTelegramRegs = new Set<string>();
+
 /**
  * Dispatch instant mobile alert to organizer via Telegram Bot
  */
@@ -94,13 +97,25 @@ export async function sendAdminTelegramAlert(payload: any): Promise<{
     return { success: true, messageId: 'test-suppressed' };
   }
 
-  const token = (process.env.TELEGRAM_BOT_TOKEN || '8820703265:AAHQBBqrSA4XtyJ7DNI9VlWJROuD7Dw9SJg').trim();
-  const chatId = (process.env.TELEGRAM_CHAT_ID || '6187967922').trim();
-
-  if (!token || !chatId) {
+  if (!isTelegramConfigured()) {
     console.log(`[TELEGRAM NOTICE] Telegram alert skipped. To enable, configure TELEGRAM_BOT_TOKEN and TELEGRAM_CHAT_ID in .env`);
     return { success: false, error: 'Telegram bot not configured. Set TELEGRAM_BOT_TOKEN and TELEGRAM_CHAT_ID in .env.' };
   }
+
+  // De-duplication: Ensure each unique registration ID only triggers ONE Telegram alert
+  const regKey = String(payload.regId || payload.reg_id || '').trim().toUpperCase();
+  if (regKey) {
+    if (dispatchedTelegramRegs.has(regKey)) {
+      console.log(`[TELEGRAM NOTICE] Suppressed duplicate alert for registration: ${regKey}`);
+      return { success: true, messageId: 'duplicate-suppressed' };
+    }
+    dispatchedTelegramRegs.add(regKey);
+    // Keep in de-dup set for 30 minutes, then purge
+    setTimeout(() => dispatchedTelegramRegs.delete(regKey), 30 * 60 * 1000).unref();
+  }
+
+  const token = (process.env.TELEGRAM_BOT_TOKEN || '').trim();
+  const chatId = (process.env.TELEGRAM_CHAT_ID || '').trim();
 
   const rawAppUrl = (process.env.APP_URL || '').trim();
   const appUrl = (rawAppUrl && !rawAppUrl.includes('localhost') ? rawAppUrl : 'https://www.nbkristieee.in').replace(/\/$/, '');

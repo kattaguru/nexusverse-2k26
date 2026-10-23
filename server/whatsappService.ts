@@ -88,6 +88,9 @@ export function formatWhatsAppAlert(payload: WhatsAppRegistrationPayload): strin
   );
 }
 
+// Cache of recently notified registration IDs to prevent duplicate alerts
+const dispatchedWhatsAppRegs = new Set<string>();
+
 /**
  * Dispatch instant WhatsApp alert using CallMeBot, Twilio, or Webhook
  */
@@ -119,6 +122,17 @@ export async function sendAdminWhatsAppAlert(payload: any): Promise<{
   ) {
     console.log(`[WHATSAPP NOTICE] Suppressed test registration alert for: ${payload.name}`);
     return { success: true, messageId: 'test-suppressed' };
+  }
+
+  // De-duplication: Ensure each unique registration ID only triggers ONE WhatsApp alert
+  const regKey = String(payload.regId || payload.reg_id || '').trim().toUpperCase();
+  if (regKey) {
+    if (dispatchedWhatsAppRegs.has(regKey)) {
+      console.log(`[WHATSAPP NOTICE] Suppressed duplicate alert for registration: ${regKey}`);
+      return { success: true, messageId: 'duplicate-suppressed' };
+    }
+    dispatchedWhatsAppRegs.add(regKey);
+    setTimeout(() => dispatchedWhatsAppRegs.delete(regKey), 30 * 60 * 1000).unref();
   }
 
   const phone = (process.env.WHATSAPP_ADMIN_PHONE || '9491501919').trim();

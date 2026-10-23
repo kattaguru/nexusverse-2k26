@@ -343,6 +343,9 @@ export async function sendTicketConfirmationEmail(payload: EmailTicketPayload): 
   }
 }
 
+// Cache of recently notified registration IDs to prevent duplicate email alerts
+const dispatchedEmailAlertRegs = new Set<string>();
+
 /**
  * Send instant mobile alert to symposium organizer / admin whenever a new registration occurs
  */
@@ -373,6 +376,17 @@ export async function sendAdminRegistrationAlert(payload: any): Promise<{
     email.includes('example.com')
   ) {
     return { success: true, messageId: 'test-suppressed' };
+  }
+
+  // De-duplication: Ensure each unique registration ID only triggers ONE admin email alert
+  const regKey = String(payload.regId || payload.reg_id || '').trim().toUpperCase();
+  if (regKey) {
+    if (dispatchedEmailAlertRegs.has(regKey)) {
+      console.log(`[EMAIL NOTICE] Suppressed duplicate admin alert for registration: ${regKey}`);
+      return { success: true, messageId: 'duplicate-suppressed' };
+    }
+    dispatchedEmailAlertRegs.add(regKey);
+    setTimeout(() => dispatchedEmailAlertRegs.delete(regKey), 30 * 60 * 1000).unref();
   }
 
   const adminEmail = (process.env.ADMIN_ALERT_EMAIL || process.env.SMTP_USER || DEFAULT_SMTP_USER).trim();

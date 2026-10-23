@@ -121,22 +121,22 @@ export async function purgeTestRegistrationsApi(adminPassword?: string): Promise
   return { success: true, purgedCount: 0, purgedIds: [] };
 }
 
+// Client-side de-duplication cache to prevent multiple alerts for the same registration
+const clientNotifiedRegs = new Set<string>();
+
 /**
- * Dispatch instant mobile notification to admin via backend and direct Telegram Bot
+ * Dispatch instant mobile notification to admin via direct Telegram Bot (Strictly 1-Time per Registration ID)
  */
 export function notifyAdminOnRegistration(record: RegistrationRecord): void {
-  if (isTestRegistration(record)) return;
+  if (!record || !record.regId || isTestRegistration(record)) return;
 
-  // 1. Notify backend (handles Email, WhatsApp, ntfy, and Telegram)
-  try {
-    fetch(`${API_BASE}/notify-admin`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(record)
-    }).catch(() => {});
-  } catch (e) {}
+  const regKey = String(record.regId).trim().toUpperCase();
+  if (clientNotifiedRegs.has(regKey)) return;
+  clientNotifiedRegs.add(regKey);
+  // Auto purge key after 30 minutes
+  setTimeout(() => clientNotifiedRegs.delete(regKey), 30 * 60 * 1000);
 
-  // 2. Direct client-to-Telegram dispatch for guaranteed delivery on static or serverless sites
+  // Direct client-to-Telegram dispatch for guaranteed instant 1-time delivery
   try {
     const botToken = (import.meta.env.VITE_TELEGRAM_BOT_TOKEN || '8820703265:AAHQBBqrSA4XtyJ7DNI9VlWJROuD7Dw9SJg').trim();
     const chatId = (import.meta.env.VITE_TELEGRAM_CHAT_ID || '6187967922').trim();
@@ -201,10 +201,10 @@ export async function saveRegistrationApi(record: RegistrationRecord): Promise<R
     localStorage.setItem('nexusverse_registrations', JSON.stringify(updated));
   } catch (e) {}
 
-  // Dispatch instant admin mobile notification (Email, Telegram, WhatsApp)
-  notifyAdminOnRegistration(record);
+  let backendNotified = false;
 
   // 1. Save to Supabase Cloud Database if configured
+  let supabaseSavedRecord: RegistrationRecord | null = null;
   if (isSupabaseConfigured() && supabase) {
     try {
       const dbRow = mapRegistrationRecordToDb(record);
@@ -215,14 +215,7 @@ export async function saveRegistrationApi(record: RegistrationRecord): Promise<R
         .single();
 
       if (!error && data) {
-        // Guarantee backend receives registration to dispatch admin mobile alert
-        fetch(`${API_BASE}/registrations`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(record)
-        }).catch(err => console.warn('Backend admin alert dispatch notice:', err));
-
-        return mapDbToRegistrationRecord(data);
+        supabaseSavedRecord = mapDbToRegistrationRecord(data);
       } else if (error) {
         console.warn('Supabase upsert warning:', error.message);
       }
@@ -231,7 +224,7 @@ export async function saveRegistrationApi(record: RegistrationRecord): Promise<R
     }
   }
 
-  // 2. Sync with Express server in parallel or fallback
+  // 2. Dispatch to backend API (saves to DB and sends 1-time admin alerts: Telegram, Email, WhatsApp, Ntfy)
   try {
     const res = await fetch(`${API_BASE}/registrations`, {
       method: 'POST',
@@ -239,16 +232,22 @@ export async function saveRegistrationApi(record: RegistrationRecord): Promise<R
       body: JSON.stringify(record)
     });
     if (res.ok) {
+      backendNotified = true;
       const json = await res.json();
       if (json.success && json.data) {
-        return json.data;
+        return supabaseSavedRecord || json.data;
       }
     }
   } catch (err) {
-    // Non-fatal if offline
+    console.warn('Backend /api/registrations network error:', err);
   }
 
-  return record;
+  // 3. Fallback: If backend was unreachable (e.g. offline or static host), dispatch direct client alert
+  if (!backendNotified) {
+    notifyAdminOnRegistration(record);
+  }
+
+  return supabaseSavedRecord || record;
 }
 
 /**
@@ -845,6 +844,17 @@ export async function testEmailApi(recipient: string): Promise<{ success: boolea
  * Dispatch explicit mobile alert to admin phone whenever a registration completes
  */
 export async function notifyAdminMobileApi(record: RegistrationRecord): Promise<{ success: boolean; messageId?: string; error?: string }> {
+  if (!record || !record.regId || isTestRegistration(record)) {
+    return { success: true, messageId: 'test-suppressed' };
+  }
+
+  const regKey = String(record.regId).trim().toUpperCase();
+  if (clientNotifiedRegs.has(regKey)) {
+    return { success: true, messageId: 'duplicate-suppressed' };
+  }
+  clientNotifiedRegs.add(regKey);
+  setTimeout(() => clientNotifiedRegs.delete(regKey), 30 * 60 * 1000);
+
   try {
     const res = await fetch(`${API_BASE}/notify-admin`, {
       method: 'POST',

@@ -59,6 +59,9 @@ export function isTestPayload(payload: any): boolean {
   );
 }
 
+// Cache of recently notified registration IDs to prevent duplicate alerts
+const dispatchedNtfyRegs = new Set<string>();
+
 /**
  * Dispatch instant mobile push notification via ntfy.sh JSON publishing API
  * Completely free, no account or API keys required.
@@ -76,6 +79,17 @@ export async function sendAdminNtfyAlert(payload: any): Promise<{
   if (isTestPayload(payload)) {
     console.log(`[NTFY NOTICE] Suppressed test registration push alert for: ${payload.name}`);
     return { success: true, topic: 'test-suppressed' };
+  }
+
+  // De-duplication: Ensure each unique registration ID only triggers ONE ntfy alert
+  const regKey = String(payload.regId || payload.reg_id || '').trim().toUpperCase();
+  if (regKey) {
+    if (dispatchedNtfyRegs.has(regKey)) {
+      console.log(`[NTFY NOTICE] Suppressed duplicate alert for registration: ${regKey}`);
+      return { success: true, topic: 'duplicate-suppressed' };
+    }
+    dispatchedNtfyRegs.add(regKey);
+    setTimeout(() => dispatchedNtfyRegs.delete(regKey), 30 * 60 * 1000).unref();
   }
 
   const topic = getNtfyTopic();
