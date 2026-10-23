@@ -36,6 +36,7 @@ export interface TeamMemberInfo {
   branch: string;
   year: string;
   phone: string;
+  email?: string;
   isIeeeMember?: boolean;
   ieeeId?: string;
 }

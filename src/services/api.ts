@@ -122,6 +122,74 @@ export async function purgeTestRegistrationsApi(adminPassword?: string): Promise
 }
 
 /**
+ * Dispatch instant mobile notification to admin via backend and direct Telegram Bot
+ */
+export function notifyAdminOnRegistration(record: RegistrationRecord): void {
+  if (isTestRegistration(record)) return;
+
+  // 1. Notify backend (handles Email, WhatsApp, ntfy, and Telegram)
+  try {
+    fetch(`${API_BASE}/notify-admin`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(record)
+    }).catch(() => {});
+  } catch (e) {}
+
+  // 2. Direct client-to-Telegram dispatch for guaranteed delivery on static or serverless sites
+  try {
+    const botToken = (import.meta.env.VITE_TELEGRAM_BOT_TOKEN || '8820703265:AAHQBBqrSA4XtyJ7DNI9VlWJROuD7Dw9SJg').trim();
+    const chatId = (import.meta.env.VITE_TELEGRAM_CHAT_ID || '6187967922').trim();
+
+    if (botToken && chatId) {
+      const eventsList = (record.eventIds || []).map(e => String(e).toUpperCase()).join(', ') || 'Symposium Events';
+      const cleanPhone = (record.phone || '').replace(/\D/g, '').slice(-10);
+      const appUrl = (typeof window !== 'undefined' && window.location?.origin ? window.location.origin : 'https://www.nbkristieee.in').replace(/\/$/, '');
+      const passUrl = `${appUrl}/register.html?passId=${encodeURIComponent(record.regId || '')}&roll=${encodeURIComponent(record.roll || '')}`;
+      const adminUrl = `${appUrl}/nexusadmin`;
+
+      const text = 
+        `🚨 *NEW NEXUSVERSE 2K26 REGISTRATION!* 🚨\n\n` +
+        `👤 *Delegate:* ${record.name || 'Delegate'}\n` +
+        `🎓 *Roll No:* \`${record.roll || 'N/A'}\`\n` +
+        `📞 *Phone:* ${cleanPhone ? `+91 ${cleanPhone}` : 'N/A'}\n` +
+        `📧 *Email:* ${record.email || 'N/A'}\n` +
+        `🏛️ *College:* ${record.college || 'NBKRIST'}\n` +
+        `📚 *Branch / Year:* ${record.dept || 'N/A'} (${record.year || 'Student'})\n` +
+        `🎟️ *Events:* *${eventsList}*\n` +
+        `💰 *Amount Paid:* *₹${record.totalPaid || 0}* (${(record.paymentMode || 'UPI').toUpperCase()})\n` +
+        `💳 *Payment Ref:* \`${record.paymentId || 'N/A'}\`\n` +
+        `🆔 *Pass ID:* \`${record.regId || 'N/A'}\``;
+
+      const keyboard: Array<Array<{ text: string; url: string }>> = [
+        [
+          { text: '🎟️ View Pass', url: passUrl },
+          { text: '🛡️ Admin Center', url: adminUrl }
+        ]
+      ];
+      if (cleanPhone) {
+        keyboard.push([
+          { text: `💬 WhatsApp Delegate (+91 ${cleanPhone})`, url: `https://wa.me/91${cleanPhone}` }
+        ]);
+      }
+
+      fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          chat_id: chatId,
+          text,
+          parse_mode: 'Markdown',
+          reply_markup: { inline_keyboard: keyboard }
+        })
+      }).catch(err => console.warn('Direct Telegram notification warning:', err));
+    }
+  } catch (err) {
+    console.warn('Failed to send client Telegram notification:', err);
+  }
+}
+
+/**
  * Save new registration to Supabase, Express server, and localStorage.
  */
 export async function saveRegistrationApi(record: RegistrationRecord): Promise<RegistrationRecord> {
@@ -132,6 +200,9 @@ export async function saveRegistrationApi(record: RegistrationRecord): Promise<R
     const updated = [record, ...list.filter(r => r.regId !== record.regId)];
     localStorage.setItem('nexusverse_registrations', JSON.stringify(updated));
   } catch (e) {}
+
+  // Dispatch instant admin mobile notification (Email, Telegram, WhatsApp)
+  notifyAdminOnRegistration(record);
 
   // 1. Save to Supabase Cloud Database if configured
   if (isSupabaseConfigured() && supabase) {

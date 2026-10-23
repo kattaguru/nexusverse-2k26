@@ -52,7 +52,8 @@ import {
   UserCheck,
   UserX,
   MessageCircle,
-  Bell
+  Bell,
+  Send
 } from 'lucide-react';
 import { TicketPass, RegistrationRecord, TeamMemberInfo } from './TicketPass';
 import { 
@@ -828,6 +829,132 @@ export const AdminModal: React.FC<AdminModalProps> = ({
       success: res.success,
       message: res.success ? `Ticket confirmation email sent successfully to ${testEmailRecipient}!` : (res.error || 'Failed to send email.')
     });
+  };
+
+  // WhatsApp Mobile Alert testing state
+  const [testWhatsAppPhone, setTestWhatsAppPhone] = useState('9491501919');
+  const [testWhatsAppStatus, setTestWhatsAppStatus] = useState<{ testing: boolean; success?: boolean; message?: string }>({ testing: false });
+
+  const handleSendTestWhatsApp = async () => {
+    if (!testWhatsAppPhone || testWhatsAppPhone.replace(/\D/g, '').length < 10) {
+      setTestWhatsAppStatus({ testing: false, success: false, message: 'Please enter a valid 10-digit mobile number with country code.' });
+      return;
+    }
+    setTestWhatsAppStatus({ testing: true });
+    try {
+      const res = await fetch('/api/whatsapp/test', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ phone: testWhatsAppPhone })
+      });
+      const data = await res.json();
+      setTestWhatsAppStatus({
+        testing: false,
+        success: data.success,
+        message: data.message || data.error || (data.success ? 'Test WhatsApp message sent!' : 'Failed to send WhatsApp alert')
+      });
+    } catch (err: any) {
+      setTestWhatsAppStatus({
+        testing: false,
+        success: false,
+        message: err.message || 'Network error sending WhatsApp test alert'
+      });
+    }
+  };
+
+  // ntfy.sh Phone Push Notifications testing state
+  const [testNtfyTopic, setTestNtfyTopic] = useState('nexusverse-kgr-alerts');
+  const [testNtfyStatus, setTestNtfyStatus] = useState<{ testing: boolean; success?: boolean; message?: string }>({ testing: false });
+
+  const handleSendTestNtfy = async () => {
+    if (!testNtfyTopic || testNtfyTopic.trim().length < 3) {
+      setTestNtfyStatus({ testing: false, success: false, message: 'Please enter a valid topic name (at least 3 characters).' });
+      return;
+    }
+    setTestNtfyStatus({ testing: true });
+    try {
+      const res = await fetch('/api/ntfy/test', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ topic: testNtfyTopic.trim() })
+      });
+      const data = await res.json();
+      setTestNtfyStatus({
+        testing: false,
+        success: data.success,
+        message: data.message || data.error || (data.success ? 'Push alert sent to your phone!' : 'Failed to send push alert')
+      });
+    } catch (err: any) {
+      setTestNtfyStatus({
+        testing: false,
+        success: false,
+        message: err.message || 'Network error sending ntfy push alert'
+      });
+    }
+  };
+
+  // Telegram Mobile Alert testing state
+  const [testTelegramToken, setTestTelegramToken] = useState('');
+  const [testTelegramChatId, setTestTelegramChatId] = useState('');
+  const [testTelegramStatus, setTestTelegramStatus] = useState<{ testing: boolean; success?: boolean; message?: string }>({ testing: false });
+  const [isDetectingChatId, setIsDetectingChatId] = useState(false);
+
+  const handleDetectTelegramChatId = async () => {
+    setIsDetectingChatId(true);
+    setTestTelegramStatus({ testing: false });
+    try {
+      const q = testTelegramToken ? `?token=${encodeURIComponent(testTelegramToken)}` : '';
+      const res = await fetch(`/api/telegram/detect-chat-id${q}`);
+      const data = await res.json();
+      if (data.success && data.chatId) {
+        setTestTelegramChatId(data.chatId);
+        setTestTelegramStatus({
+          testing: false,
+          success: true,
+          message: `Found Chat ID: ${data.chatId} (${data.name})! Now tap "Send Test Alert" below.`
+        });
+      } else {
+        setTestTelegramStatus({
+          testing: false,
+          success: false,
+          message: data.error || 'Could not detect Chat ID. Did you message your bot or tap "Start" in Telegram first?'
+        });
+      }
+    } catch (err: any) {
+      setTestTelegramStatus({
+        testing: false,
+        success: false,
+        message: err.message || 'Failed to detect Telegram chat ID'
+      });
+    } finally {
+      setIsDetectingChatId(false);
+    }
+  };
+
+  const handleSendTestTelegram = async () => {
+    setTestTelegramStatus({ testing: true });
+    try {
+      const res = await fetch('/api/telegram/test', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          token: testTelegramToken || undefined,
+          chatId: testTelegramChatId || undefined
+        })
+      });
+      const data = await res.json();
+      setTestTelegramStatus({
+        testing: false,
+        success: data.success,
+        message: data.message || data.error || (data.success ? 'Telegram alert dispatched to your phone!' : 'Failed to send Telegram alert')
+      });
+    } catch (err: any) {
+      setTestTelegramStatus({
+        testing: false,
+        success: false,
+        message: err.message || 'Network error sending Telegram test alert'
+      });
+    }
   };
 
   // File upload refs
@@ -5055,6 +5182,309 @@ export const AdminModal: React.FC<AdminModalProps> = ({
                         }`}>
                           {testEmailStatus.success ? <Check className="w-4 h-4 shrink-0 mt-0.5" /> : <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />}
                           <span>{testEmailStatus.message}</span>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Instant WhatsApp Mobile Alerts Card */}
+                  <div className="p-5 rounded-2xl bg-[#0a0a0d] border border-[#2e2b22] space-y-4">
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <h4 className="text-base font-bold text-white flex items-center gap-2">
+                        <MessageCircle className="w-5 h-5 text-[#25d366]" />
+                        <span>Instant WhatsApp Mobile Alerts</span>
+                      </h4>
+                      <span className="text-[11px] font-bold px-2.5 py-1 rounded-full border bg-[#25d366]/10 text-[#25d366] border-[#25d366]/30 flex items-center gap-1.5">
+                        <span className="w-1.5 h-1.5 rounded-full bg-[#25d366] animate-pulse" />
+                        <span>CallMeBot Free API</span>
+                      </span>
+                    </div>
+
+                    <p className="text-xs text-[#a79f8b] leading-relaxed">
+                      Sends an instant WhatsApp alert to your personal mobile phone whenever any student completes registration or pays online. Includes delegate name, roll number, events, amount paid, and direct pass verification links.
+                    </p>
+
+                    {/* Quick 30-Second Setup Guide */}
+                    <div className="p-3.5 rounded-xl bg-[#131318] border border-[#25d366]/30 space-y-2.5 text-xs text-[#f3ecd9]">
+                      <div className="font-bold text-[#25d366] flex items-center gap-1.5">
+                        <span>⚡ 30-Second Free Setup:</span>
+                      </div>
+                      <ol className="list-decimal list-inside space-y-1 text-[#cfc7b4] text-[11px] leading-relaxed">
+                        <li>
+                          Open WhatsApp and message{' '}
+                          <a
+                            href="https://wa.me/34644442062?text=I%20allow%20callmebot%20to%20send%20me%20messages"
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-[#25d366] underline font-bold"
+                          >
+                            +34 644 44 20 62
+                          </a>{' '}
+                          with: <code className="bg-[#1f1b0e] text-[#f2c14e] px-1.5 py-0.5 rounded">I allow callmebot to send me messages</code>
+                        </li>
+                        <li>CallMeBot will reply in WhatsApp within 5 seconds with your free personal API key.</li>
+                        <li>
+                          Save your phone & key into <code className="text-[#f2c14e]">.env</code> (<code className="text-white">WHATSAPP_ADMIN_PHONE</code> & <code className="text-white">WHATSAPP_API_KEY</code>).
+                        </li>
+                      </ol>
+                    </div>
+
+                    {/* Test WhatsApp Alert Input */}
+                    <div className="p-3.5 rounded-xl bg-[#131318] border border-[#2e2b22] space-y-3">
+                      <label className="text-xs text-[#f3ecd9] font-semibold block">Test WhatsApp Alert to Mobile</label>
+                      <div className="flex flex-col sm:flex-row gap-2">
+                        <input
+                          type="text"
+                          value={testWhatsAppPhone}
+                          onChange={(e) => setTestWhatsAppPhone(e.target.value)}
+                          placeholder="Your WhatsApp phone with country code (e.g. 919491501919)"
+                          className="flex-1 px-3 py-2 text-xs rounded-xl bg-[#0a0a0d] border border-[#2e2b22] text-[#f3ecd9] focus:outline-none focus:border-[#25d366]"
+                        />
+                        <button
+                          type="button"
+                          disabled={testWhatsAppStatus.testing}
+                          onClick={handleSendTestWhatsApp}
+                          className="px-4 py-2 text-xs font-bold rounded-xl bg-[#25d366] text-[#052e16] hover:bg-[#20b858] transition-all cursor-pointer flex items-center justify-center gap-1.5 disabled:opacity-50 shrink-0 shadow-md shadow-[#25d366]/20"
+                        >
+                          {testWhatsAppStatus.testing ? (
+                            <>
+                              <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                              <span>Sending WhatsApp...</span>
+                            </>
+                          ) : (
+                            <>
+                              <MessageCircle className="w-3.5 h-3.5" />
+                              <span>Send Test Alert</span>
+                            </>
+                          )}
+                        </button>
+                      </div>
+
+                      {testWhatsAppStatus.message && (
+                        <div className={`p-2.5 rounded-lg border text-xs flex items-start gap-2 ${
+                          testWhatsAppStatus.success
+                            ? 'bg-[#153424]/60 border-[#3ecf8e]/50 text-[#3ecf8e]'
+                            : 'bg-[#331c19]/60 border-[#ff8a80]/50 text-[#ffb4ab]'
+                        }`}>
+                          {testWhatsAppStatus.success ? <Check className="w-4 h-4 shrink-0 mt-0.5" /> : <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />}
+                          <span className="break-all">{testWhatsAppStatus.message}</span>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Instant ntfy Phone Push Notifications Card */}
+                  <div className="p-5 rounded-2xl bg-[#0a0a0d] border border-[#2e2b22] space-y-4">
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <h4 className="text-base font-bold text-white flex items-center gap-2">
+                        <Bell className="w-5 h-5 text-[#f2c14e]" />
+                        <span>Phone Push Notifications (ntfy.sh)</span>
+                      </h4>
+                      <span className="text-[11px] font-bold px-2.5 py-1 rounded-full border bg-[#f2c14e]/10 text-[#f2c14e] border-[#f2c14e]/30 flex items-center gap-1.5">
+                        <span className="w-1.5 h-1.5 rounded-full bg-[#f2c14e] animate-pulse" />
+                        <span>100% Free · No Keys · No Bot</span>
+                      </span>
+                    </div>
+
+                    <p className="text-xs text-[#a79f8b] leading-relaxed">
+                      Rings and vibrates your phone with a lock-screen banner and action buttons whenever anyone registers or pays. Works natively on Android and iPhone with zero API keys or accounts required.
+                    </p>
+
+                    {/* Quick 2-Step Setup */}
+                    <div className="p-3.5 rounded-xl bg-[#131318] border border-[#f2c14e]/30 space-y-2.5 text-xs text-[#f3ecd9]">
+                      <div className="font-bold text-[#f2c14e] flex items-center gap-1.5">
+                        <span>📱 How to get alerts on your phone:</span>
+                      </div>
+                      <ol className="list-decimal list-inside space-y-1.5 text-[#cfc7b4] text-[11px] leading-relaxed">
+                        <li>
+                          Install the free <strong className="text-white">ntfy</strong> app on your phone:
+                          <span className="inline-flex gap-2 ml-2">
+                            <a
+                              href="https://play.google.com/store/apps/details?id=io.heckel.ntfy"
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="text-[#3ecf8e] underline font-bold"
+                            >
+                              Google Play (Android)
+                            </a>
+                            <span className="text-[#a79f8b]">·</span>
+                            <a
+                              href="https://apps.apple.com/app/ntfy/id1625396347"
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="text-[#70baff] underline font-bold"
+                            >
+                              App Store (iOS)
+                            </a>
+                          </span>
+                        </li>
+                        <li>
+                          Open the ntfy app, tap <strong className="text-white">&ldquo;+&rdquo;</strong> (Subscribe), and type your topic:
+                          <code className="bg-[#1f1b0e] text-[#f2c14e] font-mono px-2 py-0.5 rounded ml-1 font-bold">
+                            {testNtfyTopic}
+                          </code>
+                        </li>
+                        <li>That&apos;s all! Tap the test button below to hear your phone ring immediately.</li>
+                      </ol>
+                    </div>
+
+                    {/* Test Push Notification Input */}
+                    <div className="p-3.5 rounded-xl bg-[#131318] border border-[#2e2b22] space-y-3">
+                      <label className="text-xs text-[#f3ecd9] font-semibold block">Test Push Alert to Phone</label>
+                      <div className="flex flex-col sm:flex-row gap-2">
+                        <div className="relative flex-1">
+                          <span className="absolute left-3 top-2 text-xs text-[#a79f8b] font-mono">ntfy.sh/</span>
+                          <input
+                            type="text"
+                            value={testNtfyTopic}
+                            onChange={(e) => setTestNtfyTopic(e.target.value.replace(/\s+/g, '-'))}
+                            placeholder="nexusverse-kgr-alerts"
+                            className="w-full pl-16 pr-3 py-2 text-xs rounded-xl bg-[#0a0a0d] border border-[#2e2b22] text-[#f3ecd9] focus:outline-none focus:border-[#f2c14e] font-mono"
+                          />
+                        </div>
+                        <button
+                          type="button"
+                          disabled={testNtfyStatus.testing}
+                          onClick={handleSendTestNtfy}
+                          className="px-4 py-2 text-xs font-bold rounded-xl bg-[#f2c14e] text-[#1a1300] hover:bg-[#d4a935] transition-all cursor-pointer flex items-center justify-center gap-1.5 disabled:opacity-50 shrink-0 shadow-md shadow-[#f2c14e]/20"
+                        >
+                          {testNtfyStatus.testing ? (
+                            <>
+                              <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                              <span>Sending Push...</span>
+                            </>
+                          ) : (
+                            <>
+                              <Bell className="w-3.5 h-3.5" />
+                              <span>Send Test Push</span>
+                            </>
+                          )}
+                        </button>
+                      </div>
+
+                      {testNtfyStatus.message && (
+                        <div className={`p-2.5 rounded-lg border text-xs flex items-start gap-2 ${
+                          testNtfyStatus.success
+                            ? 'bg-[#153424]/60 border-[#3ecf8e]/50 text-[#3ecf8e]'
+                            : 'bg-[#331c19]/60 border-[#ff8a80]/50 text-[#ffb4ab]'
+                        }`}>
+                          {testNtfyStatus.success ? <Check className="w-4 h-4 shrink-0 mt-0.5" /> : <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />}
+                          <span className="break-all">{testNtfyStatus.message}</span>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Instant Telegram Mobile Alerts Card */}
+                  <div className="p-5 rounded-2xl bg-[#0a0a0d] border border-[#2e2b22] space-y-4">
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <h4 className="text-base font-bold text-white flex items-center gap-2">
+                        <Send className="w-5 h-5 text-[#0088cc]" />
+                        <span>Instant Telegram Mobile Alerts</span>
+                      </h4>
+                      <span className="text-[11px] font-bold px-2.5 py-1 rounded-full border bg-[#0088cc]/10 text-[#0088cc] border-[#0088cc]/30 flex items-center gap-1.5">
+                        <span className="w-1.5 h-1.5 rounded-full bg-[#0088cc] animate-pulse" />
+                        <span>Official Telegram Bot API</span>
+                      </span>
+                    </div>
+
+                    <p className="text-xs text-[#a79f8b] leading-relaxed">
+                      Sends immediate push alerts to your Telegram chat or admin group whenever any student completes registration or pays. Includes delegate credentials and direct pass verification buttons.
+                    </p>
+
+                    {/* Quick 2-Minute Setup Guide */}
+                    <div className="p-3.5 rounded-xl bg-[#131318] border border-[#0088cc]/30 space-y-2.5 text-xs text-[#f3ecd9]">
+                      <div className="font-bold text-[#0088cc] flex items-center gap-1.5">
+                        <span>⚡ 2-Minute Free Setup:</span>
+                      </div>
+                      <ol className="list-decimal list-inside space-y-1.5 text-[#cfc7b4] text-[11px] leading-relaxed">
+                        <li>
+                          Open Telegram on your phone and search for{' '}
+                          <a
+                            href="https://t.me/BotFather"
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-[#0088cc] underline font-bold"
+                          >
+                            @BotFather
+                          </a>.
+                        </li>
+                        <li>
+                          Send <code className="bg-[#1f1b0e] text-[#f2c14e] px-1.5 py-0.5 rounded">/newbot</code>, give your bot a name (e.g. <em>NexusVerse Alert Bot</em>), and copy your <strong>Bot Token</strong>.
+                        </li>
+                        <li>
+                          Open your new bot link from BotFather and tap <strong>&ldquo;Start&rdquo;</strong> (or send it any message).
+                        </li>
+                        <li>
+                          Paste your Bot Token below, tap <strong>&ldquo;Auto-Detect Chat ID&rdquo;</strong>, then tap <strong>&ldquo;Send Test Alert&rdquo;</strong>!
+                        </li>
+                      </ol>
+                    </div>
+
+                    {/* Telegram Credentials Form */}
+                    <div className="p-3.5 rounded-xl bg-[#131318] border border-[#2e2b22] space-y-3">
+                      <div>
+                        <label className="text-xs text-[#f3ecd9] font-semibold block mb-1">Telegram Bot Token</label>
+                        <input
+                          type="password"
+                          value={testTelegramToken}
+                          onChange={(e) => setTestTelegramToken(e.target.value.trim())}
+                          placeholder="e.g. 7123456789:AAF_xxxxxxxxxxxxxxxxxxxxxxxx"
+                          className="w-full px-3 py-2 text-xs rounded-xl bg-[#0a0a0d] border border-[#2e2b22] text-[#f3ecd9] focus:outline-none focus:border-[#0088cc] font-mono"
+                        />
+                      </div>
+
+                      <div>
+                        <div className="flex items-center justify-between mb-1">
+                          <label className="text-xs text-[#f3ecd9] font-semibold">Your Telegram Chat ID</label>
+                          <button
+                            type="button"
+                            disabled={isDetectingChatId}
+                            onClick={handleDetectTelegramChatId}
+                            className="text-[11px] text-[#0088cc] hover:underline font-semibold flex items-center gap-1 cursor-pointer disabled:opacity-50"
+                          >
+                            {isDetectingChatId ? <RefreshCw className="w-3 h-3 animate-spin" /> : <Sparkles className="w-3 h-3" />}
+                            <span>Auto-Detect Chat ID</span>
+                          </button>
+                        </div>
+                        <input
+                          type="text"
+                          value={testTelegramChatId}
+                          onChange={(e) => setTestTelegramChatId(e.target.value.trim())}
+                          placeholder="e.g. 123456789 (or tap Auto-Detect above)"
+                          className="w-full px-3 py-2 text-xs rounded-xl bg-[#0a0a0d] border border-[#2e2b22] text-[#f3ecd9] focus:outline-none focus:border-[#0088cc] font-mono"
+                        />
+                      </div>
+
+                      <div className="pt-1">
+                        <button
+                          type="button"
+                          disabled={testTelegramStatus.testing}
+                          onClick={handleSendTestTelegram}
+                          className="w-full sm:w-auto px-5 py-2 text-xs font-bold rounded-xl bg-[#0088cc] text-white hover:bg-[#0077b5] transition-all cursor-pointer flex items-center justify-center gap-1.5 disabled:opacity-50 shadow-md shadow-[#0088cc]/20"
+                        >
+                          {testTelegramStatus.testing ? (
+                            <>
+                              <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                              <span>Sending to Telegram...</span>
+                            </>
+                          ) : (
+                            <>
+                              <Send className="w-3.5 h-3.5" />
+                              <span>Send Test Alert to Telegram</span>
+                            </>
+                          )}
+                        </button>
+                      </div>
+
+                      {testTelegramStatus.message && (
+                        <div className={`p-2.5 rounded-lg border text-xs flex items-start gap-2 ${
+                          testTelegramStatus.success
+                            ? 'bg-[#153424]/60 border-[#3ecf8e]/50 text-[#3ecf8e]'
+                            : 'bg-[#331c19]/60 border-[#ff8a80]/50 text-[#ffb4ab]'
+                        }`}>
+                          {testTelegramStatus.success ? <Check className="w-4 h-4 shrink-0 mt-0.5" /> : <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />}
+                          <span className="break-all">{testTelegramStatus.message}</span>
                         </div>
                       )}
                     </div>

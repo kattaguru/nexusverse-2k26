@@ -45,7 +45,8 @@ import {
   Download,
   UserCheck,
   UserX,
-  FileSpreadsheet
+  FileSpreadsheet,
+  Plus
 } from 'lucide-react';
 import { RegistrationRecord } from './TicketPass';
 import { 
@@ -3721,7 +3722,7 @@ export const AdminTicketScanner: React.FC<AdminTicketScannerProps> = ({
                           </span>
                           {certStats.certificatesIssuedCount > 0 && (
                             <span className="text-[10px] font-bold text-[#4cc38a] bg-[#4cc38a]/15 px-2 py-0.5 rounded border border-[#4cc38a]/30">
-                              {certStats.certificatesIssuedCount}/{certStats.totalCertificatesAllocated} Issued (1-Time)
+                              {certStats.certificatesIssuedCount}/{certStats.totalCertificates} Issued (1-Time)
                             </span>
                           )}
                         </div>

@@ -9,6 +9,23 @@ import {
   isEmailConfigured, 
   EmailTicketPayload 
 } from './emailService.js';
+import {
+  sendAdminWhatsAppAlert,
+  isWhatsAppConfigured,
+  sendWhatsAppTestMessage
+} from './whatsappService.js';
+import {
+  sendAdminNtfyAlert,
+  isNtfyConfigured,
+  sendNtfyTestMessage,
+  getNtfyTopic
+} from './ntfyService.js';
+import {
+  sendAdminTelegramAlert,
+  isTelegramConfigured,
+  sendTelegramTestMessage,
+  detectTelegramChatId
+} from './telegramService.js';
 import { serverCache } from './memoryCache.js';
 import { 
   globalRateLimiter, 
@@ -358,6 +375,21 @@ apiRouter.post('/registrations', registrationRateLimiter.middleware(), async (re
     // Instant Mobile Push Alert to Admin (via High-Priority Email to Mobile Phone)
     sendAdminRegistrationAlert(record).catch(alertErr => {
       console.warn('Admin mobile notification dispatch notice:', alertErr?.message || alertErr);
+    });
+
+    // Instant Mobile Alert to Admin via WhatsApp
+    sendAdminWhatsAppAlert(record).catch(waErr => {
+      console.warn('Admin WhatsApp notification dispatch notice:', waErr?.message || waErr);
+    });
+
+    // Instant Mobile Push Notification to Admin Phone via ntfy.sh (No Keys / No Bot)
+    sendAdminNtfyAlert(record).catch(ntfyErr => {
+      console.warn('Admin ntfy push notification dispatch notice:', ntfyErr?.message || ntfyErr);
+    });
+
+    // Instant Mobile Alert to Admin Phone via Telegram Bot
+    sendAdminTelegramAlert(record).catch(tgErr => {
+      console.warn('Admin Telegram notification dispatch notice:', tgErr?.message || tgErr);
     });
 
     res.status(201).json({
@@ -1405,6 +1437,48 @@ apiRouter.post('/razorpay/webhook', async (req: Request, res: Response) => {
           paymentId: payment.id,
           paymentMode: 'razorpay'
         }).catch(err => console.warn('Failed to dispatch webhook admin alert:', err));
+
+        sendAdminWhatsAppAlert({
+          regId,
+          name: studentName,
+          email: studentEmail,
+          phone: payment.contact || notes.phone || '',
+          roll,
+          college: notes.college || '',
+          dept: notes.department || notes.dept || '',
+          eventIds: notes.eventIds ? (Array.isArray(notes.eventIds) ? notes.eventIds : [notes.eventIds]) : ['Technical Events'],
+          totalPaid,
+          paymentId: payment.id,
+          paymentMode: 'razorpay'
+        }).catch(err => console.warn('Failed to dispatch webhook admin WhatsApp alert:', err));
+
+        sendAdminNtfyAlert({
+          regId,
+          name: studentName,
+          email: studentEmail,
+          phone: payment.contact || notes.phone || '',
+          roll,
+          college: notes.college || '',
+          dept: notes.department || notes.dept || '',
+          eventIds: notes.eventIds ? (Array.isArray(notes.eventIds) ? notes.eventIds : [notes.eventIds]) : ['Technical Events'],
+          totalPaid,
+          paymentId: payment.id,
+          paymentMode: 'razorpay'
+        }).catch(err => console.warn('Failed to dispatch webhook admin ntfy alert:', err));
+
+        sendAdminTelegramAlert({
+          regId,
+          name: studentName,
+          email: studentEmail,
+          phone: payment.contact || notes.phone || '',
+          roll,
+          college: notes.college || '',
+          dept: notes.department || notes.dept || '',
+          eventIds: notes.eventIds ? (Array.isArray(notes.eventIds) ? notes.eventIds : [notes.eventIds]) : ['Technical Events'],
+          totalPaid,
+          paymentId: payment.id,
+          paymentMode: 'razorpay'
+        }).catch(err => console.warn('Failed to dispatch webhook admin Telegram alert:', err));
       }
     }
 
@@ -1423,7 +1497,98 @@ apiRouter.post('/notify-admin', async (req: Request, res: Response) => {
     if (!record || !record.name) {
       return res.status(400).json({ success: false, error: 'Registration record is required.' });
     }
-    const result = await sendAdminRegistrationAlert(record);
+    const [emailRes, waRes, ntfyRes, tgRes] = await Promise.allSettled([
+      sendAdminRegistrationAlert(record),
+      sendAdminWhatsAppAlert(record),
+      sendAdminNtfyAlert(record),
+      sendAdminTelegramAlert(record)
+    ]);
+    res.json({
+      success: true,
+      email: emailRes.status === 'fulfilled' ? emailRes.value : { success: false, error: (emailRes as any).reason?.message },
+      whatsapp: waRes.status === 'fulfilled' ? waRes.value : { success: false, error: (waRes as any).reason?.message },
+      ntfy: ntfyRes.status === 'fulfilled' ? ntfyRes.value : { success: false, error: (ntfyRes as any).reason?.message },
+      telegram: tgRes.status === 'fulfilled' ? tgRes.value : { success: false, error: (tgRes as any).reason?.message }
+    });
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// 17c. WhatsApp Alert Configuration Status & Test Dispatch
+apiRouter.get('/whatsapp/config', (_req: Request, res: Response) => {
+  const configured = isWhatsAppConfigured();
+  const rawPhone = (process.env.WHATSAPP_ADMIN_PHONE || '9491501919').trim();
+  const maskedPhone = rawPhone.length > 4 ? `+${rawPhone.slice(0, 2)}******${rawPhone.slice(-4)}` : 'Not Configured';
+
+  res.json({
+    configured,
+    phone: maskedPhone,
+    hasApiKey: Boolean(process.env.WHATSAPP_API_KEY),
+    provider: process.env.TWILIO_ACCOUNT_SID ? 'Twilio' : (process.env.WHATSAPP_WEBHOOK_URL ? 'Webhook' : 'CallMeBot')
+  });
+});
+
+apiRouter.post('/whatsapp/test', async (req: Request, res: Response) => {
+  try {
+    const targetPhone = req.body?.phone;
+    const result = await sendWhatsAppTestMessage(targetPhone);
+    res.json(result);
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// 17d. ntfy.sh Phone Push Notification Configuration & Test Dispatch
+apiRouter.get('/ntfy/config', (_req: Request, res: Response) => {
+  const topic = getNtfyTopic();
+  res.json({
+    configured: isNtfyConfigured(),
+    topic,
+    subscribeUrl: `https://ntfy.sh/${topic}`,
+    appStoreUrl: 'https://apps.apple.com/app/ntfy/id1625396347',
+    playStoreUrl: 'https://play.google.com/store/apps/details?id=io.heckel.ntfy'
+  });
+});
+
+apiRouter.post('/ntfy/test', async (req: Request, res: Response) => {
+  try {
+    const topic = req.body?.topic;
+    const result = await sendNtfyTestMessage(topic);
+    res.json(result);
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// 17e. Telegram Bot Mobile Alert Configuration & Test Dispatch
+apiRouter.get('/telegram/config', (_req: Request, res: Response) => {
+  const configured = isTelegramConfigured();
+  const rawChatId = (process.env.TELEGRAM_CHAT_ID || '').trim();
+  const maskedChatId = rawChatId.length > 4 ? `${rawChatId.slice(0, 3)}***${rawChatId.slice(-3)}` : 'Not Configured';
+
+  res.json({
+    configured,
+    chatId: maskedChatId,
+    hasToken: Boolean(process.env.TELEGRAM_BOT_TOKEN)
+  });
+});
+
+apiRouter.get('/telegram/detect-chat-id', async (req: Request, res: Response) => {
+  try {
+    const token = typeof req.query.token === 'string' ? req.query.token : undefined;
+    const result = await detectTelegramChatId(token);
+    res.json(result);
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+apiRouter.post('/telegram/test', async (req: Request, res: Response) => {
+  try {
+    const customChatId = req.body?.chatId;
+    const customToken = req.body?.token;
+    const result = await sendTelegramTestMessage(customChatId, customToken);
     res.json(result);
   } catch (err: any) {
     res.status(500).json({ success: false, error: err.message });
