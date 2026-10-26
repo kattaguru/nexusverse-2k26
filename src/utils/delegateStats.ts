@@ -127,13 +127,21 @@ export interface RecordLunchStats {
 
 /**
  * Checks whether an individual member of a registration record is eligible for food/lunch.
- * IEEE members always have food included.
- * Non-IEEE members must have opted for food (wantsFood === true) or legacy paid full amount.
+ * - For Technical Events: IEEE members have complimentary food included; Non-IEEE members must have opted for food (wantsFood === true).
+ * - For Spot Events: No food is included by default for anyone (IEEE or Non-IEEE). Food is only eligible if wantsFood === true (+₹50 extra).
  */
 export function isMemberFoodEligible(record: RegistrationRecord | undefined | null, memberKey: string): boolean {
   if (!record) return false;
 
+  const isSpotOnly = !record.eventIds || record.eventIds.length === 0 || (record.eventIds.length === 1 && record.eventIds[0] === 'spot');
+
   if (memberKey === 'lead') {
+    if (isSpotOnly) {
+      // Spot events have no food included by default for anyone. Food requires explicit +₹50 add-on.
+      if (record.wantsFood !== undefined) return Boolean(record.wantsFood);
+      return (record.totalPaid || 0) >= 150;
+    }
+    // Technical event: IEEE members have complimentary food included
     if (record.isIeeeMember) return true;
     if (record.wantsFood !== undefined) return Boolean(record.wantsFood);
     // Legacy fallback: if record paid >= 200, food was included in original ₹200 fee
@@ -144,6 +152,12 @@ export function isMemberFoodEligible(record: RegistrationRecord | undefined | nu
   const idx = parseInt(memberKey.replace('teammate_', ''), 10);
   const tm = teammates[idx];
   if (!tm) return false;
+
+  if (isSpotOnly) {
+    if (tm.wantsFood !== undefined) return Boolean(tm.wantsFood);
+    if (record.wantsFood !== undefined) return Boolean(record.wantsFood);
+    return (record.totalPaid || 0) >= 150;
+  }
 
   if (tm.isIeeeMember) return true;
   if (tm.wantsFood !== undefined) return Boolean(tm.wantsFood);

@@ -1,7 +1,7 @@
 import { describe, it, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import express from 'express';
-import { apiRouter } from '../server/apiRouter.js';
+import { apiRouter } from '../server/apiRouter.ts';
 
 import fs from 'node:fs';
 import os from 'node:os';

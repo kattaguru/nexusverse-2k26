@@ -276,7 +276,7 @@ export const SPOT_EVENT: SymposiumEvent = {
   tag: "Exciting on-the-spot games, interactive arena challenges, fun non-technical mini-games, and engaging open activities conducted during the afternoon session.",
   category: "Non-Technical / Spot Events",
   teamLabel: "Individual (Spot Entry)",
-  participationText: "Open to all registered spot pass delegates.",
+  participationText: "Open to all registered spot pass delegates. Note: Food is not included by default (add lunch for extra ₹50).",
   feeNonMember: 100,
   feeMember: 100,
   min: 1,
@@ -291,11 +291,13 @@ export const SPOT_EVENT: SymposiumEvent = {
   highlights: [
     "Fast-paced spot challenges & fun non-technical arena games",
     "Open access to all afternoon spot competitions",
+    "Standard spot pass ₹100 (No Food) · Food optional (+₹50 extra)",
     "Instant recognition, certificates & awards"
   ],
   rules: [
     "Open to all participants with a valid Spot Events Pass.",
     "Events are conducted live on-spot during the afternoon session (1:30 PM – 3:30 PM).",
+    "Food/Lunch is not included with the standard ₹100 Spot Pass. If food is needed, pay ₹50 extra (₹150 with Food).",
     "Judges & student coordinators' decisions are final for spot activities."
   ],
   rounds: [
@@ -351,11 +353,11 @@ export const FAQS = [
   },
   {
     q: "How does the IEEE membership discount work?",
-    a: "Active IEEE student members enjoy reduced delegate fees of ₹150 across all events, with complimentary networking lunch included! For non-IEEE members, standard registration is ₹150 (without food), or ₹200 if you want lunch & food meal token included (extra ₹50). Simply select your status on the registration form."
+    a: "Active IEEE student members enjoy reduced delegate fees of ₹150 across all technical events, with complimentary networking lunch included! For non-IEEE members, standard technical registration is ₹150 (without food), or ₹200 if you want lunch & food meal token included (extra ₹50). For Spot Events (₹100), food is not included by default for anyone; lunch can be added for extra ₹50 (₹150 total)."
   },
   {
     q: "Can I register for multiple events?",
-    a: "No. Participants are allowed to participate in only one technical event because all technical events run simultaneously from 10:00 AM to 12:00 PM. In the afternoon session (1:30 PM – 3:30 PM), everyone can participate in the spot events!"
+    a: "No. Participants are allowed to participate in only one technical event because all technical events run simultaneously from 10:00 AM to 12:00 PM. In the afternoon session (1:30 PM – 3:30 PM), everyone can participate in the spot events! (Note: Spot Events do not include food; lunch add-on is ₹50 extra)."
   },
   {
     q: "How do team registrations work?",
@@ -367,7 +369,7 @@ export const FAQS = [
   },
   {
     q: "What is included with the registration fee?",
-    a: "The registration fee covers participation in the selected events, official IEEE delegate kit, high-speed Wi-Fi access, workshop/competition resources, and physical Certificate of Participation. For IEEE members, lunch and refreshments are complimentary! For non-IEEE members, lunch can be added for just ₹50 extra (₹200 total)."
+    a: "The registration fee covers participation in the selected events, official IEEE delegate kit, high-speed Wi-Fi access, workshop/competition resources, and physical Certificate of Participation. For technical events, IEEE members receive complimentary lunch; for non-IEEE members, lunch can be added for ₹50 extra (₹200 total). For Spot Events (₹100 entry), food is NOT included by default; food can be added for ₹50 extra (₹150 total)."
   },
   {
     q: "What is the cancellation and refund policy?",

@@ -1,6 +1,6 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
-import { EVENTS, SYMPOSIUM_CONFIG, TIMELINE } from '../src/data/symposiumData.ts';
+import { EVENTS, SPOT_EVENT, SYMPOSIUM_CONFIG, TIMELINE } from '../src/data/symposiumData.ts';
 
 describe('Symposium Data & Configuration Unit Tests', () => {
   it('should have general symposium configuration correctly configured', () => {
@@ -74,6 +74,13 @@ describe('Symposium Data & Configuration Unit Tests', () => {
         `${event.name} IEEE member fee should be ₹150`
       );
     }
+  });
+
+  it('should enforce ₹100 base fee for Spot Events with no food included by default (food optional +₹50)', () => {
+    assert.equal(SPOT_EVENT.feeNonMember, 100, 'Spot Event non-member fee should be ₹100');
+    assert.equal(SPOT_EVENT.feeMember, 100, 'Spot Event member fee should be ₹100');
+    assert.ok(SPOT_EVENT.participationText.includes('Food is not included by default'), 'Participation text should state no food by default');
+    assert.ok(SPOT_EVENT.rules.some(r => r.includes('Food/Lunch is not included with the standard ₹100 Spot Pass')), 'Rules must state food is extra ₹50');
   });
 
   it('should validate team size constraints for events', () => {

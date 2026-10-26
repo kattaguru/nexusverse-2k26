@@ -1237,6 +1237,15 @@ export default function App() {
 
         subtotal += leaderFee + teammatesFee;
       }
+    } else if (includeSpotEvents) {
+      // Spot Event ONLY: base registration is ₹100 per member.
+      // For spot events, food is not included by default (even for IEEE members).
+      // If wantsFood is selected, extra ₹50 is added for lunch token.
+      if (wantsFood) {
+        foodAddonTotal += 50;
+        foodCount += 1;
+        subtotal += 50;
+      }
     }
 
     // 2. Spot events pass (₹100 per selected team member / registrant)
@@ -1445,7 +1454,7 @@ export default function App() {
       roll: roll.trim().toUpperCase(),
       isIeeeMember,
       ieeeId: isIeeeMember ? ieeeId.trim() : undefined,
-      wantsFood: isIeeeMember ? true : Boolean(wantsFood),
+      wantsFood: (selectedEvents.length > 0 && isIeeeMember) ? true : Boolean(wantsFood),
       eventIds: combinedEventIds,
       teamDetails: formattedTeamDetails,
       spotPassCount: effectiveSpotCount,
@@ -2258,8 +2267,64 @@ export default function App() {
                             </button>
                           </div>
 
-                          {/* Non-IEEE Food & Lunch Token Preference */}
-                          {!isIeeeMember ? (
+                          {/* Spot Event Food Preference or Technical Food Preference */}
+                          {selectedEvents.length === 0 && includeSpotEvents ? (
+                            <div className="p-3.5 rounded-xl bg-[#14141d] border border-[#2e2b22] space-y-2.5">
+                              <div className="flex items-center justify-between">
+                                <div className="flex items-center gap-2">
+                                  <Utensils className="w-4 h-4 text-[#f2c14e]" />
+                                  <span className="text-xs font-bold text-[#ffffff]">
+                                    Spot Event Lunch & Food Token (Desk 3)
+                                  </span>
+                                </div>
+                                <span className="text-[10px] px-2 py-0.5 rounded-full font-mono font-semibold bg-[#f2c14e]/10 text-[#f2c14e] border border-[#f2c14e]/30">
+                                  Optional +₹50
+                                </span>
+                              </div>
+                              <p className="text-[11px] text-[#a79f8b] leading-relaxed">
+                                For Spot Events, food is not included by default (<strong>₹100</strong> Standard Entry). If you want networking lunch & meal tray token, you can add food for an extra <strong>₹50</strong> (Total <strong>₹150</strong>).
+                              </p>
+                              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-0.5">
+                                <button
+                                  type="button"
+                                  onClick={() => setWantsFood(false)}
+                                  className={`p-2.5 rounded-xl border text-left transition-all cursor-pointer ${
+                                    !wantsFood
+                                      ? 'bg-[#1f1b0e] border-[#d4a935] ring-1 ring-[#d4a935]/40 text-[#ffffff]'
+                                      : 'bg-[#0a0a0d] border-[#2e2b22] text-[#a79f8b] hover:border-[#3d382c]'
+                                  }`}
+                                >
+                                  <div className="flex items-center justify-between">
+                                    <span className="text-xs font-bold">Standard Spot Entry</span>
+                                    <span className="font-mono font-bold text-xs text-[#f2c14e]">₹100</span>
+                                  </div>
+                                  <span className="text-[10px] text-[#a79f8b] block mt-0.5">
+                                    No Food / Lunch (Afternoon Games Pass)
+                                  </span>
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => setWantsFood(true)}
+                                  className={`p-2.5 rounded-xl border text-left transition-all cursor-pointer ${
+                                    wantsFood
+                                      ? 'bg-[#1f1b0e] border-[#d4a935] ring-1 ring-[#d4a935]/40 text-[#ffffff]'
+                                      : 'bg-[#0a0a0d] border-[#2e2b22] text-[#a79f8b] hover:border-[#3d382c]'
+                                  }`}
+                                >
+                                  <div className="flex items-center justify-between">
+                                    <span className="text-xs font-bold flex items-center gap-1">
+                                      <span>Spot Pass + Food</span>
+                                      <span className="text-[9px] bg-[#4cc38a]/20 text-[#4cc38a] px-1 rounded font-mono">+₹50</span>
+                                    </span>
+                                    <span className="font-mono font-bold text-xs text-[#f2c14e]">₹150</span>
+                                  </div>
+                                  <span className="text-[10px] text-[#86efac] block mt-0.5">
+                                    Includes Official Desk 3 Meal Tray Token ✓
+                                  </span>
+                                </button>
+                              </div>
+                            </div>
+                          ) : !isIeeeMember ? (
                             <div className="p-3.5 rounded-xl bg-[#14141d] border border-[#2e2b22] space-y-2.5">
                               <div className="flex items-center justify-between">
                                 <div className="flex items-center gap-2">
@@ -2933,6 +2998,9 @@ export default function App() {
                                 <span className="flex items-center gap-1 text-[#4cc38a]">
                                   <Check className="w-3.5 h-3.5" /> Central Courtyard & Seminar Halls
                                 </span>
+                                <span className="flex items-center gap-1 text-[#f2c14e]">
+                                  <Utensils className="w-3.5 h-3.5" /> No Food Included (Add Food: +₹50)
+                                </span>
                               </div>
                             </div>
                           </label>
@@ -2942,7 +3010,7 @@ export default function App() {
                               ₹{includeSpotEvents && totalTeamHeads > 1 ? spotSubtotal : 100}
                             </span>
                             <span className="text-[10px] uppercase font-bold tracking-wider text-[#8ea8c9]">
-                              {includeSpotEvents && totalTeamHeads > 1 ? `${effectiveSpotCount} Passes (₹100/ea)` : 'Spot Events (₹100)'}
+                              {includeSpotEvents && totalTeamHeads > 1 ? `${effectiveSpotCount} Passes (₹100/ea · No Food)` : 'Spot Events (₹100 · No Food)'}
                             </span>
                           </div>
                         </div>
@@ -3128,14 +3196,14 @@ export default function App() {
                                 <Sparkles className="w-3.5 h-3.5 text-[#70baff]" />
                                 <span>Spot Events Pass</span>
                               </span>
-                              <span className="text-[#8ea8c9] text-[11px] block">01:30 PM – 03:30 PM · Non-Technical</span>
+                              <span className="text-[#8ea8c9] text-[11px] block">01:30 PM – 03:30 PM · Non-Technical (No Food Included)</span>
                             </div>
                             <span className="font-mono font-bold text-[#70baff] text-sm">₹{spotSubtotal}</span>
                           </div>
                           <div className="pt-1.5 border-t border-[#1b324d]/60 flex items-center justify-between text-[11px] text-[#8ea8c9]">
                             <span>
                               {effectiveSpotCount} {effectiveSpotCount === 1 ? 'Delegate' : 'Delegates'}
-                              {totalTeamHeads > 1 ? ` (${spotMemberNames.join(' + ')})` : ' (Afternoon Arena Pass)'}
+                              {totalTeamHeads > 1 ? ` (${spotMemberNames.join(' + ')})` : ' (Afternoon Arena Pass · No Food)'}
                             </span>
                             <span className="font-mono">
                               {effectiveSpotCount > 1 ? `₹100 × ${effectiveSpotCount}` : '₹100 flat'}

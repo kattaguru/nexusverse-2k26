@@ -295,23 +295,27 @@ export const PreRegistrationEventsShowcase: React.FC<PreRegistrationEventsShowca
                   </span>
 
                   <span className="spot-arena-fee-chip inline-flex items-center gap-1.5 px-3 py-1 rounded-xl bg-[#0f2419] border border-[#4cc38a]/40 text-[#86efac] font-bold">
-                    <span>Entry Fee: ₹100 Flat</span>
+                    <span>Entry Fee: ₹100 Flat (Food Optional +₹50)</span>
                   </span>
                 </div>
 
                 {/* Spot Highlights */}
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 pt-1 text-xs">
+                <div className="grid grid-cols-1 sm:grid-cols-4 gap-2.5 pt-1 text-xs">
                   <div className="spot-arena-box p-2.5 rounded-xl bg-black/30 border border-white/10 text-[#d8cea7]">
                     <strong className="spot-box-strong text-white block mb-0.5">🎮 Gaming Arenas</strong>
-                    Instant multiplayer battles & tech trivia sprints.
+                    Instant multiplayer battles & tech trivia.
                   </div>
                   <div className="spot-arena-box p-2.5 rounded-xl bg-black/30 border border-white/10 text-[#d8cea7]">
                     <strong className="spot-box-strong text-white block mb-0.5">💰 Instant Cash Gifts</strong>
-                    On-spot cash prizes, gift cards & hampers for winners.
+                    On-spot cash prizes & hampers.
                   </div>
                   <div className="spot-arena-box p-2.5 rounded-xl bg-black/30 border border-white/10 text-[#d8cea7]">
                     <strong className="spot-box-strong text-white block mb-0.5">📜 Official Certificate</strong>
-                    Every spot participant receives an authentic certificate.
+                    Authentic participation certificate.
+                  </div>
+                  <div className="spot-arena-box p-2.5 rounded-xl bg-black/30 border border-[#d4a935]/40 text-[#f2c14e]">
+                    <strong className="spot-box-strong text-white block mb-0.5">🍽️ Food / Lunch Option</strong>
+                    No food in ₹100 pass. Add lunch for +₹50 (₹150 total).
                   </div>
                 </div>
               </div>

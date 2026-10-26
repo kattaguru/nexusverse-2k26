@@ -675,22 +675,25 @@ export const AdminTicketScanner: React.FC<AdminTicketScannerProps> = ({
             const isSpotDone = Boolean((matched.memberSpotStatus || {})[scannedMemberKey]);
             const isLunchDone = Boolean((matched.memberLunchStatus || {})[scannedMemberKey]);
             const isCheckInDone = Boolean((matched.memberCheckInStatus || {})[scannedMemberKey]);
+            const isFoodEligible = isMemberFoodEligible(matched, scannedMemberKey);
 
             setScanResultModal({
               type: 'info_spot',
-              scanTrack: 'Desk 4: Spot Arena & Desk 3: Lunch Token',
+              scanTrack: isFoodEligible ? 'Desk 4: Spot Arena & Desk 3: Lunch Token' : 'Desk 4: Spot Arena',
               deskNumber: 4,
-              title: 'SPOT EVENTS & LUNCH DELEGATE (NO TECHNICAL EVENT)',
-              message: `${scannedMemberName} (${scannedMemberRoll} · ${scannedMemberRole}) is registered for Afternoon Spot Events (Track 2) with a Complimentary Lunch Meal Token (Desk 3). They are NOT registered for Morning Technical Events. You can verify their spot entry or dispense lunch below.`,
+              title: isFoodEligible ? 'SPOT EVENTS & LUNCH DELEGATE (NO TECHNICAL EVENT)' : 'SPOT EVENTS DELEGATE (NO FOOD / NO TECHNICAL EVENT)',
+              message: isFoodEligible
+                ? `${scannedMemberName} (${scannedMemberRoll} · ${scannedMemberRole}) is registered for Afternoon Spot Events (Track 2) with a Lunch Meal Token (Desk 3). They are NOT registered for Morning Technical Events. You can verify their spot entry or dispense lunch below.`
+                : `${scannedMemberName} (${scannedMemberRoll} · ${scannedMemberRole}) is registered for Afternoon Spot Events (Track 2) WITHOUT Food. They are NOT registered for Morning Technical Events. You can verify their spot entry below.`,
               delegateName: scannedMemberName,
               delegateRoll: scannedMemberRoll,
               delegateRole: scannedMemberRole,
               teamName: matched.name,
-              eventName: 'Spot Events Pass (Arena Activities) + Lunch Included',
+              eventName: isFoodEligible ? 'Spot Events Pass (Arena Activities) + Lunch Included' : 'Spot Events Pass (No Food Included)',
               targetRecord: matched,
               scannedMemberKey,
               allowSpotScan: !isSpotDone,
-              allowLunchDispense: !isLunchDone,
+              allowLunchDispense: isFoodEligible && !isLunchDone,
               allowReceptionCheckIn: !isCheckInDone
             });
             setActiveRecord(matched);
@@ -847,12 +850,15 @@ export const AdminTicketScanner: React.FC<AdminTicketScannerProps> = ({
         if (!isEligible) {
           playBuzzer();
           try { navigator.vibrate?.([300, 150, 300, 150, 400]); } catch (e) {}
+          const isSpotOnly = !matched.eventIds || matched.eventIds.length === 0 || (matched.eventIds.length === 1 && matched.eventIds[0] === 'spot');
           setScanResultModal({
             type: 'already_scanned',
             scanTrack: 'Desk 3: Food Meal Token',
             deskNumber: 3,
             title: 'NO FOOD TOKEN PURCHASED!',
-            message: `NO LUNCH TOKEN! Delegate ${scannedMemberName} (${scannedMemberRoll} · ${scannedMemberRole}) registered under Standard ₹150 Pass WITHOUT Food. Meal tray token cannot be dispensed.`,
+            message: isSpotOnly
+              ? `NO LUNCH TOKEN! Delegate ${scannedMemberName} (${scannedMemberRoll} · ${scannedMemberRole}) registered under Spot Events Pass (₹100) WITHOUT Food. Spot events do not include food unless extra ₹50 is paid. Meal tray token cannot be dispensed.`
+              : `NO LUNCH TOKEN! Delegate ${scannedMemberName} (${scannedMemberRoll} · ${scannedMemberRole}) registered under Standard ₹150 Pass WITHOUT Food. Meal tray token cannot be dispensed.`,
             delegateName: scannedMemberName,
             delegateRoll: scannedMemberRoll,
             delegateRole: scannedMemberRole,

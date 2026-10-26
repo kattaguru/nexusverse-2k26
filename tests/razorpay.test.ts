@@ -61,10 +61,15 @@ describe('Razorpay Utilities & Payment Calculation Unit Tests', () => {
       return { baseSubtotal, gstAmount, total };
     };
 
-    // Tier 1: Spot Events Pass (₹100 base) -> ₹2 GST, Total ₹102
+    // Tier 1a: Spot Events Pass without food (₹100 base) -> ₹2 GST, Total ₹102
     const spot = calcGstAndTotal(100);
     assert.equal(spot.gstAmount, 2, '₹100 should incur exactly ₹2 GST (₹2 per ₹100)');
     assert.equal(spot.total, 102, 'Total should be ₹102');
+
+    // Tier 1b: Spot Events Pass with food (₹100 + ₹50 = ₹150 base) -> ₹3 GST, Total ₹153
+    const spotWithFood = calcGstAndTotal(150);
+    assert.equal(spotWithFood.gstAmount, 3, '₹150 should incur ₹3 GST');
+    assert.equal(spotWithFood.total, 153, 'Total should be ₹153');
 
     // Tier 2: Non-IEEE Member Normal Tech Event without food (₹150 base) -> ₹3 GST, Total ₹153
     const nonIeeeNormal = calcGstAndTotal(150);
