@@ -3128,7 +3128,9 @@ export default function App() {
                       <h4 className="font-serif-title text-xl font-bold text-[#ffffff]">
                         Registration Summary
                       </h4>
-                      <span className="text-xs font-mono text-[#a79f8b]">1 Delegate Pass</span>
+                      <span className="text-xs font-mono text-[#a79f8b]">
+                        {totalTeamHeads} {totalTeamHeads === 1 ? 'Delegate Pass' : 'Delegate Passes'}
+                      </span>
                     </div>
 
                     {/* Participant Preview Pill */}
@@ -3213,21 +3215,178 @@ export default function App() {
                       )}
                     </div>
 
-                      {/* Cost Breakdown with GST */}
-                      <div className="space-y-2 pt-2 border-t border-[#2e2b22] text-xs">
-                        <div className="flex justify-between items-center text-[#a79f8b]">
-                          <span>Base Registration Subtotal</span>
-                          <span className="font-mono text-[#f3ecd9] font-medium">₹{subtotal - foodAddonTotal}</span>
+                    {/* Interactive Food Option in Delegate Pass Summary */}
+                    {isIeeeMember && selectedEvents.length > 0 ? (
+                      <div className="p-2.5 rounded-xl bg-[#0f2419] border border-[#4cc38a]/40 text-xs text-[#86efac] flex items-center justify-between gap-2">
+                        <div className="flex items-center gap-1.5">
+                          <CheckCircle2 className="w-4 h-4 text-[#4cc38a] shrink-0" />
+                          <span>IEEE Member Perk: Lunch Included</span>
                         </div>
-                        {foodAddonTotal > 0 && (
-                          <div className="flex justify-between items-center text-[#86efac]">
-                            <span className="flex items-center gap-1.5">
-                              <Utensils className="w-3.5 h-3.5 text-[#4cc38a]" />
-                              <span>Food & Lunch Token ({foodAddonTotal / 50} × ₹50)</span>
+                        <span className="text-[10px] bg-[#4cc38a]/20 text-[#86efac] px-2 py-0.5 rounded font-mono font-bold">
+                          Free ✓
+                        </span>
+                      </div>
+                    ) : totalTeamHeads === 1 ? (
+                      <div className="p-3 rounded-xl bg-gradient-to-r from-[#17161f] via-[#1a1710] to-[#17161f] border border-[#d4a935]/40 space-y-2">
+                        <div className="flex items-center justify-between">
+                          <span className="text-xs font-bold text-white flex items-center gap-1.5">
+                            <Utensils className="w-3.5 h-3.5 text-[#f2c14e]" />
+                            <span>Lunch & Food Option</span>
+                          </span>
+                          <span className="text-[10px] font-mono px-1.5 py-0.5 rounded font-semibold bg-[#f2c14e]/10 text-[#f2c14e] border border-[#f2c14e]/30">
+                            Optional +₹50
+                          </span>
+                        </div>
+                        <div className="grid grid-cols-2 gap-2">
+                          <button
+                            type="button"
+                            onClick={() => setWantsFood(false)}
+                            className={`py-2 px-2 rounded-xl text-xs font-semibold border transition-all cursor-pointer flex flex-col items-center justify-center gap-0.5 text-center ${
+                              !wantsFood
+                                ? 'bg-[#1f1b0e] text-[#f2c14e] border-[#d4a935] ring-1 ring-[#d4a935]/40 shadow-sm'
+                                : 'bg-[#0a0a0d] text-[#a79f8b] border-[#2e2b22] hover:border-[#3d382c]'
+                            }`}
+                          >
+                            <span className="font-bold">No Food</span>
+                            <span className="text-[10px] opacity-75 font-mono">₹{selectedEvents.length === 0 ? 100 : 150} Base</span>
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setWantsFood(true)}
+                            className={`py-2 px-2 rounded-xl text-xs font-semibold border transition-all cursor-pointer flex flex-col items-center justify-center gap-0.5 text-center ${
+                              wantsFood
+                                ? 'bg-[#1f1b0e] text-[#f2c14e] border-[#d4a935] ring-1 ring-[#d4a935]/40 shadow-sm'
+                                : 'bg-[#0a0a0d] text-[#a79f8b] border-[#2e2b22] hover:border-[#3d382c]'
+                            }`}
+                          >
+                            <span className="font-bold flex items-center gap-1">
+                              <span>Add Food</span>
+                              <span className="text-[9px] bg-[#4cc38a]/20 text-[#4cc38a] px-1 rounded font-mono">+₹50</span>
                             </span>
-                            <span className="font-mono font-semibold">+₹{foodAddonTotal}</span>
+                            <span className="text-[10px] opacity-75 font-mono">₹{selectedEvents.length === 0 ? 150 : 200} Total</span>
+                          </button>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="p-3 rounded-xl bg-gradient-to-r from-[#17161f] via-[#1a1710] to-[#17161f] border border-[#d4a935]/40 space-y-2.5">
+                        <div className="flex items-center justify-between">
+                          <span className="text-xs font-bold text-white flex items-center gap-1.5">
+                            <Utensils className="w-3.5 h-3.5 text-[#f2c14e]" />
+                            <span>Team Food Tokens ({foodCount}/{totalTeamHeads} Selected)</span>
+                          </span>
+                          <span className="text-[10px] font-mono px-1.5 py-0.5 rounded font-semibold bg-[#f2c14e]/10 text-[#f2c14e] border border-[#f2c14e]/30">
+                            +₹50 / head
+                          </span>
+                        </div>
+                        <div className="space-y-1.5">
+                          {/* Team Lead Food Toggle */}
+                          <div className="flex items-center justify-between p-2 rounded-lg bg-[#0a0a0d] border border-[#2e2b22]">
+                            <span className="text-xs text-white truncate max-w-[130px]">
+                              {name.trim() || 'Leader'} <span className="text-[10px] text-[#a79f8b]">(Lead)</span>
+                            </span>
+                            {isIeeeMember && selectedEvents.length > 0 ? (
+                              <span className="text-[10px] text-[#86efac] font-bold">IEEE Lunch Incl. ✓</span>
+                            ) : (
+                              <div className="flex items-center gap-1">
+                                <button
+                                  type="button"
+                                  onClick={() => setWantsFood(false)}
+                                  className={`px-2 py-0.5 rounded text-[10px] font-semibold transition-all cursor-pointer ${
+                                    !wantsFood ? 'bg-[#1f1b0e] text-[#f2c14e] border border-[#d4a935]' : 'text-[#a79f8b] hover:text-white'
+                                  }`}
+                                >
+                                  No Food
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => setWantsFood(true)}
+                                  className={`px-2 py-0.5 rounded text-[10px] font-semibold transition-all cursor-pointer ${
+                                    wantsFood ? 'bg-[#1f1b0e] text-[#f2c14e] border border-[#d4a935]' : 'text-[#a79f8b] hover:text-white'
+                                  }`}
+                                >
+                                  +₹50 Food
+                                </button>
+                              </div>
+                            )}
                           </div>
-                        )}
+
+                          {/* Teammates Food Toggles */}
+                          {activeTechEvent && activeTechDetails && activeTechDetails.members?.map((m, mIdx) => (
+                            <div key={mIdx} className="flex items-center justify-between p-2 rounded-lg bg-[#0a0a0d] border border-[#2e2b22]">
+                              <span className="text-xs text-white truncate max-w-[130px]">
+                                {m.name.trim() || `Member ${mIdx + 2}`}
+                              </span>
+                              {m.isIeeeMember ? (
+                                <span className="text-[10px] text-[#86efac] font-bold">IEEE Lunch Incl. ✓</span>
+                              ) : (
+                                <div className="flex items-center gap-1">
+                                  <button
+                                    type="button"
+                                    onClick={() => handleUpdateTeamMemberField(activeTechEvent.id, mIdx, 'wantsFood', false)}
+                                    className={`px-2 py-0.5 rounded text-[10px] font-semibold transition-all cursor-pointer ${
+                                      !m.wantsFood ? 'bg-[#1f1b0e] text-[#f2c14e] border border-[#d4a935]' : 'text-[#a79f8b] hover:text-white'
+                                    }`}
+                                  >
+                                    No Food
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => handleUpdateTeamMemberField(activeTechEvent.id, mIdx, 'wantsFood', true)}
+                                    className={`px-2 py-0.5 rounded text-[10px] font-semibold transition-all cursor-pointer ${
+                                      m.wantsFood ? 'bg-[#1f1b0e] text-[#f2c14e] border border-[#d4a935]' : 'text-[#a79f8b] hover:text-white'
+                                    }`}
+                                  >
+                                    +₹50 Food
+                                  </button>
+                                </div>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Cost Breakdown with GST */}
+                    <div className="space-y-2 pt-2 border-t border-[#2e2b22] text-xs">
+                      <div className="flex justify-between items-center text-[#a79f8b]">
+                        <span>Base Registration Subtotal</span>
+                        <span className="font-mono text-[#f3ecd9] font-medium">₹{subtotal - foodAddonTotal}</span>
+                      </div>
+                      {foodAddonTotal > 0 ? (
+                        <div className="flex justify-between items-center text-[#86efac]">
+                          <span className="flex items-center gap-1.5">
+                            <Utensils className="w-3.5 h-3.5 text-[#4cc38a]" />
+                            <span>Food & Lunch Token ({foodAddonTotal / 50} × ₹50)</span>
+                          </span>
+                          <div className="flex items-center gap-1.5">
+                            <span className="font-mono font-semibold">+₹{foodAddonTotal}</span>
+                            {totalTeamHeads === 1 && (
+                              <button
+                                type="button"
+                                onClick={() => setWantsFood(false)}
+                                className="text-[10px] text-[#f87171] hover:underline cursor-pointer ml-0.5"
+                                title="Remove food option"
+                              >
+                                (Remove)
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                      ) : (!isIeeeMember || selectedEvents.length === 0) ? (
+                        <div className="flex justify-between items-center text-[#a79f8b]">
+                          <span className="flex items-center gap-1.5">
+                            <Utensils className="w-3.5 h-3.5 text-[#a79f8b]" />
+                            <span>Food & Lunch Token</span>
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => setWantsFood(true)}
+                            className="text-[10px] font-bold text-[#f2c14e] hover:text-[#ffd166] cursor-pointer bg-[#f2c14e]/10 hover:bg-[#f2c14e]/20 px-2 py-0.5 rounded border border-[#f2c14e]/30 transition-all flex items-center gap-1"
+                          >
+                            <span>+ Add Food (₹50)</span>
+                          </button>
+                        </div>
+                      ) : null}
                         <div className="flex justify-between items-center text-[#a79f8b]">
                           <span>Net Subtotal</span>
                           <span className="font-mono text-[#f3ecd9] font-medium">₹{subtotal}</span>
