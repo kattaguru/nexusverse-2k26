@@ -23,10 +23,16 @@ import {
   Hash,
   BookOpen,
   Utensils,
-  Share2
+  Share2,
+  Laptop,
+  Gamepad2,
+  Lock,
+  AlertTriangle
 } from 'lucide-react';
 import { SymposiumEvent, SYMPOSIUM_CONFIG, SPOT_EVENT } from '../data/symposiumData';
-import { getRecordTeammates, getRecordMemberCount, getRecordLunchStats } from '../utils/delegateStats';
+import { getRecordTeammates, getRecordMemberCount, getRecordLunchStats, isMemberFoodEligible } from '../utils/delegateStats';
+
+export type QrPassType = 'master' | 'tech' | 'food' | 'spot';
 
 export interface TeamMemberInfo {
   name: string;
@@ -135,6 +141,11 @@ export const TicketPass: React.FC<TicketPassProps> = ({
   const totalMembers = 1 + teammates.length;
   const lunchStats = getRecordLunchStats(record);
 
+  const allKnownEvents = events.some(e => e.id === 'spot') ? events : [...events, SPOT_EVENT];
+  const registeredEvents = allKnownEvents.filter(e => record.eventIds.includes(e.id));
+  const hasTech = registeredEvents.some(e => e.id !== 'spot');
+  const hasSpot = registeredEvents.some(e => e.id === 'spot') || record.eventIds.includes('spot');
+
   // Parse if URL opened with a specific member (?member=2)
   const initialMemberIdx = (() => {
     if (typeof window !== 'undefined') {
@@ -147,13 +158,36 @@ export const TicketPass: React.FC<TicketPassProps> = ({
     return 0;
   })();
 
+  // Parse if URL opened with a specific QR pass type (?type=tech, ?type=lunch, ?type=spot)
+  const initialQrType: QrPassType = (() => {
+    if (typeof window !== 'undefined') {
+      const p = new URLSearchParams(window.location.search);
+      const t = (p.get('type') || p.get('desk') || p.get('qr') || '').toLowerCase();
+      if (t.includes('tech')) return 'tech';
+      if (t.includes('lunch') || t.includes('food')) return 'food';
+      if (t.includes('spot')) return 'spot';
+      if (t.includes('master') || t.includes('all')) return 'master';
+    }
+    return hasTech ? 'tech' : hasSpot ? 'spot' : 'master';
+  })();
+
   const [selectedMemberIdx, setSelectedMemberIdx] = useState<number>(initialMemberIdx);
+  const [activeQrType, setActiveQrType] = useState<QrPassType>(initialQrType);
   const [memberQrMap, setMemberQrMap] = useState<Record<string, string>>({});
 
   // Compute live verification URL origin
   const origin = typeof window !== 'undefined' && window.location.origin 
     ? window.location.origin 
     : 'https://www.nbkristieee.in';
+
+  // Helper to generate verification URL for any member and pass type
+  const getMemberVerifyUrl = (mIndex: number, mRoll: string, qrType: QrPassType = activeQrType): string => {
+    const base = `${origin}/register.html?passId=${encodeURIComponent(record.regId)}&member=${mIndex}&roll=${encodeURIComponent(mRoll || '')}`;
+    if (qrType === 'tech') return `${base}&type=tech`;
+    if (qrType === 'food') return `${base}&type=lunch`;
+    if (qrType === 'spot') return `${base}&type=spot`;
+    return `${base}&type=all`;
+  };
 
   // Build structured Member List with individual passCodes & verifyUrls
   const memberList = [
@@ -171,7 +205,11 @@ export const TicketPass: React.FC<TicketPassProps> = ({
       isIeeeMember: record.isIeeeMember,
       ieeeId: record.ieeeId,
       passCode: totalMembers > 1 ? `${record.regId}-M1` : record.regId,
-      verifyUrl: `${origin}/register.html?passId=${encodeURIComponent(record.regId)}&member=1&roll=${encodeURIComponent(record.roll || '')}`,
+      verifyUrl: getMemberVerifyUrl(1, record.roll || '', activeQrType),
+      masterVerifyUrl: getMemberVerifyUrl(1, record.roll || '', 'master'),
+      techVerifyUrl: getMemberVerifyUrl(1, record.roll || '', 'tech'),
+      foodVerifyUrl: getMemberVerifyUrl(1, record.roll || '', 'food'),
+      spotVerifyUrl: getMemberVerifyUrl(1, record.roll || '', 'spot'),
       isLunchCollected: Boolean(lunchStats.memberStatus['lead'] || lunchStats.isFullyCollected)
     },
     ...teammates.map((m, idx) => {
@@ -191,29 +229,71 @@ export const TicketPass: React.FC<TicketPassProps> = ({
         isIeeeMember: m.isIeeeMember,
         ieeeId: m.ieeeId,
         passCode: `${record.regId}-M${mIdx}`,
-        verifyUrl: `${origin}/register.html?passId=${encodeURIComponent(record.regId)}&member=${mIdx}&roll=${encodeURIComponent(m.roll || '')}`,
+        verifyUrl: getMemberVerifyUrl(mIdx, m.roll || '', activeQrType),
+        masterVerifyUrl: getMemberVerifyUrl(mIdx, m.roll || '', 'master'),
+        techVerifyUrl: getMemberVerifyUrl(mIdx, m.roll || '', 'tech'),
+        foodVerifyUrl: getMemberVerifyUrl(mIdx, m.roll || '', 'food'),
+        spotVerifyUrl: getMemberVerifyUrl(mIdx, m.roll || '', 'spot'),
         isLunchCollected: Boolean(lunchStats.memberStatus[key] || lunchStats.isFullyCollected)
       };
     })
   ];
 
   const selectedMember = memberList[selectedMemberIdx] || memberList[0];
-  const passVerificationUrl = selectedMember.verifyUrl;
+  const isSelectedFoodEligible = isMemberFoodEligible(record, selectedMember.key);
+  const isSelectedFoodCollected = Boolean(lunchStats.memberStatus[selectedMember.key] || lunchStats.isFullyCollected);
+  const isSelectedTechAttended = Boolean(record.memberTechStatus?.[selectedMember.key]);
+  const isSelectedSpotAttended = Boolean(record.memberSpotStatus?.[selectedMember.key]);
 
-  // Pre-generate crisp QR Data URLs for all members
+  const activeVerifyUrl = getMemberVerifyUrl(selectedMember.index, selectedMember.roll, activeQrType);
+  const passVerificationUrl = activeVerifyUrl;
+
+  // Pre-generate crisp QR Data URLs for all members & pass types
   useEffect(() => {
     let isMounted = true;
     const generateAll = async () => {
       const map: Record<string, string> = {};
       for (const m of memberList) {
         try {
-          const url = await QRCode.toDataURL(m.verifyUrl, {
+          // Master QR
+          const masterUrl = await QRCode.toDataURL(getMemberVerifyUrl(m.index, m.roll, 'master'), {
             width: 280,
             margin: 2,
             errorCorrectionLevel: 'H',
             color: { dark: '#000000', light: '#ffffff' }
           });
-          map[m.key] = url;
+          map[`${m.key}_master`] = masterUrl;
+          map[m.key] = masterUrl; // fallback
+
+          // Technical QR
+          if (hasTech) {
+            map[`${m.key}_tech`] = await QRCode.toDataURL(getMemberVerifyUrl(m.index, m.roll, 'tech'), {
+              width: 280,
+              margin: 2,
+              errorCorrectionLevel: 'H',
+              color: { dark: '#00294d', light: '#ffffff' }
+            });
+          }
+
+          // Food / Lunch Token QR
+          if (isMemberFoodEligible(record, m.key)) {
+            map[`${m.key}_food`] = await QRCode.toDataURL(getMemberVerifyUrl(m.index, m.roll, 'food'), {
+              width: 280,
+              margin: 2,
+              errorCorrectionLevel: 'H',
+              color: { dark: '#451a03', light: '#ffffff' }
+            });
+          }
+
+          // Spot Events QR
+          if (hasSpot) {
+            map[`${m.key}_spot`] = await QRCode.toDataURL(getMemberVerifyUrl(m.index, m.roll, 'spot'), {
+              width: 280,
+              margin: 2,
+              errorCorrectionLevel: 'H',
+              color: { dark: '#052e16', light: '#ffffff' }
+            });
+          }
         } catch (e) {
           console.error('Failed QR generation for', m.passCode, e);
         }
@@ -224,21 +304,35 @@ export const TicketPass: React.FC<TicketPassProps> = ({
     };
     generateAll();
     return () => { isMounted = false; };
-  }, [record.regId, teammates.length, origin]);
+  }, [record.regId, teammates.length, origin, hasTech, hasSpot]);
 
-  // Generate crisp, high-contrast QR Code onto canvas for active member
+  // Generate crisp, high-contrast QR Code onto canvas for active member and active QR type
   useEffect(() => {
     if (!canvasRef.current || !selectedMember) return;
     
+    // Check if the current selection is locked/ineligible
+    const foodEligible = isMemberFoodEligible(record, selectedMember.key);
+    if (activeQrType === 'food' && !foodEligible) return;
+    if (activeQrType === 'tech' && !hasTech) return;
+    if (activeQrType === 'spot' && !hasSpot) return;
+
+    const qrDarkColor = activeQrType === 'tech'
+      ? '#003366'
+      : activeQrType === 'food'
+      ? '#4a2500'
+      : activeQrType === 'spot'
+      ? '#064e3b'
+      : '#000000';
+
     QRCode.toCanvas(
       canvasRef.current, 
-      selectedMember.verifyUrl, 
+      activeVerifyUrl, 
       {
         width: 210,
         margin: 2,
         errorCorrectionLevel: 'H',
         color: {
-          dark: '#000000',
+          dark: qrDarkColor,
           light: '#ffffff'
         }
       }, 
@@ -246,7 +340,7 @@ export const TicketPass: React.FC<TicketPassProps> = ({
         if (error) console.error('QR code generation error:', error);
       }
     );
-  }, [selectedMemberIdx, selectedMember?.verifyUrl]);
+  }, [selectedMemberIdx, activeVerifyUrl, activeQrType]);
 
   const copyRegId = () => {
     navigator.clipboard.writeText(selectedMember.passCode || record.regId);
@@ -255,7 +349,7 @@ export const TicketPass: React.FC<TicketPassProps> = ({
   };
 
   const copyPassUrl = () => {
-    navigator.clipboard.writeText(selectedMember.verifyUrl);
+    navigator.clipboard.writeText(activeVerifyUrl);
     setCopiedUrl(true);
     setTimeout(() => setCopiedUrl(false), 2000);
   };
@@ -272,19 +366,14 @@ export const TicketPass: React.FC<TicketPassProps> = ({
     window.print();
   };
 
-  const allKnownEvents = events.some(e => e.id === 'spot') ? events : [...events, SPOT_EVENT];
-  const registeredEvents = allKnownEvents.filter(e => record.eventIds.includes(e.id));
-  const hasTech = registeredEvents.some(e => e.id !== 'spot');
-  const hasSpot = registeredEvents.some(e => e.id === 'spot') || record.eventIds.includes('spot');
-
-  // Generate WhatsApp Direct Share link for Participant Ticket (Customized per member)
-  const getWhatsAppShareUrl = (memberIdx?: number) => {
+  // Generate WhatsApp Direct Share link for Participant Ticket (Customized per member and active QR pass)
+  const getWhatsAppShareUrl = (memberIdx?: number, qrType: QrPassType = activeQrType) => {
     const target = memberList[memberIdx ?? selectedMemberIdx] || memberList[0];
     const eventNames = record.eventIds
       .map(id => allKnownEvents.find(e => e.id === id)?.name || id)
       .join(', ');
 
-    const targetFoodEligible = lunchStats.memberEligibility?.[target.key] !== false;
+    const targetFoodEligible = isMemberFoodEligible(record, target.key);
     const isSpotOnly = !record.eventIds || record.eventIds.length === 0 || (record.eventIds.length === 1 && record.eventIds[0] === 'spot');
     const foodShareText = targetFoodEligible
       ? `1 Delegate Meal Tray Included (${target.name})`
@@ -292,9 +381,20 @@ export const TicketPass: React.FC<TicketPassProps> = ({
       ? 'Not Included (Standard ₹100 Spot Pass without Food)'
       : 'Not Included (Standard ₹150 Registration without Food)';
 
+    const passCategoryLabel = qrType === 'tech'
+      ? '💻 Technical Event Entry Pass (Desk 2)'
+      : qrType === 'food'
+      ? '🍽️ Food & Lunch Meal Token (Desk 3)'
+      : qrType === 'spot'
+      ? '🎮 Spot Events Arena Pass (Desk 4)'
+      : '🌟 Official Delegate Master Pass (All Desks)';
+
+    const targetUrl = getMemberVerifyUrl(target.index, target.roll, qrType);
+
     const shareText = 
 `🎟️ *NEXUSVERSE 2K26 - OFFICIAL ENTRY PASS*
 ━━━━━━━━━━━━━━━━━━━━
+📌 *Pass Category:* ${passCategoryLabel}
 👤 *Delegate:* ${target.name} (${target.role})
 🆔 *Pass ID:* ${target.passCode}
 🎓 *Roll No:* ${target.roll || 'N/A'}
@@ -307,10 +407,10 @@ export const TicketPass: React.FC<TicketPassProps> = ({
 📍 *Venue:* N.B.K.R. Institute of Science & Technology, Vidyanagar
 📅 *Date:* 29th October 2026
 
-🔗 *View Live Ticket & Individual QR Pass:*
-${target.verifyUrl}
+🔗 *View Live Ticket & Selected Checkpoint QR Pass:*
+${targetUrl}
 
-_(Show this pass or QR code at the registration desk for badge, kit, and meal tray collection)_`;
+_(Show this pass or QR code at the checkpoint desk for entry and meal collection)_`;
 
     return `https://api.whatsapp.com/send?text=${encodeURIComponent(shareText)}`;
   };
@@ -658,6 +758,185 @@ _(Show this pass or QR code at the registration desk for badge, kit, and meal tr
                   </span>
                 )}
               </div>
+
+              {/* Checkpoint Passes & Smart Tokens Overview Grid */}
+              <div className="pt-2 space-y-2.5">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-bold uppercase tracking-wider text-[#d4a935] flex items-center gap-1.5">
+                    <QrIcon className="w-4 h-4 text-[#d4a935]" />
+                    <span>Checkpoint QR Passes & Smart Tokens</span>
+                  </span>
+                  <span className="text-[10px] text-[#a79f8b] font-mono hidden sm:inline">
+                    Tap any card to preview QR
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 text-xs">
+                  {/* Card 1: Technical Event Pass */}
+                  <div
+                    onClick={() => hasTech && setActiveQrType('tech')}
+                    className={`p-3 rounded-2xl border transition-all flex flex-col justify-between space-y-2 ${
+                      hasTech
+                        ? activeQrType === 'tech'
+                          ? 'bg-gradient-to-br from-[#0c2238] via-[#091829] to-[#06101c] border-[#0088d4] shadow-md shadow-[#0088d4]/15 ring-1 ring-[#0088d4] cursor-pointer'
+                          : 'bg-[#0d141e] border-[#1b324d] hover:border-[#0088d4]/60 cursor-pointer'
+                        : 'bg-[#121217] border-white/5 opacity-50 cursor-not-allowed'
+                    }`}
+                  >
+                    <div className="flex items-start justify-between gap-1.5">
+                      <div className="flex items-center gap-2 min-w-0">
+                        <div className="w-7 h-7 rounded-lg bg-[#0088d4]/20 border border-[#0088d4]/40 text-[#70baff] flex items-center justify-center shrink-0">
+                          <Laptop className="w-3.5 h-3.5" />
+                        </div>
+                        <div className="min-w-0">
+                          <span className="font-bold text-white text-xs block truncate">Technical Pass</span>
+                          <span className="text-[10px] text-[#70baff] font-mono block">Desk 2 · Lab</span>
+                        </div>
+                      </div>
+                      <span className={`text-[9px] font-mono font-bold px-1.5 py-0.2 rounded-full border shrink-0 ${
+                        !hasTech
+                          ? 'bg-white/5 text-[#a79f8b] border-white/10'
+                          : isSelectedTechAttended
+                          ? 'bg-[#22c55e]/20 text-[#86efac] border-[#22c55e]/40'
+                          : 'bg-[#0088d4]/20 text-[#70baff] border-[#0088d4]/40'
+                      }`}>
+                        {!hasTech ? 'Not Reg' : isSelectedTechAttended ? 'Verified ✓' : 'Ready'}
+                      </span>
+                    </div>
+
+                    <div className="text-[10px] text-[#a79f8b] line-clamp-2">
+                      {hasTech 
+                        ? registeredEvents.filter(e => e.id !== 'spot').map(e => e.name).join(', ') || 'Paper Presentation / Technical Events'
+                        : 'No technical event in registration.'}
+                    </div>
+
+                    <div className="pt-1.5 border-t border-white/10 flex items-center justify-between text-[10px]">
+                      <span className="text-[#70baff] font-semibold text-[10px]">
+                        {hasTech ? (activeQrType === 'tech' ? '● Active in View' : 'Show Pass →') : 'Not Included'}
+                      </span>
+                      {hasTech && memberQrMap[`${selectedMember.key}_tech`] && (
+                        <img 
+                          src={memberQrMap[`${selectedMember.key}_tech`]} 
+                          alt="Tech QR" 
+                          className="w-6 h-6 rounded bg-white p-0.5 border border-[#0088d4]" 
+                        />
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Card 2: Food & Lunch Token */}
+                  <div
+                    onClick={() => setActiveQrType('food')}
+                    className={`p-3 rounded-2xl border transition-all flex flex-col justify-between space-y-2 cursor-pointer ${
+                      isSelectedFoodEligible
+                        ? activeQrType === 'food'
+                          ? 'bg-gradient-to-br from-[#2a1b07] via-[#1c1205] to-[#120b02] border-[#f59e0b] shadow-md shadow-[#f59e0b]/15 ring-1 ring-[#f59e0b]'
+                          : 'bg-[#1a140d] border-[#3d2c19] hover:border-[#f59e0b]/60'
+                        : activeQrType === 'food'
+                        ? 'bg-[#1f1212] border-red-500/40 ring-1 ring-red-500/30'
+                        : 'bg-[#151210] border-white/5 hover:border-white/15'
+                    }`}
+                  >
+                    <div className="flex items-start justify-between gap-1.5">
+                      <div className="flex items-center gap-2 min-w-0">
+                        <div className="w-7 h-7 rounded-lg bg-[#f59e0b]/20 border border-[#f59e0b]/40 text-[#fde68a] flex items-center justify-center shrink-0">
+                          <Utensils className="w-3.5 h-3.5" />
+                        </div>
+                        <div className="min-w-0">
+                          <span className="font-bold text-white text-xs block truncate">Food Token</span>
+                          <span className="text-[10px] text-[#fde68a] font-mono block">Desk 3 · Catering</span>
+                        </div>
+                      </div>
+                      <span className={`text-[9px] font-mono font-bold px-1.5 py-0.2 rounded-full border shrink-0 ${
+                        !isSelectedFoodEligible
+                          ? 'bg-white/5 text-[#a79f8b] border-white/10'
+                          : isSelectedFoodCollected
+                          ? 'bg-[#22c55e]/20 text-[#86efac] border-[#22c55e]/40'
+                          : 'bg-[#f59e0b]/20 text-[#fde68a] border-[#f59e0b]/40'
+                      }`}>
+                        {!isSelectedFoodEligible ? 'No Food' : isSelectedFoodCollected ? 'Claimed ✓' : '1 Meal Ready'}
+                      </span>
+                    </div>
+
+                    <div className="text-[10px] text-[#a79f8b] line-clamp-2">
+                      {isSelectedFoodEligible
+                        ? isSelectedFoodCollected
+                          ? '1 Meal tray claimed at Catering Counter.'
+                          : '1 Hot Delegate Meal Tray allocated.'
+                        : (hasSpot && !hasTech 
+                            ? 'Standard ₹100 Spot pass without food.' 
+                            : 'Standard ₹150 pass without food add-on.')}
+                    </div>
+
+                    <div className="pt-1.5 border-t border-white/10 flex items-center justify-between text-[10px]">
+                      <span className={isSelectedFoodEligible ? 'text-[#fde68a] font-semibold text-[10px]' : 'text-[#a79f8b] text-[10px]'}>
+                        {isSelectedFoodEligible ? (activeQrType === 'food' ? '● Active in View' : 'Show Token →') : 'No Food'}
+                      </span>
+                      {isSelectedFoodEligible && memberQrMap[`${selectedMember.key}_food`] ? (
+                        <img 
+                          src={memberQrMap[`${selectedMember.key}_food`]} 
+                          alt="Food QR" 
+                          className="w-6 h-6 rounded bg-white p-0.5 border border-[#f59e0b]" 
+                        />
+                      ) : (
+                        <Lock className="w-3.5 h-3.5 text-[#a79f8b] opacity-60" />
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Card 3: Spot Events Pass */}
+                  <div
+                    onClick={() => hasSpot && setActiveQrType('spot')}
+                    className={`p-3 rounded-2xl border transition-all flex flex-col justify-between space-y-2 ${
+                      hasSpot
+                        ? activeQrType === 'spot'
+                          ? 'bg-gradient-to-br from-[#072417] via-[#041910] to-[#020f0a] border-[#10b981] shadow-md shadow-[#10b981]/15 ring-1 ring-[#10b981] cursor-pointer'
+                          : 'bg-[#0d1c14] border-[#183a28] hover:border-[#10b981]/60 cursor-pointer'
+                        : 'bg-[#121217] border-white/5 opacity-50 cursor-not-allowed'
+                    }`}
+                  >
+                    <div className="flex items-start justify-between gap-1.5">
+                      <div className="flex items-center gap-2 min-w-0">
+                        <div className="w-7 h-7 rounded-lg bg-[#10b981]/20 border border-[#10b981]/40 text-[#86efac] flex items-center justify-center shrink-0">
+                          <Gamepad2 className="w-3.5 h-3.5" />
+                        </div>
+                        <div className="min-w-0">
+                          <span className="font-bold text-white text-xs block truncate">Spot Arena</span>
+                          <span className="text-[10px] text-[#86efac] font-mono block">Desk 4 · Arena</span>
+                        </div>
+                      </div>
+                      <span className={`text-[9px] font-mono font-bold px-1.5 py-0.2 rounded-full border shrink-0 ${
+                        !hasSpot
+                          ? 'bg-white/5 text-[#a79f8b] border-white/10'
+                          : isSelectedSpotAttended
+                          ? 'bg-[#22c55e]/20 text-[#86efac] border-[#22c55e]/40'
+                          : 'bg-[#10b981]/20 text-[#86efac] border-[#10b981]/40'
+                      }`}>
+                        {!hasSpot ? 'Not Reg' : isSelectedSpotAttended ? 'Verified ✓' : 'Ready'}
+                      </span>
+                    </div>
+
+                    <div className="text-[10px] text-[#a79f8b] line-clamp-2">
+                      {hasSpot
+                        ? 'Afternoon Arena Competitions (01:30 PM - 03:30 PM)'
+                        : 'No spot pass added.'}
+                    </div>
+
+                    <div className="pt-1.5 border-t border-white/10 flex items-center justify-between text-[10px]">
+                      <span className="text-[#86efac] font-semibold text-[10px]">
+                        {hasSpot ? (activeQrType === 'spot' ? '● Active in View' : 'Show Pass →') : 'Not Included'}
+                      </span>
+                      {hasSpot && memberQrMap[`${selectedMember.key}_spot`] && (
+                        <img 
+                          src={memberQrMap[`${selectedMember.key}_spot`]} 
+                          alt="Spot QR" 
+                          className="w-6 h-6 rounded bg-white p-0.5 border border-[#10b981]" 
+                        />
+                      )}
+                    </div>
+                  </div>
+                </div>
+              </div>
             </div>
 
             {/* Confirmed Events & Schedules */}
@@ -960,10 +1239,10 @@ _(Show this pass or QR code at the registration desk for badge, kit, and meal tr
           </div>
 
           {/* Right Column: High-Contrast Scannable QR Security Column (4 Cols) */}
-          <div className="lg:col-span-4 flex flex-col items-center justify-center p-5 bg-[#0e0e14] rounded-2xl border-2 border-[#d4a935]/50 text-center space-y-4 shadow-xl">
+          <div className="lg:col-span-4 flex flex-col items-center justify-center p-4 sm:p-5 bg-[#0e0e14] rounded-2xl border-2 border-[#d4a935]/50 text-center space-y-4 shadow-xl">
             {/* Member Switcher Tabs (When Team Pass has > 1 member) */}
             {totalMembers > 1 && (
-              <div className="w-full space-y-2 no-print">
+              <div className="w-full space-y-1.5 no-print">
                 <div className="flex items-center justify-between text-[11px] text-[#f2c14e] font-semibold">
                   <span className="flex items-center gap-1">
                     <Users className="w-3.5 h-3.5" />
@@ -979,109 +1258,322 @@ _(Show this pass or QR code at the registration desk for badge, kit, and meal tr
                       key={m.key}
                       type="button"
                       onClick={() => setSelectedMemberIdx(idx)}
-                      className={`flex-1 min-w-[100px] px-2 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-1 cursor-pointer ${
+                      className={`flex-1 min-w-[95px] px-2 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-1 cursor-pointer ${
                         selectedMemberIdx === idx
                           ? 'bg-gradient-to-r from-[#d4a935] to-[#f2c14e] text-[#1a1300] shadow-md shadow-[#d4a935]/20'
                           : 'text-[#d8cea7] hover:text-white hover:bg-white/5'
                       }`}
                     >
                       <span>{idx === 0 ? '👑 Lead' : `M${idx + 1}`}:</span>
-                      <span className="truncate max-w-[80px]">{m.name.split(' ')[0]}</span>
+                      <span className="truncate max-w-[70px]">{m.name.split(' ')[0]}</span>
                     </button>
                   ))}
                 </div>
               </div>
             )}
 
-            {/* Scannable QR Container with Crisp White Background */}
-            <div className="p-3 bg-white rounded-2xl shadow-2xl border-2 border-[#d4a935] ring-4 ring-[#d4a935]/20 flex flex-col items-center w-full max-w-[240px]">
-              <canvas 
-                ref={canvasRef} 
-                className="block w-[180px] h-[180px] sm:w-[200px] sm:h-[200px] rounded-lg" 
-              />
-              <div className="mt-2 text-center w-full px-1">
-                <span className="text-[10px] font-mono font-bold tracking-wider text-black block uppercase">
-                  {totalMembers > 1 ? `${selectedMember.role.toUpperCase()} QR PASS` : 'INSTANT CAMERA SCAN'}
+            {/* Segmented Checkpoint QR Pass Switcher Tabs */}
+            <div className="w-full space-y-1.5 no-print">
+              <div className="flex items-center justify-between text-[11px] font-semibold">
+                <span className="flex items-center gap-1 text-[#f2c14e]">
+                  <QrIcon className="w-3.5 h-3.5" />
+                  <span>Checkpoint Pass Type:</span>
                 </span>
-                <span className="text-[10px] font-bold text-[#1f2937] block mt-0.5 truncate" title={selectedMember.name}>
-                  {selectedMember.name}
+                <span className={`text-[10px] font-mono uppercase font-bold ${
+                  activeQrType === 'tech' ? 'text-[#70baff]' : activeQrType === 'food' ? 'text-[#fde68a]' : activeQrType === 'spot' ? 'text-[#86efac]' : 'text-[#f2c14e]'
+                }`}>
+                  {activeQrType === 'tech' ? 'Desk 2 Pass' : activeQrType === 'food' ? 'Desk 3 Token' : activeQrType === 'spot' ? 'Desk 4 Pass' : 'Master Pass'}
                 </span>
-                <span className="text-[9px] text-[#555] font-mono block">
-                  {selectedMember.roll ? `Roll: ${selectedMember.roll}` : selectedMember.passCode}
-                </span>
+              </div>
+
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-1 p-1 bg-[#14141d] rounded-xl border border-[#2e2b22]">
+                {/* 1. Master Pass */}
+                <button
+                  type="button"
+                  onClick={() => setActiveQrType('master')}
+                  className={`px-1.5 py-1.5 rounded-lg text-xs font-bold transition-all flex flex-col items-center justify-center gap-0.5 cursor-pointer ${
+                    activeQrType === 'master'
+                      ? 'bg-gradient-to-r from-[#d4a935] to-[#f2c14e] text-[#1a1300] shadow-md shadow-[#d4a935]/20 ring-1 ring-white/30'
+                      : 'text-[#d8cea7] hover:text-white hover:bg-white/5'
+                  }`}
+                  title="Master Pass accepted at all symposium desks"
+                >
+                  <div className="flex items-center gap-1">
+                    <Sparkles className="w-3 h-3" />
+                    <span>Master</span>
+                  </div>
+                  <span className="text-[8px] font-normal opacity-80">All Desks</span>
+                </button>
+
+                {/* 2. Technical Event Pass */}
+                <button
+                  type="button"
+                  onClick={() => hasTech && setActiveQrType('tech')}
+                  className={`px-1.5 py-1.5 rounded-lg text-xs font-bold transition-all flex flex-col items-center justify-center gap-0.5 ${
+                    !hasTech
+                      ? 'opacity-40 text-[#a79f8b] cursor-not-allowed'
+                      : activeQrType === 'tech'
+                      ? 'bg-gradient-to-r from-[#0088d4] to-[#005a8f] text-white shadow-md shadow-[#0088d4]/25 ring-1 ring-white/30 cursor-pointer'
+                      : 'text-[#9fc7e8] hover:text-white hover:bg-[#0088d4]/10 cursor-pointer'
+                  }`}
+                  title={hasTech ? "Technical Event Entry Pass for Desk 2" : "Not registered for Technical Events"}
+                >
+                  <div className="flex items-center gap-1">
+                    <Laptop className="w-3 h-3" />
+                    <span>Technical</span>
+                  </div>
+                  <span className="text-[8px] font-normal opacity-80">
+                    {!hasTech ? 'Not Reg' : isSelectedTechAttended ? 'Verified ✓' : 'Desk 2'}
+                  </span>
+                </button>
+
+                {/* 3. Food / Lunch Token */}
+                <button
+                  type="button"
+                  onClick={() => setActiveQrType('food')}
+                  className={`px-1.5 py-1.5 rounded-lg text-xs font-bold transition-all flex flex-col items-center justify-center gap-0.5 cursor-pointer ${
+                    activeQrType === 'food'
+                      ? 'bg-gradient-to-r from-[#f59e0b] to-[#d97706] text-[#1a1300] shadow-md shadow-[#f59e0b]/25 ring-1 ring-white/30'
+                      : isSelectedFoodEligible
+                      ? 'text-[#fde68a] hover:text-white hover:bg-[#f59e0b]/10'
+                      : 'text-[#a79f8b] opacity-60 hover:opacity-90 hover:bg-white/5'
+                  }`}
+                  title={isSelectedFoodEligible ? "Lunch Meal Token for Desk 3 Catering" : "No Food Included (Standard Registration)"}
+                >
+                  <div className="flex items-center gap-1">
+                    <Utensils className="w-3 h-3" />
+                    <span>Food Token</span>
+                  </div>
+                  <span className="text-[8px] font-normal opacity-80">
+                    {!isSelectedFoodEligible ? 'No Food' : isSelectedFoodCollected ? 'Claimed ✓' : 'Desk 3'}
+                  </span>
+                </button>
+
+                {/* 4. Spot Arena Pass */}
+                <button
+                  type="button"
+                  onClick={() => hasSpot && setActiveQrType('spot')}
+                  className={`px-1.5 py-1.5 rounded-lg text-xs font-bold transition-all flex flex-col items-center justify-center gap-0.5 ${
+                    !hasSpot
+                      ? 'opacity-40 text-[#a79f8b] cursor-not-allowed'
+                      : activeQrType === 'spot'
+                      ? 'bg-gradient-to-r from-[#10b981] to-[#059669] text-white shadow-md shadow-[#10b981]/25 ring-1 ring-white/30 cursor-pointer'
+                      : 'text-[#86efac] hover:text-white hover:bg-[#10b981]/10 cursor-pointer'
+                  }`}
+                  title={hasSpot ? "Spot Events Arena Pass for Desk 4" : "Not registered for Spot Events"}
+                >
+                  <div className="flex items-center gap-1">
+                    <Gamepad2 className="w-3 h-3" />
+                    <span>Spot Arena</span>
+                  </div>
+                  <span className="text-[8px] font-normal opacity-80">
+                    {!hasSpot ? 'Not Reg' : isSelectedSpotAttended ? 'Verified ✓' : 'Desk 4'}
+                  </span>
+                </button>
               </div>
             </div>
 
-            {/* QR Instructions & Actions */}
-            <div className="w-full space-y-2.5">
-              <div className="text-center">
-                <span className="text-[11px] font-mono font-bold text-[#f2c14e] block flex items-center justify-center gap-1.5">
-                  <QrIcon className="w-3.5 h-3.5 text-[#f2c14e]" />
-                  <span>INDIVIDUAL VERIFIED PASS</span>
-                </span>
-                <p className="text-[10px] text-[#a79f8b] mt-1 leading-relaxed">
-                  Scan at admin desk to verify {selectedMember.name}&apos;s identity, lab attendance, and meal tray dispensing.
-                </p>
-              </div>
-
-              {/* Direct Link Preview & Copy Link Button */}
-              <div className="pt-2 border-t border-[#2e2b22] space-y-2">
-                <a
-                  href={getWhatsAppShareUrl()}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="w-full py-2.5 px-3 rounded-xl bg-gradient-to-r from-[#25d366] to-[#128c7e] text-white hover:brightness-105 font-bold text-xs flex items-center justify-center gap-2 transition-all cursor-pointer shadow-md shadow-[#25d366]/20 no-print"
-                >
-                  <MessageCircle className="w-4 h-4 fill-current" />
-                  <span>Share {totalMembers > 1 ? `${selectedMember.name.split(' ')[0]}'s Pass` : 'Pass'} on WhatsApp</span>
-                  <ExternalLink className="w-3 h-3 opacity-80" />
-                </a>
-
-                <a
-                  href={selectedMember.verifyUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="w-full py-2 px-3 rounded-xl bg-[#1f1b0e] border border-[#d4a935]/60 text-[#f2c14e] hover:bg-[#f2c14e] hover:text-[#1a1300] font-bold text-xs flex items-center justify-center gap-1.5 transition-all cursor-pointer shadow-sm no-print"
-                >
-                  <span>Open {totalMembers > 1 ? `${selectedMember.name.split(' ')[0]}'s Link` : 'Live Pass Link'}</span>
-                  <ExternalLink className="w-3.5 h-3.5" />
-                </a>
-
+            {/* Scannable QR Container OR Ineligible State Display */}
+            {activeQrType === 'food' && !isSelectedFoodEligible ? (
+              <div className="p-4 bg-[#181308] border-2 border-[#f59e0b]/40 rounded-2xl flex flex-col items-center text-center space-y-3 w-full max-w-[240px] shadow-lg">
+                <div className="w-12 h-12 rounded-2xl bg-[#f59e0b]/10 border border-[#f59e0b]/30 flex items-center justify-center text-[#f59e0b]">
+                  <Utensils className="w-6 h-6" />
+                </div>
+                <div>
+                  <span className="text-xs font-bold text-white block">No Food Token Purchased</span>
+                  <p className="text-[10px] text-[#d8cea7] mt-1 leading-relaxed">
+                    {hasSpot && !hasTech 
+                      ? 'Registered under Standard ₹100 Spot Pass without food add-on.' 
+                      : 'Registered under Standard ₹150 Non-IEEE fee without the ₹50 food add-on.'}
+                  </p>
+                </div>
+                <div className="p-2 rounded-xl bg-white/5 border border-white/10 w-full text-[9px] text-[#a79f8b]">
+                  <span>Meal tray tokens are only dispensed for IEEE members or delegates who added food.</span>
+                </div>
                 <button
                   type="button"
-                  onClick={copyPassUrl}
-                  className="w-full py-1.5 px-3 rounded-xl bg-white/5 border border-white/10 text-[#d8cea7] hover:text-white hover:border-[#d4a935]/40 text-[11px] font-semibold flex items-center justify-center gap-1.5 transition-colors cursor-pointer no-print"
+                  onClick={() => setActiveQrType(hasTech ? 'tech' : hasSpot ? 'spot' : 'master')}
+                  className="w-full py-1.5 px-2 rounded-lg bg-[#f2c14e] text-[#1a1300] font-bold text-[11px] hover:bg-[#d4a935] cursor-pointer"
                 >
-                  {copiedUrl ? <Check className="w-3.5 h-3.5 text-[#4cc38a]" /> : <Copy className="w-3.5 h-3.5" />}
-                  <span>{copiedUrl ? 'Copied Link!' : 'Copy Verification URL'}</span>
+                  Show {hasTech ? 'Technical Pass' : 'Master Pass'}
                 </button>
               </div>
+            ) : activeQrType === 'tech' && !hasTech ? (
+              <div className="p-4 bg-[#0a1520] border-2 border-[#0088d4]/40 rounded-2xl flex flex-col items-center text-center space-y-3 w-full max-w-[240px] shadow-lg">
+                <div className="w-12 h-12 rounded-2xl bg-[#0088d4]/10 border border-[#0088d4]/30 flex items-center justify-center text-[#70baff]">
+                  <Laptop className="w-6 h-6" />
+                </div>
+                <div>
+                  <span className="text-xs font-bold text-white block">Not Registered for Technical Events</span>
+                  <p className="text-[10px] text-[#8ea8c9] mt-1 leading-relaxed">
+                    This delegate registered exclusively for Afternoon Spot Events (Track 2).
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setActiveQrType('spot')}
+                  className="w-full py-1.5 px-2 rounded-lg bg-[#0088d4] text-white font-bold text-[11px] hover:bg-[#0070b3] cursor-pointer"
+                >
+                  Show Spot Arena Pass
+                </button>
+              </div>
+            ) : activeQrType === 'spot' && !hasSpot ? (
+              <div className="p-4 bg-[#0a1c12] border-2 border-[#10b981]/40 rounded-2xl flex flex-col items-center text-center space-y-3 w-full max-w-[240px] shadow-lg">
+                <div className="w-12 h-12 rounded-2xl bg-[#10b981]/10 border border-[#10b981]/30 flex items-center justify-center text-[#86efac]">
+                  <Gamepad2 className="w-6 h-6" />
+                </div>
+                <div>
+                  <span className="text-xs font-bold text-white block">Not Registered for Spot Events</span>
+                  <p className="text-[10px] text-[#86efac]/80 mt-1 leading-relaxed">
+                    This delegate registered for Technical Events. Spot Arena games require a spot pass.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setActiveQrType('tech')}
+                  className="w-full py-1.5 px-2 rounded-lg bg-[#10b981] text-white font-bold text-[11px] hover:bg-[#059669] cursor-pointer"
+                >
+                  Show Technical Pass
+                </button>
+              </div>
+            ) : (
+              <div className={`p-3 bg-white rounded-2xl shadow-2xl border-2 ring-4 flex flex-col items-center w-full max-w-[240px] transition-all ${
+                activeQrType === 'tech'
+                  ? 'border-[#0088d4] ring-[#0088d4]/20'
+                  : activeQrType === 'food'
+                  ? 'border-[#f59e0b] ring-[#f59e0b]/20'
+                  : activeQrType === 'spot'
+                  ? 'border-[#10b981] ring-[#10b981]/20'
+                  : 'border-[#d4a935] ring-[#d4a935]/20'
+              }`}>
+                <canvas 
+                  ref={canvasRef} 
+                  className="block w-[180px] h-[180px] sm:w-[200px] sm:h-[200px] rounded-lg" 
+                />
+                <div className="mt-2 text-center w-full px-1">
+                  <span className={`text-[10px] font-mono font-bold tracking-wider block uppercase ${
+                    activeQrType === 'tech' ? 'text-[#00629b]' : activeQrType === 'food' ? 'text-[#b45309]' : activeQrType === 'spot' ? 'text-[#047857]' : 'text-black'
+                  }`}>
+                    {activeQrType === 'tech'
+                      ? '💻 TECHNICAL EVENT PASS'
+                      : activeQrType === 'food'
+                      ? '🍽️ FOOD / LUNCH TOKEN'
+                      : activeQrType === 'spot'
+                      ? '🎮 SPOT ARENA PASS'
+                      : (totalMembers > 1 ? `${selectedMember.role.toUpperCase()} MASTER PASS` : 'INSTANT CAMERA SCAN')}
+                  </span>
+                  <span className="text-[10px] font-bold text-[#1f2937] block mt-0.5 truncate" title={selectedMember.name}>
+                    {selectedMember.name}
+                  </span>
+                  <span className="text-[9px] text-[#555] font-mono block">
+                    {selectedMember.roll ? `Roll: ${selectedMember.roll}` : selectedMember.passCode}
+                  </span>
+                </div>
+              </div>
+            )}
 
-              {/* Security Authorization Stamp */}
-              <div className="p-2.5 rounded-xl bg-[#14141d] border border-[#2e2b22] text-[10px] text-[#a79f8b] space-y-1">
-                <div className="flex items-center justify-between">
-                  <span>Authorized Reception:</span>
-                  <strong className="text-white">Desk 1 / Desk 2</strong>
-                </div>
-                <div className="flex items-center justify-between">
-                  <span>Entry Status:</span>
-                  <strong className="text-[#4cc38a]">AUTHORIZED ✓</strong>
-                </div>
-                <div className="flex items-center justify-between">
-                  <span>Food / Lunch Tokens:</span>
-                  <strong className={lunchStats.totalMealsAllocated === 0 ? 'text-[#a79f8b]' : lunchStats.isFullyCollected ? 'text-[#4cc38a]' : 'text-[#f2c14e]'}>
-                    {lunchStats.totalMealsAllocated === 0
-                      ? 'NOT INCLUDED (STANDARD ₹150 PASS)'
-                      : lunchStats.isFullyCollected
-                      ? `ALL ${lunchStats.totalMealsAllocated} MEALS CLAIMED ✓`
-                      : `${lunchStats.mealsDispensed} / ${lunchStats.totalMealsAllocated} MEALS CLAIMED`}
-                  </strong>
-                </div>
-                <div className="text-[9px] text-[#d4a935] text-right font-medium">
+            {/* Purpose Instructions & Checkpoint Status Banner */}
+            <div 
+              className="p-2.5 rounded-xl border text-xs text-left space-y-1.5 transition-all w-full"
+              style={{
+                backgroundColor: activeQrType === 'tech' ? '#0a1926' : activeQrType === 'food' ? '#1f160a' : activeQrType === 'spot' ? '#0a1f14' : '#14141d',
+                borderColor: activeQrType === 'tech' ? '#0088d440' : activeQrType === 'food' ? '#f59e0b40' : activeQrType === 'spot' ? '#10b98140' : '#2e2b22'
+              }}
+            >
+              <div className="flex items-center justify-between text-[11px] font-bold">
+                <span className={activeQrType === 'tech' ? 'text-[#70baff]' : activeQrType === 'food' ? 'text-[#fde68a]' : activeQrType === 'spot' ? 'text-[#86efac]' : 'text-[#f2c14e]'}>
+                  {activeQrType === 'tech' ? 'Desk 2: Technical Lab Scan' : activeQrType === 'food' ? 'Desk 3: Food / Meal Counter' : activeQrType === 'spot' ? 'Desk 4: Spot Arena Scan' : 'All Desks: Universal Scan'}
+                </span>
+                <span className={`text-[10px] font-bold font-mono px-1.5 py-0.2 rounded border ${
+                  activeQrType === 'tech'
+                    ? isSelectedTechAttended ? 'bg-[#22c55e]/20 text-[#86efac] border-[#22c55e]/40' : 'bg-[#0088d4]/20 text-[#70baff] border-[#0088d4]/40'
+                    : activeQrType === 'food'
+                    ? !isSelectedFoodEligible ? 'bg-red-500/20 text-red-300 border-red-500/40' : isSelectedFoodCollected ? 'bg-[#22c55e]/20 text-[#86efac] border-[#22c55e]/40' : 'bg-[#f59e0b]/20 text-[#fde68a] border-[#f59e0b]/40'
+                    : activeQrType === 'spot'
+                    ? isSelectedSpotAttended ? 'bg-[#22c55e]/20 text-[#86efac] border-[#22c55e]/40' : 'bg-[#10b981]/20 text-[#86efac] border-[#10b981]/40'
+                    : 'bg-[#22c55e]/20 text-[#86efac] border-[#22c55e]/40'
+                }`}>
+                  {activeQrType === 'tech'
+                    ? isSelectedTechAttended ? 'VERIFIED ✓' : 'READY TO SCAN'
+                    : activeQrType === 'food'
+                    ? !isSelectedFoodEligible ? 'NO FOOD' : isSelectedFoodCollected ? 'CLAIMED ✓' : '1 MEAL READY'
+                    : activeQrType === 'spot'
+                    ? isSelectedSpotAttended ? 'VERIFIED ✓' : 'READY TO SCAN'
+                    : 'AUTHORIZED ✓'}
+                </span>
+              </div>
+              <p className="text-[10px] text-[#a79f8b] leading-relaxed">
+                {activeQrType === 'tech'
+                  ? `Present this QR at Desk 2 (Computer Lab / Seminar Hall) to verify technical event attendance for ${selectedMember.name}.`
+                  : activeQrType === 'food'
+                  ? isSelectedFoodEligible
+                    ? isSelectedFoodCollected
+                      ? `Meal tray already claimed at Desk 3. (1-Time redemption logged).`
+                      : `Present this QR at Desk 3 (Catering Counter) to redeem 1 hot delegate meal tray.`
+                    : `This pass does not include food. Standard registration without food add-on.`
+                  : activeQrType === 'spot'
+                  ? `Present this QR at Desk 4 (Afternoon Arena, 01:30 PM) for entry into non-technical games & spot challenges.`
+                  : `Universal pass recognized at Reception (Desk 1), Technical (Desk 2), Food (Desk 3), and Spot (Desk 4).`}
+              </p>
+            </div>
+
+            {/* Direct Link Preview & Copy Link Button */}
+            <div className="w-full space-y-2 pt-2 border-t border-[#2e2b22]">
+              <a
+                href={getWhatsAppShareUrl()}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="w-full py-2.5 px-3 rounded-xl bg-gradient-to-r from-[#25d366] to-[#128c7e] text-white hover:brightness-105 font-bold text-xs flex items-center justify-center gap-2 transition-all cursor-pointer shadow-md shadow-[#25d366]/20 no-print"
+              >
+                <MessageCircle className="w-4 h-4 fill-current" />
+                <span>Share {activeQrType === 'food' ? 'Food Token' : activeQrType === 'tech' ? 'Tech Pass' : activeQrType === 'spot' ? 'Spot Pass' : 'Pass'} on WhatsApp</span>
+                <ExternalLink className="w-3 h-3 opacity-80" />
+              </a>
+
+              <a
+                href={activeVerifyUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="w-full py-2 px-3 rounded-xl bg-[#1f1b0e] border border-[#d4a935]/60 text-[#f2c14e] hover:bg-[#f2c14e] hover:text-[#1a1300] font-bold text-xs flex items-center justify-center gap-1.5 transition-all cursor-pointer shadow-sm no-print"
+              >
+                <span>Open {activeQrType === 'food' ? 'Food Token' : activeQrType === 'tech' ? 'Technical Pass' : activeQrType === 'spot' ? 'Spot Pass' : 'Live Pass'} Link</span>
+                <ExternalLink className="w-3.5 h-3.5" />
+              </a>
+
+              <button
+                type="button"
+                onClick={copyPassUrl}
+                className="w-full py-1.5 px-3 rounded-xl bg-white/5 border border-white/10 text-[#d8cea7] hover:text-white hover:border-[#d4a935]/40 text-[11px] font-semibold flex items-center justify-center gap-1.5 transition-colors cursor-pointer no-print"
+              >
+                {copiedUrl ? <Check className="w-3.5 h-3.5 text-[#4cc38a]" /> : <Copy className="w-3.5 h-3.5" />}
+                <span>{copiedUrl ? 'Copied QR URL!' : 'Copy Active QR Link'}</span>
+              </button>
+            </div>
+
+            {/* Security Authorization Stamp */}
+            <div className="w-full p-2.5 rounded-xl bg-[#14141d] border border-[#2e2b22] text-[10px] text-[#a79f8b] space-y-1">
+              <div className="flex items-center justify-between">
+                <span>Authorized Reception:</span>
+                <strong className="text-white">Desk 1 / Desk 2 / Desk 3 / Desk 4</strong>
+              </div>
+              <div className="flex items-center justify-between">
+                <span>Entry Status:</span>
+                <strong className="text-[#4cc38a]">AUTHORIZED ✓</strong>
+              </div>
+              <div className="flex items-center justify-between">
+                <span>Food / Lunch Tokens:</span>
+                <strong className={lunchStats.totalMealsAllocated === 0 ? 'text-[#a79f8b]' : lunchStats.isFullyCollected ? 'text-[#4cc38a]' : 'text-[#f2c14e]'}>
                   {lunchStats.totalMealsAllocated === 0
-                    ? '(Standard Registration without food / meal token)'
-                    : `(${lunchStats.totalMealsAllocated} ${lunchStats.totalMealsAllocated === 1 ? 'Meal Tray' : 'Meal Trays'} Included · 1 per opted member)`}
-                </div>
+                    ? 'NOT INCLUDED (STANDARD ₹150 PASS)'
+                    : lunchStats.isFullyCollected
+                    ? `ALL ${lunchStats.totalMealsAllocated} MEALS CLAIMED ✓`
+                    : `${lunchStats.mealsDispensed} / ${lunchStats.totalMealsAllocated} MEALS CLAIMED`}
+                </strong>
+              </div>
+              <div className="text-[9px] text-[#d4a935] text-right font-medium">
+                {lunchStats.totalMealsAllocated === 0
+                  ? '(Standard Registration without food / meal token)'
+                  : `(${lunchStats.totalMealsAllocated} ${lunchStats.totalMealsAllocated === 1 ? 'Meal Tray' : 'Meal Trays'} Included · 1 per opted member)`}
               </div>
             </div>
           </div>

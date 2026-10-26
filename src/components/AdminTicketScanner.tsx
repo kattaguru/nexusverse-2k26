@@ -166,6 +166,7 @@ export const AdminTicketScanner: React.FC<AdminTicketScannerProps> = ({
     allowSpotScan?: boolean;
     allowLunchDispense?: boolean;
     allowReceptionCheckIn?: boolean;
+    scannedBadge?: string;
   } | null>(null);
 
   const scanResultModalRef = useRef(scanResultModal);
@@ -471,10 +472,11 @@ export const AdminTicketScanner: React.FC<AdminTicketScannerProps> = ({
     }
     lastScanAttemptRef.current = { payload: clean, time: nowMs };
 
-    // Check if URL with passId, member index, or roll
+    // Check if URL with passId, member index, roll, or specific QR type
     let targetId = clean;
     let targetMemberIndex: number | null = null;
     let targetMemberRoll: string | null = null;
+    let scannedQrType: 'tech' | 'lunch' | 'spot' | 'master' | null = null;
 
     try {
       const urlString = (clean.startsWith('http://') || clean.startsWith('https://'))
@@ -491,8 +493,32 @@ export const AdminTicketScanner: React.FC<AdminTicketScannerProps> = ({
         }
         const rParam = url.searchParams.get('roll');
         if (rParam) targetMemberRoll = rParam.trim().toLowerCase();
+        const typeParam = (url.searchParams.get('type') || url.searchParams.get('desk') || url.searchParams.get('qr') || '').toLowerCase();
+        if (typeParam.includes('tech')) scannedQrType = 'tech';
+        else if (typeParam.includes('lunch') || typeParam.includes('food')) scannedQrType = 'lunch';
+        else if (typeParam.includes('spot')) scannedQrType = 'spot';
+        else if (typeParam.includes('all') || typeParam.includes('master')) scannedQrType = 'master';
       }
     } catch (e) {}
+
+    // Fallback detection from raw payload string
+    if (!scannedQrType) {
+      const lowerClean = clean.toLowerCase();
+      if (lowerClean.includes('type=tech')) scannedQrType = 'tech';
+      else if (lowerClean.includes('type=lunch') || lowerClean.includes('type=food')) scannedQrType = 'lunch';
+      else if (lowerClean.includes('type=spot')) scannedQrType = 'spot';
+      else if (lowerClean.includes('type=all') || lowerClean.includes('type=master')) scannedQrType = 'master';
+    }
+
+    const scannedBadgeLabel = scannedQrType === 'tech'
+      ? '💻 Technical Event QR Pass'
+      : scannedQrType === 'lunch'
+      ? '🍽️ Food & Lunch Token QR'
+      : scannedQrType === 'spot'
+      ? '🎮 Spot Arena QR Pass'
+      : scannedQrType === 'master'
+      ? '🌟 Master Delegate Pass QR'
+      : undefined;
 
     // Check if targetId has -M1, -M2 suffix (individual member pass code)
     const subMemberMatch = targetId.match(/-m(\d+)$/i);
@@ -602,7 +628,8 @@ export const AdminTicketScanner: React.FC<AdminTicketScannerProps> = ({
             delegateRole: scannedMemberRole,
             teamName: matched.name,
             scannedAt: existingTime,
-            eventName: 'Desk 1: Reception & Welcome Kit'
+            eventName: 'Desk 1: Reception & Welcome Kit',
+            scannedBadge: scannedBadgeLabel
           });
           setActiveRecord(matched);
         } else {
@@ -659,7 +686,8 @@ export const AdminTicketScanner: React.FC<AdminTicketScannerProps> = ({
             scannedAt: new Date(now).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }),
             eventName: 'Desk 1: Reception & Welcome Kit',
             totalTeamCount: matchedTotalMembers,
-            attendedTeamCount: newCheckInCount
+            attendedTeamCount: newCheckInCount,
+            scannedBadge: scannedBadgeLabel
           });
         }
       }
@@ -694,7 +722,8 @@ export const AdminTicketScanner: React.FC<AdminTicketScannerProps> = ({
               scannedMemberKey,
               allowSpotScan: !isSpotDone,
               allowLunchDispense: isFoodEligible && !isLunchDone,
-              allowReceptionCheckIn: !isCheckInDone
+              allowReceptionCheckIn: !isCheckInDone,
+              scannedBadge: scannedBadgeLabel
             });
             setActiveRecord(matched);
             return;
@@ -712,7 +741,8 @@ export const AdminTicketScanner: React.FC<AdminTicketScannerProps> = ({
             delegateRoll: scannedMemberRoll,
             delegateRole: scannedMemberRole,
             teamName: matched.name,
-            eventName: 'Technical Event (Not Registered)'
+            eventName: 'Technical Event (Not Registered)',
+            scannedBadge: scannedBadgeLabel
           });
           setActiveRecord(matched);
           return;
@@ -767,7 +797,8 @@ export const AdminTicketScanner: React.FC<AdminTicketScannerProps> = ({
             delegateRole: scannedMemberRole,
             teamName: matched.name,
             scannedAt: existingTime,
-            eventName: trackStats.techEventName
+            eventName: trackStats.techEventName,
+            scannedBadge: scannedBadgeLabel
           });
           setActiveRecord(matched);
         } else {
@@ -829,7 +860,7 @@ export const AdminTicketScanner: React.FC<AdminTicketScannerProps> = ({
             scanTrack: 'Desk 2: Technical Event',
             deskNumber: 2,
             title: 'TECHNICAL EVENT ENTRY VERIFIED (1-TIME COUNTED)',
-            message: `1 Technical Delegate Attendance Counted ✓: ${scannedMemberName} (${scannedMemberRoll} · ${scannedMemberRole}) verified for ${trackStats.techEventName}. [${newTechCount} of ${matchedTotalMembers} team delegates counted].`,
+            message: `1 Technical Delegate Attendance Counted ✓: ${scannedMemberName} (${scannedMemberRoll} · ${scannedMemberRole}) verified for ${trackStats.techEventName}.${scannedQrType === 'lunch' ? ' [Presented Food Token QR - Verified for Technical Event]' : scannedBadgeLabel ? ` [${scannedBadgeLabel}]` : ''} [${newTechCount} of ${matchedTotalMembers} team delegates counted].`,
             delegateName: scannedMemberName,
             delegateRoll: scannedMemberRoll,
             delegateRole: scannedMemberRole,
@@ -837,7 +868,8 @@ export const AdminTicketScanner: React.FC<AdminTicketScannerProps> = ({
             scannedAt: new Date(now).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }),
             eventName: trackStats.techEventName,
             totalTeamCount: matchedTotalMembers,
-            attendedTeamCount: newTechCount
+            attendedTeamCount: newTechCount,
+            scannedBadge: scannedBadgeLabel
           });
         }
       }
@@ -863,7 +895,8 @@ export const AdminTicketScanner: React.FC<AdminTicketScannerProps> = ({
             delegateRoll: scannedMemberRoll,
             delegateRole: scannedMemberRole,
             teamName: matched.name,
-            eventName: 'Desk 3: Food & Lunch Token'
+            eventName: 'Desk 3: Food & Lunch Token',
+            scannedBadge: scannedBadgeLabel
           });
           setActiveRecord(matched);
           return;
@@ -908,7 +941,8 @@ export const AdminTicketScanner: React.FC<AdminTicketScannerProps> = ({
             delegateRole: scannedMemberRole,
             teamName: matched.name,
             scannedAt: claimTime,
-            eventName: 'Desk 3: Food & Lunch Token'
+            eventName: 'Desk 3: Food & Lunch Token',
+            scannedBadge: scannedBadgeLabel
           });
           setActiveRecord(matched);
         } else {
@@ -953,7 +987,7 @@ export const AdminTicketScanner: React.FC<AdminTicketScannerProps> = ({
             scanTrack: 'Desk 3: Food Meal Token',
             deskNumber: 3,
             title: 'MEAL TRAY DISPENSED (1-TIME TOKEN USED)',
-            message: `1 Meal Tray Dispensed ✓: Lunch token verified for ${scannedMemberName} (${scannedMemberRoll} · ${scannedMemberRole}). [${newDispensed} of ${matchedTotalMembers} team meal trays collected].`,
+            message: `1 Meal Tray Dispensed ✓: Lunch token verified for ${scannedMemberName} (${scannedMemberRoll} · ${scannedMemberRole}) [${scannedBadgeLabel || 'Token Verified'}]. [${newDispensed} of ${matchedTotalMembers} team meal trays collected].`,
             delegateName: scannedMemberName,
             delegateRoll: scannedMemberRoll,
             delegateRole: scannedMemberRole,
@@ -961,7 +995,8 @@ export const AdminTicketScanner: React.FC<AdminTicketScannerProps> = ({
             scannedAt: new Date(now).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }),
             eventName: 'Desk 3: Food & Lunch Token',
             totalTeamCount: matchedTotalMembers,
-            attendedTeamCount: newDispensed
+            attendedTeamCount: newDispensed,
+            scannedBadge: scannedBadgeLabel
           });
         }
       }
@@ -983,7 +1018,8 @@ export const AdminTicketScanner: React.FC<AdminTicketScannerProps> = ({
             delegateRoll: scannedMemberRoll,
             delegateRole: scannedMemberRole,
             teamName: matched.name,
-            eventName: 'Spot Event Pass (Not Registered)'
+            eventName: 'Spot Event Pass (Not Registered)',
+            scannedBadge: scannedBadgeLabel
           });
           setActiveRecord(matched);
           return;
@@ -1037,7 +1073,8 @@ export const AdminTicketScanner: React.FC<AdminTicketScannerProps> = ({
             delegateRole: scannedMemberRole,
             teamName: matched.name,
             scannedAt: existingTime,
-            eventName: 'Spot Events Pass (Arena Activities)'
+            eventName: 'Spot Events Pass (Arena Activities)',
+            scannedBadge: scannedBadgeLabel
           });
           setActiveRecord(matched);
         } else {
@@ -1103,7 +1140,8 @@ export const AdminTicketScanner: React.FC<AdminTicketScannerProps> = ({
             scannedAt: new Date(now).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }),
             eventName: 'Spot Events Pass (Arena Activities)',
             totalTeamCount: matchedTotalMembers,
-            attendedTeamCount: newSpotCount
+            attendedTeamCount: newSpotCount,
+            scannedBadge: scannedBadgeLabel
           });
         }
       }
@@ -4569,6 +4607,15 @@ export const AdminTicketScanner: React.FC<AdminTicketScannerProps> = ({
                     ? 'bg-black/50 border-[#8b5cf6]/30'
                     : 'bg-black/50 border-[#f59e0b]/30'
             }`}>
+              {scanResultModal.scannedBadge && (
+                <div className="pb-2 border-b border-white/10 flex items-center justify-between text-xs">
+                  <span className="text-[10px] text-white/50 uppercase font-mono">Presented Checkpoint QR</span>
+                  <span className="px-2.5 py-0.5 rounded-full bg-white/15 text-[#f2c14e] font-mono font-bold text-[11px] border border-white/20 shadow-sm">
+                    {scanResultModal.scannedBadge}
+                  </span>
+                </div>
+              )}
+
               <div className="grid grid-cols-2 gap-2 sm:gap-3 text-xs">
                 <div>
                   <span className="text-[10px] text-white/50 uppercase font-mono block">Delegate Name</span>
