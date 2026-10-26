@@ -60,12 +60,13 @@ describe('Symposium Data & Configuration Unit Tests', () => {
     assert.ok(eventIds.includes('canva'), 'DESIGNOVA (canva) must exist');
   });
 
-  it('should enforce ₹200 fee for non-members and ₹150 for IEEE members across all events', () => {
+  it('should enforce ₹150 base fee for non-members and ₹150 for IEEE members (with ₹50 food option)', () => {
+    assert.equal(SYMPOSIUM_CONFIG.foodFee, 50, 'Food fee add-on should be ₹50');
     for (const event of EVENTS) {
       assert.equal(
         event.feeNonMember, 
-        200, 
-        `${event.name} non-member fee should be ₹200`
+        150, 
+        `${event.name} non-member normal base fee should be ₹150`
       );
       assert.equal(
         event.feeMember, 

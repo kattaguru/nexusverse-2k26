@@ -27,20 +27,29 @@ describe('Razorpay Utilities & Payment Calculation Unit Tests', () => {
     assert.equal(discountedPaise, 18050);
   });
 
-  it('should calculate proper team registration totals', () => {
-    // 2 members in FLAGHUNT @ ₹200 each
+  it('should calculate proper team registration totals with and without food', () => {
+    // 2 members in FLAGHUNT @ ₹150 each normal fee (without food)
     const flaghuntMembers = 2;
-    const nonMemberRate = 200;
-    const totalNonMemberTeam = flaghuntMembers * nonMemberRate;
-    assert.equal(totalNonMemberTeam, 400);
+    const normalNonMemberRate = 150;
+    const totalWithoutFood = flaghuntMembers * normalNonMemberRate;
+    assert.equal(totalWithoutFood, 300);
 
-    // 1 IEEE member + 1 non-member
-    const mixedTotal = (1 * 150) + (1 * 200);
-    assert.equal(mixedTotal, 350);
+    // 2 members in FLAGHUNT with food (+₹50 each = ₹200 each)
+    const withFoodRate = 200;
+    const totalWithFood = flaghuntMembers * withFoodRate;
+    assert.equal(totalWithFood, 400);
 
-    // With 10% promo code
-    const discountAmount = Math.round((mixedTotal * 10) / 100);
-    const finalAfterPromo = mixedTotal - discountAmount;
+    // 1 IEEE member (₹150, meal included) + 1 non-member with food (₹200)
+    const mixedWithFood = (1 * 150) + (1 * 200);
+    assert.equal(mixedWithFood, 350);
+
+    // 1 IEEE member (₹150) + 1 non-member without food (₹150)
+    const mixedWithoutFood = (1 * 150) + (1 * 150);
+    assert.equal(mixedWithoutFood, 300);
+
+    // With 10% promo code on mixedWithFood
+    const discountAmount = Math.round((mixedWithFood * 10) / 100);
+    const finalAfterPromo = mixedWithFood - discountAmount;
     assert.equal(discountAmount, 35);
     assert.equal(finalAfterPromo, 315);
   });
@@ -57,30 +66,35 @@ describe('Razorpay Utilities & Payment Calculation Unit Tests', () => {
     assert.equal(spot.gstAmount, 2, '₹100 should incur exactly ₹2 GST (₹2 per ₹100)');
     assert.equal(spot.total, 102, 'Total should be ₹102');
 
-    // Tier 2: Non-IEEE Member Single Tech Event (₹200 base) -> ₹4 GST, Total ₹204
-    const nonIeeeSingle = calcGstAndTotal(200);
-    assert.equal(nonIeeeSingle.gstAmount, 4, '₹200 should incur ₹4 GST');
-    assert.equal(nonIeeeSingle.total, 204, 'Total should be ₹204');
+    // Tier 2: Non-IEEE Member Normal Tech Event without food (₹150 base) -> ₹3 GST, Total ₹153
+    const nonIeeeNormal = calcGstAndTotal(150);
+    assert.equal(nonIeeeNormal.gstAmount, 3, '₹150 should incur ₹3 GST');
+    assert.equal(nonIeeeNormal.total, 153, 'Total should be ₹153');
 
-    // Tier 3: Non-IEEE Tech Event + Spot Pass (₹300 base) -> ₹6 GST, Total ₹306
-    const techPlusSpot = calcGstAndTotal(300);
-    assert.equal(techPlusSpot.gstAmount, 6, '₹300 should incur ₹6 GST');
-    assert.equal(techPlusSpot.total, 306, 'Total should be ₹306');
+    // Tier 3: Non-IEEE Member Tech Event with food (₹200 base) -> ₹4 GST, Total ₹204
+    const nonIeeeWithFood = calcGstAndTotal(200);
+    assert.equal(nonIeeeWithFood.gstAmount, 4, '₹200 should incur ₹4 GST');
+    assert.equal(nonIeeeWithFood.total, 204, 'Total should be ₹204');
 
-    // Tier 4: Two-member team @ ₹200 each (₹400 base) -> ₹8 GST, Total ₹408
-    const teamTwo = calcGstAndTotal(400);
-    assert.equal(teamTwo.gstAmount, 8, '₹400 should incur ₹8 GST');
-    assert.equal(teamTwo.total, 408, 'Total should be ₹408');
+    // Tier 4: Non-IEEE Tech Event + Spot Pass (₹250 base without food) -> ₹5 GST, Total ₹255
+    const techPlusSpot = calcGstAndTotal(250);
+    assert.equal(techPlusSpot.gstAmount, 5, '₹250 should incur ₹5 GST');
+    assert.equal(techPlusSpot.total, 255, 'Total should be ₹255');
 
-    // Tier 5: IEEE Member Single Tech Event (₹150 base) -> ₹3 GST, Total ₹153
+    // Tier 5: Two-member team without food @ ₹150 each (₹300 base) -> ₹6 GST, Total ₹306
+    const teamTwoNormal = calcGstAndTotal(300);
+    assert.equal(teamTwoNormal.gstAmount, 6, '₹300 should incur ₹6 GST');
+    assert.equal(teamTwoNormal.total, 306, 'Total should be ₹306');
+
+    // Tier 6: Two-member team with food @ ₹200 each (₹400 base) -> ₹8 GST, Total ₹408
+    const teamTwoWithFood = calcGstAndTotal(400);
+    assert.equal(teamTwoWithFood.gstAmount, 8, '₹400 should incur ₹8 GST');
+    assert.equal(teamTwoWithFood.total, 408, 'Total should be ₹408');
+
+    // Tier 7: IEEE Member Single Tech Event (₹150 base) -> ₹3 GST, Total ₹153
     const ieeeSingle = calcGstAndTotal(150);
     assert.equal(ieeeSingle.gstAmount, 3, '₹150 should incur ₹3 GST');
     assert.equal(ieeeSingle.total, 153, 'Total should be ₹153');
-
-    // Tier 6: IEEE Member Tech + Spot Pass (₹250 base) -> ₹5 GST, Total ₹255
-    const ieeePlusSpot = calcGstAndTotal(250);
-    assert.equal(ieeePlusSpot.gstAmount, 5, '₹250 should incur ₹5 GST');
-    assert.equal(ieeePlusSpot.total, 255, 'Total should be ₹255');
   });
 
   it('should support team member spot pass selection for multi-member events like CTF', () => {

@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">NexusVerse 2K26</string>
+    <string name="title_activity_main">NexusVerse 2K26</string>
+    <string name="package_name">in.nbkristieee.nexusverse</string>
+    <string name="custom_url_scheme">in.nbkristieee.nexusverse</string>
+</resources>

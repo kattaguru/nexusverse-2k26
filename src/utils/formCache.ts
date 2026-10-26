@@ -15,6 +15,7 @@ export interface FormDraftMember {
   phone: string;
   isIeeeMember?: boolean;
   ieeeId?: string;
+  wantsFood?: boolean;
 }
 
 export interface FormDraftTeamData {
@@ -35,6 +36,7 @@ export interface RegistrationFormDraft {
   email: string;
   isIeeeMember: boolean;
   ieeeId?: string;
+  wantsFood?: boolean;
   selectedEvents: string[];
   includeSpotEvents: boolean;
   spotMembersSelected: { lead: boolean; [key: number]: boolean };

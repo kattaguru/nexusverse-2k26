@@ -10,6 +10,7 @@ import { UpiConfirmationView } from './components/UpiConfirmationView';
 import { PassLookupModal } from './components/PassLookupModal';
 import { AdminModal } from './components/AdminModal';
 import { ParticipantSpaceModal } from './components/ParticipantSpaceModal';
+import { MobileBottomNav } from './components/MobileBottomNav';
 import { PreRegistrationEventsShowcase } from './components/PreRegistrationEventsShowcase';
 import { 
   ParticipantUser, 
@@ -60,7 +61,8 @@ import {
   Shield,
   Trophy,
   ArrowRight,
-  CheckCircle2
+  CheckCircle2,
+  Utensils
 } from 'lucide-react';
 
 export interface FormTeamMember {
@@ -73,6 +75,7 @@ export interface FormTeamMember {
   phone: string;
   isIeeeMember?: boolean;
   ieeeId?: string;
+  wantsFood?: boolean;
 }
 
 export interface FormEventTeamData {
@@ -148,6 +151,7 @@ export default function App() {
   const [email, setEmail] = useState('');
   const [isIeeeMember, setIsIeeeMember] = useState(false);
   const [ieeeId, setIeeeId] = useState('');
+  const [wantsFood, setWantsFood] = useState(false);
   
   // Selected single technical event (or empty if attending only spot events)
   const [selectedEvents, setSelectedEvents] = useState<string[]>(['ctf']);
@@ -175,7 +179,7 @@ export default function App() {
     ctf: {
       teamName: '',
       members: [
-        { name: '', roll: '', className: 'B.Tech', section: 'A', branch: '', year: '3rd Year', phone: '', isIeeeMember: false, ieeeId: '' }
+        { name: '', roll: '', className: 'B.Tech', section: 'A', branch: '', year: '3rd Year', phone: '', isIeeeMember: false, ieeeId: '', wantsFood: false }
       ]
     },
     expo: {
@@ -241,6 +245,7 @@ export default function App() {
       if (draft.email) setEmail(draft.email);
       if (draft.isIeeeMember !== undefined) setIsIeeeMember(draft.isIeeeMember);
       if (draft.ieeeId) setIeeeId(draft.ieeeId);
+      if (draft.wantsFood !== undefined) setWantsFood(draft.wantsFood);
       if (draft.selectedEvents && draft.selectedEvents.length > 0) setSelectedEvents(draft.selectedEvents);
       if (draft.includeSpotEvents !== undefined) setIncludeSpotEvents(draft.includeSpotEvents);
       if (draft.spotMembersSelected) setSpotMembersSelected(draft.spotMembersSelected);
@@ -273,6 +278,7 @@ export default function App() {
         email,
         isIeeeMember,
         ieeeId,
+        wantsFood,
         selectedEvents,
         includeSpotEvents,
         spotMembersSelected,
@@ -650,8 +656,48 @@ export default function App() {
     return () => window.removeEventListener('hashchange', handleHashNavigation);
   }, [currentUser]);
 
+  // Handle Android native hardware back button to smoothly dismiss active modals
   // Admin Portal & Customization States
   const [isAdminOpen, setIsAdminOpen] = useState(false);
+
+  useEffect(() => {
+    const handleNativeBack = (e: Event) => {
+      if (isAdminOpen) {
+        e.preventDefault();
+        setIsAdminOpen(false);
+        return;
+      }
+      if (isParticipantSpaceOpen) {
+        e.preventDefault();
+        setIsParticipantSpaceOpen(false);
+        return;
+      }
+      if (isLookupOpen) {
+        e.preventDefault();
+        setIsLookupOpen(false);
+        return;
+      }
+      if (isPaymentOpen) {
+        e.preventDefault();
+        setIsPaymentOpen(false);
+        return;
+      }
+      if (inspectEvent) {
+        e.preventDefault();
+        setInspectEvent(null);
+        return;
+      }
+      if (confirmedRecord) {
+        e.preventDefault();
+        setConfirmedRecord(null);
+        return;
+      }
+    };
+
+    window.addEventListener('nexusverse:back', handleNativeBack);
+    return () => window.removeEventListener('nexusverse:back', handleNativeBack);
+  }, [isAdminOpen, isParticipantSpaceOpen, isLookupOpen, isPaymentOpen, inspectEvent, confirmedRecord]);
+
   const [isRegClosed, setIsRegClosed] = useState(false);
   const [closedMessage, setClosedMessage] = useState(() => {
     try {
@@ -941,7 +987,7 @@ export default function App() {
             ctf: {
               ...cur,
               members: [
-                { name: '', roll: '', className: classNameVal || 'B.Tech', section: sectionVal || 'A', branch: dept || '', year: year || '3rd Year', phone: '', isIeeeMember: false, ieeeId: '' }
+                { name: '', roll: '', className: classNameVal || 'B.Tech', section: sectionVal || 'A', branch: dept || '', year: year || '3rd Year', phone: '', isIeeeMember: false, ieeeId: '', wantsFood: false }
               ]
             }
           };
@@ -1006,7 +1052,8 @@ export default function App() {
             year: year || '3rd Year', 
             phone: '',
             isIeeeMember: false,
-            ieeeId: ''
+            ieeeId: '',
+            wantsFood: false
           }
         ]
       }
@@ -1049,7 +1096,8 @@ export default function App() {
           year: '3rd Year', 
           phone: '',
           isIeeeMember: false,
-          ieeeId: ''
+          ieeeId: '',
+          wantsFood: false
         };
       }
       updatedMembers[index] = {
@@ -1153,9 +1201,11 @@ export default function App() {
     setSpotMembersSelected(updated);
   };
 
-  // Pricing calculations: Technical events: ₹200 (₹150 IEEE); Spot Events: ₹100 per member; GST: 2% (₹2 for every ₹100)
+  // Pricing calculations: Technical events: ₹150 base (IEEE includes food; Non-IEEE has +₹50 food option); Spot Events: ₹100 per member; GST: 2%
   const calculateTotal = () => {
     let subtotal = 0;
+    let foodAddonTotal = 0;
+    let foodCount = 0;
 
     // 1. Technical event subtotal (if selected)
     if (selectedEvents.length > 0) {
@@ -1163,10 +1213,28 @@ export default function App() {
         const ev = EVENTS.find(e => e.id === id);
         if (!ev) continue;
         const details = teamDetails[id] || { teamName: '', members: [] };
-        const leaderFee = isIeeeMember ? ev.feeMember : ev.feeNonMember;
+        const leaderBase = isIeeeMember ? ev.feeMember : ev.feeNonMember;
+        const leaderFood = (!isIeeeMember && wantsFood) ? 50 : 0;
+        if (!isIeeeMember && wantsFood) {
+          foodAddonTotal += 50;
+          foodCount += 1;
+        } else if (isIeeeMember) {
+          foodCount += 1;
+        }
+        const leaderFee = leaderBase + leaderFood;
+
         const teammatesFee = (details.members || []).reduce((mSum, m) => {
-          return mSum + (m.isIeeeMember ? ev.feeMember : ev.feeNonMember);
+          const mBase = m.isIeeeMember ? ev.feeMember : ev.feeNonMember;
+          const mFood = (!m.isIeeeMember && m.wantsFood) ? 50 : 0;
+          if (!m.isIeeeMember && m.wantsFood) {
+            foodAddonTotal += 50;
+            foodCount += 1;
+          } else if (m.isIeeeMember) {
+            foodCount += 1;
+          }
+          return mSum + mBase + mFood;
         }, 0);
+
         subtotal += leaderFee + teammatesFee;
       }
     }
@@ -1183,10 +1251,10 @@ export default function App() {
     const gstAmount = Math.round((subtotal * gstPercent) / 100);
     const total = subtotal + gstAmount;
 
-    return { subtotal, spotPassCount, spotSubtotal, gstAmount, gstPercent, total };
+    return { subtotal, spotPassCount, spotSubtotal, gstAmount, gstPercent, total, foodAddonTotal, foodCount };
   };
 
-  const { subtotal, spotPassCount, spotSubtotal, gstAmount, gstPercent, total } = calculateTotal();
+  const { subtotal, spotPassCount, spotSubtotal, gstAmount, gstPercent, total, foodAddonTotal, foodCount } = calculateTotal();
 
   // Validate form
   const validateForm = () => {
@@ -1340,7 +1408,8 @@ export default function App() {
           year: m.year.trim(),
           phone: m.phone.trim(),
           isIeeeMember: !!m.isIeeeMember,
-          ieeeId: m.isIeeeMember ? m.ieeeId?.trim() : undefined
+          ieeeId: m.isIeeeMember ? m.ieeeId?.trim() : undefined,
+          wantsFood: m.isIeeeMember ? true : Boolean(m.wantsFood)
         }));
 
         formattedTeamDetails[id] = {
@@ -1376,6 +1445,7 @@ export default function App() {
       roll: roll.trim().toUpperCase(),
       isIeeeMember,
       ieeeId: isIeeeMember ? ieeeId.trim() : undefined,
+      wantsFood: isIeeeMember ? true : Boolean(wantsFood),
       eventIds: combinedEventIds,
       teamDetails: formattedTeamDetails,
       spotPassCount: effectiveSpotCount,
@@ -1520,7 +1590,7 @@ export default function App() {
   }
 
   return (
-    <div className="min-h-screen bg-[#0a0a0d] text-[#f3ecd9] selection:bg-[#d4a935]/30 selection:text-[#f2c14e] font-sans antialiased w-full max-w-full overflow-x-hidden">
+    <div className="min-h-screen bg-[#0a0a0d] text-[#f3ecd9] selection:bg-[#d4a935]/30 selection:text-[#f2c14e] font-sans antialiased w-full max-w-full overflow-x-hidden pb-20 md:pb-0">
       {/* Top Navbar with Top Left Logo (Image 1), Top Right Logo (Image 2), and Admin button */}
       <Navbar 
         onOpenLookup={() => setIsLookupOpen(true)} 
@@ -2146,7 +2216,7 @@ export default function App() {
                                   : 'bg-[#0a0a0d] border-[#2e2b22] text-[#a79f8b] hover:border-[#a79f8b]'
                               } ${isNonIeeeSlotsFull ? 'opacity-60 border-red-500/40 cursor-not-allowed' : ''}`}
                             >
-                              <span>Non-IEEE Member (₹200)</span>
+                              <span>Non-IEEE Member (₹150)</span>
                               {nonIeeeSlotsLimit > 0 && (
                                 <span className={`text-[10px] font-mono px-2 py-0.5 rounded font-bold ${
                                   isNonIeeeSlotsFull
@@ -2187,6 +2257,72 @@ export default function App() {
                               )}
                             </button>
                           </div>
+
+                          {/* Non-IEEE Food & Lunch Token Preference */}
+                          {!isIeeeMember ? (
+                            <div className="p-3.5 rounded-xl bg-[#14141d] border border-[#2e2b22] space-y-2.5">
+                              <div className="flex items-center justify-between">
+                                <div className="flex items-center gap-2">
+                                  <Utensils className="w-4 h-4 text-[#f2c14e]" />
+                                  <span className="text-xs font-bold text-[#ffffff]">
+                                    Symposium Lunch & Food Token (Desk 3)
+                                  </span>
+                                </div>
+                                <span className="text-[10px] px-2 py-0.5 rounded-full font-mono font-semibold bg-[#f2c14e]/10 text-[#f2c14e] border border-[#f2c14e]/30">
+                                  Optional +₹50
+                                </span>
+                              </div>
+                              <p className="text-[11px] text-[#a79f8b] leading-relaxed">
+                                Normal registration fee is <strong>₹150</strong> (Without Food). If you want networking lunch & meal tray token, you can add food for an extra <strong>₹50</strong> (Total <strong>₹200</strong>).
+                              </p>
+                              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-0.5">
+                                <button
+                                  type="button"
+                                  onClick={() => setWantsFood(false)}
+                                  className={`p-2.5 rounded-xl border text-left transition-all cursor-pointer ${
+                                    !wantsFood
+                                      ? 'bg-[#1f1b0e] border-[#d4a935] ring-1 ring-[#d4a935]/40 text-[#ffffff]'
+                                      : 'bg-[#0a0a0d] border-[#2e2b22] text-[#a79f8b] hover:border-[#3d382c]'
+                                  }`}
+                                >
+                                  <div className="flex items-center justify-between">
+                                    <span className="text-xs font-bold">Standard Entry</span>
+                                    <span className="font-mono font-bold text-xs text-[#f2c14e]">₹150</span>
+                                  </div>
+                                  <span className="text-[10px] text-[#a79f8b] block mt-0.5">
+                                    No Food / Lunch (Registration & Kit only)
+                                  </span>
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => setWantsFood(true)}
+                                  className={`p-2.5 rounded-xl border text-left transition-all cursor-pointer ${
+                                    wantsFood
+                                      ? 'bg-[#1f1b0e] border-[#d4a935] ring-1 ring-[#d4a935]/40 text-[#ffffff]'
+                                      : 'bg-[#0a0a0d] border-[#2e2b22] text-[#a79f8b] hover:border-[#3d382c]'
+                                  }`}
+                                >
+                                  <div className="flex items-center justify-between">
+                                    <span className="text-xs font-bold flex items-center gap-1">
+                                      <span>Include Food / Lunch</span>
+                                      <span className="text-[9px] bg-[#4cc38a]/20 text-[#4cc38a] px-1 rounded font-mono">+₹50</span>
+                                    </span>
+                                    <span className="font-mono font-bold text-xs text-[#f2c14e]">₹200</span>
+                                  </div>
+                                  <span className="text-[10px] text-[#86efac] block mt-0.5">
+                                    Includes Official Desk 3 Meal Tray Token ✓
+                                  </span>
+                                </button>
+                              </div>
+                            </div>
+                          ) : (
+                            <div className="p-3 rounded-xl bg-[#0f2419] border border-[#4cc38a]/40 text-xs text-[#86efac] flex items-center gap-2">
+                              <CheckCircle2 className="w-4 h-4 text-[#4cc38a] shrink-0" />
+                              <span>
+                                <strong>IEEE Member Perk:</strong> 1 Complimentary Lunch Meal Tray Token is <strong>included</strong> with your ₹150 registration!
+                              </span>
+                            </div>
+                          )}
 
                           {isIeeeMember && (
                             <div className="pt-2" id="field-ieeeId">
@@ -2262,7 +2398,7 @@ export default function App() {
                             <span>Track 1: Flagship Technical Events (10:00 AM – 12:00 PM)</span>
                           </div>
                           <span className="text-[11px] font-mono text-[#f2c14e]">
-                            {isIeeeMember ? '₹150 for IEEE Member' : '₹200 Standard (₹150 IEEE)'}
+                            {isIeeeMember ? '₹150 for IEEE Member (Meal Included)' : wantsFood ? '₹200 with Food (₹150 Base + ₹50 Lunch)' : '₹150 Standard (Food +₹50 Option)'}
                           </span>
                         </div>
 
@@ -2328,7 +2464,7 @@ export default function App() {
 
                                 <div className="text-right shrink-0 flex flex-col items-end gap-1" onClick={(e) => e.stopPropagation()}>
                                   <span className="font-mono tabular-nums text-lg font-bold text-[#f2c14e]">
-                                    ₹{fee} <span className="text-xs font-sans font-normal text-[#a79f8b]">/ head</span>
+                                    ₹{isIeeeMember ? event.feeMember : (event.feeNonMember + (wantsFood ? 50 : 0))} <span className="text-xs font-sans font-normal text-[#a79f8b]">/ head</span>
                                   </span>
                                   <button
                                     type="button"
@@ -2611,6 +2747,45 @@ export default function App() {
                                                   {errors[`member_${event.id}_${mIdx}_ieeeId`] && (
                                                     <p className="text-[10px] text-[#ff8a80] mt-1">{errors[`member_${event.id}_${mIdx}_ieeeId`]}</p>
                                                   )}
+                                                </div>
+                                              )}
+
+                                              {/* Teammate Food Selection if Non-IEEE */}
+                                              {!member.isIeeeMember && (
+                                                <div className="pt-2 flex items-center justify-between border-t border-[#2e2b22]/60 mt-1">
+                                                  <div>
+                                                    <span className="text-[11px] font-semibold text-[#f3ecd9] flex items-center gap-1">
+                                                      <Utensils className="w-3.5 h-3.5 text-[#d4a935]" />
+                                                      <span>Food / Lunch Token (+₹50)</span>
+                                                    </span>
+                                                    <span className="text-[10px] text-[#a79f8b] block">
+                                                      {member.wantsFood ? '₹200 total (₹150 + ₹50 Lunch)' : '₹150 standard (Without Food)'}
+                                                    </span>
+                                                  </div>
+                                                  <div className="flex items-center gap-1.5">
+                                                    <button
+                                                      type="button"
+                                                      onClick={() => handleUpdateTeamMemberField(event.id, mIdx, 'wantsFood', false)}
+                                                      className={`px-2.5 py-1 rounded-lg text-[11px] font-medium border transition-colors cursor-pointer ${
+                                                        !member.wantsFood
+                                                          ? 'bg-[#1f1b0e] text-[#f2c14e] border-[#d4a935]'
+                                                          : 'bg-[#131318] text-[#a79f8b] border-[#2e2b22]'
+                                                      }`}
+                                                    >
+                                                      No Food (₹150)
+                                                    </button>
+                                                    <button
+                                                      type="button"
+                                                      onClick={() => handleUpdateTeamMemberField(event.id, mIdx, 'wantsFood', true)}
+                                                      className={`px-2.5 py-1 rounded-lg text-[11px] font-medium border transition-colors cursor-pointer ${
+                                                        member.wantsFood
+                                                          ? 'bg-[#1f1b0e] text-[#f2c14e] border-[#d4a935]'
+                                                          : 'bg-[#131318] text-[#a79f8b] border-[#2e2b22]'
+                                                      }`}
+                                                    >
+                                                      With Food (₹200)
+                                                    </button>
+                                                  </div>
                                                 </div>
                                               )}
                                             </div>
@@ -2911,9 +3086,13 @@ export default function App() {
                         if (!ev) return null;
                         const details = teamDetails[id] || { teamName: '', members: [] };
                         const totalHeads = 1 + (ev.max > 1 ? (details.members?.length || 0) : 0);
-                        const leaderFee = isIeeeMember ? ev.feeMember : ev.feeNonMember;
+                        const leaderBase = isIeeeMember ? ev.feeMember : ev.feeNonMember;
+                        const leaderFood = (!isIeeeMember && wantsFood) ? 50 : 0;
+                        const leaderFee = leaderBase + leaderFood;
                         const teammatesFee = (details.members || []).reduce((mSum, m) => {
-                          return mSum + (m.isIeeeMember ? ev.feeMember : ev.feeNonMember);
+                          const mBase = m.isIeeeMember ? ev.feeMember : ev.feeNonMember;
+                          const mFood = (!m.isIeeeMember && m.wantsFood) ? 50 : 0;
+                          return mSum + mBase + mFood;
                         }, 0);
                         const evTotal = leaderFee + teammatesFee;
 
@@ -2928,7 +3107,13 @@ export default function App() {
                             </div>
                             <div className="pt-1.5 border-t border-[#2e2b22]/60 flex items-center justify-between text-[11px] text-[#a79f8b]">
                               <span>{totalHeads} {totalHeads === 1 ? 'Head (1 Participant)' : `Heads (${totalHeads} Participants)`}</span>
-                              <span className="font-mono">₹{isIeeeMember ? ev.feeMember : ev.feeNonMember} / head</span>
+                              <span className="font-mono">
+                                {isIeeeMember 
+                                  ? '₹150 / head (IEEE · Lunch Incl.)' 
+                                  : wantsFood 
+                                  ? '₹200 / head (₹150 + ₹50 Food)' 
+                                  : '₹150 / head (Standard · No Food)'}
+                              </span>
                             </div>
                           </div>
                         );
@@ -2963,7 +3148,20 @@ export default function App() {
                       {/* Cost Breakdown with GST */}
                       <div className="space-y-2 pt-2 border-t border-[#2e2b22] text-xs">
                         <div className="flex justify-between items-center text-[#a79f8b]">
-                          <span>Registration Subtotal</span>
+                          <span>Base Registration Subtotal</span>
+                          <span className="font-mono text-[#f3ecd9] font-medium">₹{subtotal - foodAddonTotal}</span>
+                        </div>
+                        {foodAddonTotal > 0 && (
+                          <div className="flex justify-between items-center text-[#86efac]">
+                            <span className="flex items-center gap-1.5">
+                              <Utensils className="w-3.5 h-3.5 text-[#4cc38a]" />
+                              <span>Food & Lunch Token ({foodAddonTotal / 50} × ₹50)</span>
+                            </span>
+                            <span className="font-mono font-semibold">+₹{foodAddonTotal}</span>
+                          </div>
+                        )}
+                        <div className="flex justify-between items-center text-[#a79f8b]">
+                          <span>Net Subtotal</span>
                           <span className="font-mono text-[#f3ecd9] font-medium">₹{subtotal}</span>
                         </div>
                         <div className="flex justify-between items-center text-[#a79f8b]">
@@ -3187,6 +3385,44 @@ export default function App() {
           initialMode={participantSpaceInitialMode}
         />
       </ErrorBoundary>
+
+      {/* Mobile-Native Bottom Navigation Dock */}
+      <MobileBottomNav
+        activeTab={
+          isAdminOpen ? 'admin' :
+          isParticipantSpaceOpen ? 'space' :
+          isLookupOpen || confirmedRecord ? 'pass' : 'register'
+        }
+        onSelectTab={(tab) => {
+          if (tab === 'events' || tab === 'register') {
+            setIsAdminOpen(false);
+            setIsParticipantSpaceOpen(false);
+            setIsLookupOpen(false);
+            const el = document.getElementById('register-section') || document.getElementById('events-section') || document.getElementById('events');
+            if (el) el.scrollIntoView({ behavior: 'smooth' });
+            else window.scrollTo({ top: 350, behavior: 'smooth' });
+          } else if (tab === 'pass') {
+            setIsAdminOpen(false);
+            setIsParticipantSpaceOpen(false);
+            if (confirmedRecord) {
+              window.scrollTo({ top: 0, behavior: 'smooth' });
+            } else {
+              setIsLookupOpen(true);
+            }
+          } else if (tab === 'space') {
+            setIsAdminOpen(false);
+            setIsLookupOpen(false);
+            setIsParticipantSpaceOpen(true);
+          } else if (tab === 'admin') {
+            setIsParticipantSpaceOpen(false);
+            setIsLookupOpen(false);
+            setAdminInitialTab('scan');
+            setIsAdminOpen(true);
+          }
+        }}
+        isLoggedIn={Boolean(currentUser)}
+        hasConfirmedPass={Boolean(confirmedRecord)}
+      />
     </div>
   );
 }

@@ -114,7 +114,7 @@ export const EventModal: React.FC<EventModalProps> = ({
                 Registration Fee
               </span>
               <span className="font-mono tabular-nums font-bold text-sm text-[#f2c14e] mt-0.5 block">
-                ₹{currentFee} <span className="text-[10px] text-[#a79f8b] font-normal">/ head {isIeeeMember ? '(IEEE)' : '(Standard)'}</span>
+                ₹{currentFee} <span className="text-[10px] text-[#a79f8b] font-normal">/ head {isIeeeMember ? '(IEEE · Meal Incl.)' : '(Standard · Food +₹50)'}</span>
               </span>
             </div>
           </div>

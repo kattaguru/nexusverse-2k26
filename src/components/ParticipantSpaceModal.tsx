@@ -1241,7 +1241,7 @@ export const ParticipantSpaceModal: React.FC<ParticipantSpaceModalProps> = ({
                                 `🏛️ *College:* ${rec.college || 'NBKRIST'}\n` +
                                 `📚 *Branch:* ${rec.dept || ''} (${rec.year || ''} Year, Sec ${rec.section || 'A'})\n` +
                                 `🎯 *Event(s):* ${eventObjects.map(e => e?.name).join(', ') || rec.eventIds.join(', ')}\n` +
-                                `🍽️ *Food Token:* 1 Delegate Meal Included\n` +
+                                `🍽️ *Food Token:* ${rec.isIeeeMember || rec.wantsFood ? '1 Delegate Meal Included' : 'Not Included (Standard ₹150 Registration without Food)'}\n` +
                                 `📍 *Venue:* N.B.K.R. Institute of Science & Technology, Vidyanagar\n\n` +
                                 `🔗 *View Live Ticket & QR Pass:*\n` +
                                 `${typeof window !== 'undefined' ? window.location.origin : 'https://www.nbkristieee.in'}/register.html?passId=${encodeURIComponent(rec.regId)}`

@@ -92,15 +92,15 @@ export const UpiConfirmationView: React.FC<UpiConfirmationViewProps> = ({
 🏛️ *College:* ${record.college || 'NBKRIST'}
 📚 *Branch:* ${record.dept || ''} (${record.year || ''} Year, Sec ${record.section || 'A'})
 🎯 *Event(s):* ${eventNames}
-💳 *UTR / Ref:* ${record.paymentId} (₹${record.totalPaid})
-🍽️ *Food Token:* 1 Delegate Meal Included
+💳 *Status:* Registered via Direct UPI (₹${record.totalPaid})
+🍽️ *Food Token:* ${record.isIeeeMember || record.wantsFood ? '1 Delegate Meal Included' : 'Not Included (Standard ₹150 Registration without Food)'}
 📍 *Venue:* N.B.K.R. Institute of Science & Technology, Vidyanagar
 📅 *Date:* 29th October 2026
 
 🔗 *View Live Ticket & QR Pass:*
 ${passVerificationUrl}
 
-_(Show this pass or QR code at the registration desk for badge, kit, and food token collection)_`;
+_(Show this pass or QR code at the registration desk for badge, kit, and meal collection)_`;
 
     return `https://api.whatsapp.com/send?text=${encodeURIComponent(shareText)}`;
   };

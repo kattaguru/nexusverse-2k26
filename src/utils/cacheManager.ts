@@ -5,6 +5,7 @@
  */
 
 import { clearFormDraft } from './formCache';
+import { isNativeMobile } from './mobileApp';
 
 export interface BrowserStorageStats {
   supported: boolean;
@@ -54,7 +55,7 @@ export function formatBytes(bytes: number): string {
  * Register Service Worker for offline support and asset caching.
  */
 export async function registerServiceWorker(): Promise<ServiceWorkerRegistration | null> {
-  if (typeof window === 'undefined' || !('serviceWorker' in navigator)) {
+  if (typeof window === 'undefined' || !('serviceWorker' in navigator) || isNativeMobile()) {
     return null;
   }
 

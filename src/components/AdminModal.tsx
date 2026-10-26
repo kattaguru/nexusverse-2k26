@@ -554,7 +554,8 @@ export const AdminModal: React.FC<AdminModalProps> = ({
   const [manualTeamName, setManualTeamName] = useState('');
   const [manualProjectTitle, setManualProjectTitle] = useState('');
   const [manualTeammates, setManualTeammates] = useState<TeamMemberInfo[]>([]);
-  const [manualFee, setManualFee] = useState<number>(300);
+  const [manualFee, setManualFee] = useState<number>(150);
+  const [manualWantsFood, setManualWantsFood] = useState<boolean>(false);
   const [manualPayMethod, setManualPayMethod] = useState<'Cash Spot' | 'UPI Spot' | 'Special Waiver'>('UPI Spot');
   const [manualSuccessMsg, setManualSuccessMsg] = useState('');
 
@@ -1753,6 +1754,7 @@ export const AdminModal: React.FC<AdminModalProps> = ({
       roll: manualRoll.trim().toUpperCase(),
       isIeeeMember: manualIsIeee,
       ieeeId: manualIsIeee ? manualIeeeId.trim() : undefined,
+      wantsFood: manualIsIeee ? true : manualWantsFood,
       eventIds: [manualEventId],
       teamDetails: isTeamEvent ? formattedTeamDetails : undefined,
       totalPaid: Number(manualFee) || 0,
@@ -3867,7 +3869,11 @@ export const AdminModal: React.FC<AdminModalProps> = ({
                             const newId = e.target.value;
                             setManualEventId(newId);
                             const ev = ALL_EVENTS.find(x => x.id === newId);
-                            if (ev) setManualFee(manualIsIeee ? ev.feeMember : ev.feeNonMember);
+                            if (ev) {
+                              const base = manualIsIeee ? ev.feeMember : ev.feeNonMember;
+                              const food = (!manualIsIeee && manualWantsFood) ? 50 : 0;
+                              setManualFee(base + food);
+                            }
                           }}
                           className="w-full px-3 py-2 rounded-xl bg-[#131318] border border-[#2e2b22] text-[#f3ecd9] focus:outline-none focus:border-[#d4a935]"
                         >
@@ -3976,7 +3982,7 @@ export const AdminModal: React.FC<AdminModalProps> = ({
                             onClick={() => {
                               setManualIsIeee(false);
                               const ev = ALL_EVENTS.find(x => x.id === manualEventId);
-                              if (ev) setManualFee(ev.feeNonMember);
+                              if (ev) setManualFee(ev.feeNonMember + (manualWantsFood ? 50 : 0));
                             }}
                             className={`py-1.5 px-3 rounded-lg text-xs font-medium border text-center transition-all cursor-pointer ${
                               !manualIsIeee ? 'bg-[#1f1b0e] text-[#f2c14e] border-[#d4a935]' : 'bg-[#0a0a0d] text-[#a79f8b] border-[#2e2b22]'
@@ -4007,6 +4013,29 @@ export const AdminModal: React.FC<AdminModalProps> = ({
                             placeholder="Enter IEEE Membership ID (e.g. 99123456)"
                             className="w-full px-3 py-2 rounded-xl bg-[#0a0a0d] border border-[#2e2b22] text-[#f3ecd9] font-mono mt-2"
                           />
+                        )}
+
+                        {!manualIsIeee && (
+                          <div className="pt-2 flex items-center justify-between border-t border-[#2e2b22]/60 mt-1">
+                            <span className="text-[11px] text-[#a79f8b]">Food / Lunch Option (+₹50):</span>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                const next = !manualWantsFood;
+                                setManualWantsFood(next);
+                                const ev = ALL_EVENTS.find(x => x.id === manualEventId);
+                                const base = ev ? ev.feeNonMember : 150;
+                                setManualFee(base + (next ? 50 : 0));
+                              }}
+                              className={`px-2.5 py-1 rounded-lg text-xs font-semibold border transition-all cursor-pointer ${
+                                manualWantsFood
+                                  ? 'bg-[#1f1b0e] text-[#f2c14e] border-[#d4a935]'
+                                  : 'bg-[#0a0a0d] text-[#a79f8b] border-[#2e2b22]'
+                              }`}
+                            >
+                              {manualWantsFood ? 'With Food (₹200)' : 'No Food (₹150)'}
+                            </button>
+                          </div>
                         )}
                       </div>
 

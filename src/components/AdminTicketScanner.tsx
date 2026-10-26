@@ -54,6 +54,7 @@ import {
   getRecordTeammates, 
   getRecordMemberCount, 
   getRecordLunchStats,
+  isMemberFoodEligible,
   getRecordCheckInStats,
   getRecordTrackAttendanceStats,
   RecordTrackAttendanceStats,
@@ -70,6 +71,7 @@ import {
 } from '../utils/delegateStats';
 import { EVENTS, SPOT_EVENT, ALL_EVENTS, SYMPOSIUM_CONFIG } from '../data/symposiumData';
 import { sendTicketEmailApi } from '../services/api';
+import { triggerHaptic } from '../utils/mobileApp';
 
 interface AdminTicketScannerProps {
   records: RegistrationRecord[];
@@ -212,8 +214,9 @@ export const AdminTicketScanner: React.FC<AdminTicketScannerProps> = ({
   const scanLoopRef = useRef<number | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
 
-  // Audio feedback synthesizer
+  // Audio & Haptic feedback synthesizer
   const playBeep = (isSuccess = true) => {
+    triggerHaptic(isSuccess ? 'success' : 'error');
     if (!soundEnabled) return;
     try {
       const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
@@ -245,6 +248,7 @@ export const AdminTicketScanner: React.FC<AdminTicketScannerProps> = ({
 
   // Warning buzzer synthesizer for duplicate meal claim
   const playBuzzer = () => {
+    triggerHaptic('warning');
     if (!soundEnabled) return;
     try {
       const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
@@ -839,6 +843,26 @@ export const AdminTicketScanner: React.FC<AdminTicketScannerProps> = ({
       // DESK 3: FOOD & CATERING LUNCH TOKEN COUNTER
       // -------------------------------------------------------------
       else if (scannerMode === 'lunch') {
+        const isEligible = isMemberFoodEligible(matched, scannedMemberKey);
+        if (!isEligible) {
+          playBuzzer();
+          try { navigator.vibrate?.([300, 150, 300, 150, 400]); } catch (e) {}
+          setScanResultModal({
+            type: 'already_scanned',
+            scanTrack: 'Desk 3: Food Meal Token',
+            deskNumber: 3,
+            title: 'NO FOOD TOKEN PURCHASED!',
+            message: `NO LUNCH TOKEN! Delegate ${scannedMemberName} (${scannedMemberRoll} · ${scannedMemberRole}) registered under Standard ₹150 Pass WITHOUT Food. Meal tray token cannot be dispensed.`,
+            delegateName: scannedMemberName,
+            delegateRoll: scannedMemberRoll,
+            delegateRole: scannedMemberRole,
+            teamName: matched.name,
+            eventName: 'Desk 3: Food & Lunch Token'
+          });
+          setActiveRecord(matched);
+          return;
+        }
+
         const currentMemberStatus = { ...(matched.memberLunchStatus || {}) };
         if (matched.lunchCollected && Object.keys(currentMemberStatus).length === 0) {
           currentMemberStatus['lead'] = true;
@@ -3299,6 +3323,7 @@ export const AdminTicketScanner: React.FC<AdminTicketScannerProps> = ({
                       role: totalMembers > 1 ? 'Lead' : 'Delegate',
                       name: activeRecord.name,
                       roll: activeRecord.roll || 'N/A',
+                      isEligible: lunchStats.memberEligibility?.['lead'] !== false,
                       isCollected: Boolean(lunchStats.memberStatus['lead'] || lunchStats.isFullyCollected)
                     },
                     ...teammates.map((m, idx) => ({
@@ -3306,6 +3331,7 @@ export const AdminTicketScanner: React.FC<AdminTicketScannerProps> = ({
                       role: `Member ${idx + 2}`,
                       name: m.name || `Member ${idx + 2}`,
                       roll: m.roll || 'N/A',
+                      isEligible: lunchStats.memberEligibility?.[`teammate_${idx}`] !== false,
                       isCollected: Boolean(lunchStats.memberStatus[`teammate_${idx}`] || lunchStats.isFullyCollected)
                     }))
                   ];
@@ -3342,17 +3368,20 @@ export const AdminTicketScanner: React.FC<AdminTicketScannerProps> = ({
                           <div 
                             key={m.key} 
                             className={`p-2.5 rounded-xl border flex items-center justify-between gap-2 transition-all ${
-                              m.isCollected
+                              !m.isEligible
+                                ? (isLight ? 'bg-gray-100 border-gray-300 opacity-70' : 'bg-[#0d0d12] border-white/5 opacity-60')
+                                : m.isCollected
                                 ? (isLight ? 'bg-[#f0fdf4] border-[#86efac]' : 'bg-[#0f1f14] border-[#4cc38a]/40')
                                 : (isLight ? 'bg-white border-[#d8d0ba]' : 'bg-[#14141d] border-[#2e2b22]')
                             }`}
                           >
-                            <label className="flex items-center gap-2.5 cursor-pointer select-none min-w-0 flex-1">
+                            <label className={`flex items-center gap-2.5 select-none min-w-0 flex-1 ${m.isEligible ? 'cursor-pointer' : 'cursor-not-allowed'}`}>
                               <input
                                 type="checkbox"
                                 checked={m.isCollected}
-                                onChange={() => handleToggleMemberLunch(m.key)}
-                                className="w-4 h-4 rounded text-[#f59e0b] accent-[#f59e0b] cursor-pointer shrink-0"
+                                disabled={!m.isEligible}
+                                onChange={() => m.isEligible && handleToggleMemberLunch(m.key)}
+                                className="w-4 h-4 rounded text-[#f59e0b] accent-[#f59e0b] cursor-pointer shrink-0 disabled:opacity-30"
                               />
                               <div className="min-w-0">
                                 <div className="flex items-center gap-1.5 flex-wrap">
@@ -3364,13 +3393,17 @@ export const AdminTicketScanner: React.FC<AdminTicketScannerProps> = ({
                                   </span>
                                 </div>
                                 <div className="text-[10px] text-[#a79f8b] font-mono">
-                                  Roll: {m.roll} · 1 Lunch Meal Tray
+                                  Roll: {m.roll} · {m.isEligible ? '1 Lunch Meal Tray' : 'Standard Pass (No Food)'}
                                 </div>
                               </div>
                             </label>
 
                             <div className="shrink-0">
-                              {m.isCollected ? (
+                              {!m.isEligible ? (
+                                <span className="text-[10px] font-semibold text-[#a79f8b] px-2 py-0.5 rounded bg-white/5 border border-white/10">
+                                  No Food Opted
+                                </span>
+                              ) : m.isCollected ? (
                                 <span className="text-[10px] font-bold text-[#4cc38a] flex items-center gap-1 bg-[#4cc38a]/15 px-2 py-1 rounded-lg border border-[#4cc38a]/30">
                                   <CheckCircle2 className="w-3 h-3 text-[#4cc38a]" />
                                   <span>Tray Dispensed ✓</span>

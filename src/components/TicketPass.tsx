@@ -39,6 +39,7 @@ export interface TeamMemberInfo {
   email?: string;
   isIeeeMember?: boolean;
   ieeeId?: string;
+  wantsFood?: boolean;
 }
 
 export interface RegistrationRecord {
@@ -58,6 +59,7 @@ export interface RegistrationRecord {
   roll: string;      // Roll No
   isIeeeMember: boolean;
   ieeeId?: string;
+  wantsFood?: boolean;
   eventIds: string[];
   teamDetails?: Record<string, { 
     teamName?: string; 
@@ -282,6 +284,11 @@ export const TicketPass: React.FC<TicketPassProps> = ({
       .map(id => allKnownEvents.find(e => e.id === id)?.name || id)
       .join(', ');
 
+    const targetFoodEligible = lunchStats.memberEligibility?.[target.key] !== false;
+    const foodShareText = targetFoodEligible
+      ? `1 Delegate Meal Tray Included (${target.name})`
+      : 'Not Included (Standard ₹150 Registration without Food)';
+
     const shareText = 
 `🎟️ *NEXUSVERSE 2K26 - OFFICIAL ENTRY PASS*
 ━━━━━━━━━━━━━━━━━━━━
@@ -293,7 +300,7 @@ export const TicketPass: React.FC<TicketPassProps> = ({
 🎯 *Event(s):* ${eventNames}
 👥 *Team Registration:* ${totalMembers > 1 ? `${totalMembers} Members Registered` : 'Single Delegate'}
 💳 *Status:* ${record.isVerified || record.paymentMode === 'razorpay' ? 'Confirmed & Verified ✅' : 'Registered ⏳'} (₹${record.totalPaid})
-🍽️ *Food Token:* 1 Delegate Meal Tray Included (${target.name})
+🍽️ *Food Token:* ${foodShareText}
 📍 *Venue:* N.B.K.R. Institute of Science & Technology, Vidyanagar
 📅 *Date:* 29th October 2026
 
@@ -771,11 +778,15 @@ _(Show this pass or QR code at the registration desk for badge, kit, and meal tr
                                 <div className="flex items-center gap-1">
                                   <Utensils className="w-3.5 h-3.5 text-[#f59e0b]" />
                                   <span className={`text-[10px] font-bold ${
-                                    lunchStats.memberStatus['lead'] || lunchStats.isFullyCollected
+                                    lunchStats.memberEligibility?.['lead'] === false
+                                      ? 'text-[#a79f8b]'
+                                      : lunchStats.memberStatus['lead'] || lunchStats.isFullyCollected
                                       ? 'text-[#4cc38a]'
                                       : 'text-[#f59e0b]'
                                   }`}>
-                                    {lunchStats.memberStatus['lead'] || lunchStats.isFullyCollected
+                                    {lunchStats.memberEligibility?.['lead'] === false
+                                      ? 'No Food (₹150 Standard)'
+                                      : lunchStats.memberStatus['lead'] || lunchStats.isFullyCollected
                                       ? '1 Meal Tray Claimed ✓'
                                       : '1 Meal Tray Included'}
                                   </span>
@@ -863,9 +874,17 @@ _(Show this pass or QR code at the registration desk for badge, kit, and meal tr
                                     <div className="flex items-center gap-1">
                                       <Utensils className="w-3.5 h-3.5 text-[#f59e0b]" />
                                       <span className={`text-[10px] font-bold ${
-                                        isCollected ? 'text-[#4cc38a]' : 'text-[#f59e0b]'
+                                        lunchStats.memberEligibility?.[key] === false
+                                          ? 'text-[#a79f8b]'
+                                          : isCollected
+                                          ? 'text-[#4cc38a]'
+                                          : 'text-[#f59e0b]'
                                       }`}>
-                                        {isCollected ? '1 Meal Tray Claimed ✓' : '1 Meal Tray Included'}
+                                        {lunchStats.memberEligibility?.[key] === false
+                                          ? 'No Food (Standard)'
+                                          : isCollected
+                                          ? '1 Meal Tray Claimed ✓'
+                                          : '1 Meal Tray Included'}
                                       </span>
                                     </div>
 
@@ -1039,14 +1058,18 @@ _(Show this pass or QR code at the registration desk for badge, kit, and meal tr
                 </div>
                 <div className="flex items-center justify-between">
                   <span>Food / Lunch Tokens:</span>
-                  <strong className={lunchStats.isFullyCollected ? 'text-[#4cc38a]' : 'text-[#f2c14e]'}>
-                    {lunchStats.isFullyCollected
-                      ? `ALL ${totalMembers} MEALS CLAIMED ✓`
-                      : `${lunchStats.mealsDispensed} / ${totalMembers} MEALS CLAIMED`}
+                  <strong className={lunchStats.totalMealsAllocated === 0 ? 'text-[#a79f8b]' : lunchStats.isFullyCollected ? 'text-[#4cc38a]' : 'text-[#f2c14e]'}>
+                    {lunchStats.totalMealsAllocated === 0
+                      ? 'NOT INCLUDED (STANDARD ₹150 PASS)'
+                      : lunchStats.isFullyCollected
+                      ? `ALL ${lunchStats.totalMealsAllocated} MEALS CLAIMED ✓`
+                      : `${lunchStats.mealsDispensed} / ${lunchStats.totalMealsAllocated} MEALS CLAIMED`}
                   </strong>
                 </div>
                 <div className="text-[9px] text-[#d4a935] text-right font-medium">
-                  ({totalMembers} {totalMembers === 1 ? 'Meal Tray' : 'Meal Trays'} Included · 1 per member)
+                  {lunchStats.totalMealsAllocated === 0
+                    ? '(Standard Registration without food / meal token)'
+                    : `(${lunchStats.totalMealsAllocated} ${lunchStats.totalMealsAllocated === 1 ? 'Meal Tray' : 'Meal Trays'} Included · 1 per opted member)`}
                 </div>
               </div>
             </div>

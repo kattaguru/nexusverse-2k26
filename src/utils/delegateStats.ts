@@ -122,6 +122,34 @@ export interface RecordLunchStats {
   mealsRemaining: number;
   isFullyCollected: boolean;
   memberStatus: Record<string, boolean>;
+  memberEligibility: Record<string, boolean>;
+}
+
+/**
+ * Checks whether an individual member of a registration record is eligible for food/lunch.
+ * IEEE members always have food included.
+ * Non-IEEE members must have opted for food (wantsFood === true) or legacy paid full amount.
+ */
+export function isMemberFoodEligible(record: RegistrationRecord | undefined | null, memberKey: string): boolean {
+  if (!record) return false;
+
+  if (memberKey === 'lead') {
+    if (record.isIeeeMember) return true;
+    if (record.wantsFood !== undefined) return Boolean(record.wantsFood);
+    // Legacy fallback: if record paid >= 200, food was included in original ₹200 fee
+    return (record.totalPaid || 0) >= 200;
+  }
+
+  const teammates = getRecordTeammates(record);
+  const idx = parseInt(memberKey.replace('teammate_', ''), 10);
+  const tm = teammates[idx];
+  if (!tm) return false;
+
+  if (tm.isIeeeMember) return true;
+  if (tm.wantsFood !== undefined) return Boolean(tm.wantsFood);
+  if (record.wantsFood !== undefined) return Boolean(record.wantsFood);
+  // Legacy fallback
+  return (record.totalPaid || 0) >= 200;
 }
 
 /**
@@ -134,30 +162,40 @@ export function getRecordLunchStats(record: RegistrationRecord | undefined | nul
       mealsDispensed: 0,
       mealsRemaining: 0,
       isFullyCollected: false,
-      memberStatus: {}
+      memberStatus: {},
+      memberEligibility: {}
     };
   }
 
-  const memberCount = getRecordMemberCount(record);
+  const teammates = getRecordTeammates(record);
+  const memberKeys = ['lead', ...teammates.map((_, i) => `teammate_${i}`)];
+  const eligibilityMap: Record<string, boolean> = {};
+
+  memberKeys.forEach(k => {
+    eligibilityMap[k] = isMemberFoodEligible(record, k);
+  });
+
+  const totalMealsAllocated = Object.values(eligibilityMap).filter(Boolean).length;
   const statusMap = record.memberLunchStatus || {};
 
   const hasMemberMap = Object.keys(statusMap).length > 0;
   let dispensed = 0;
 
   if (hasMemberMap) {
-    dispensed = Object.values(statusMap).filter(Boolean).length;
+    dispensed = Object.entries(statusMap).filter(([k, v]) => Boolean(v) && Boolean(eligibilityMap[k])).length;
   } else if (record.lunchCollectedCount !== undefined) {
-    dispensed = Math.min(memberCount, Math.max(0, record.lunchCollectedCount));
+    dispensed = Math.min(totalMealsAllocated, Math.max(0, record.lunchCollectedCount));
   } else if (record.lunchCollected) {
-    dispensed = memberCount;
+    dispensed = totalMealsAllocated;
   }
 
   return {
-    totalMealsAllocated: memberCount,
+    totalMealsAllocated,
     mealsDispensed: dispensed,
-    mealsRemaining: Math.max(0, memberCount - dispensed),
-    isFullyCollected: dispensed >= memberCount && memberCount > 0,
-    memberStatus: statusMap
+    mealsRemaining: Math.max(0, totalMealsAllocated - dispensed),
+    isFullyCollected: dispensed >= totalMealsAllocated && totalMealsAllocated > 0,
+    memberStatus: statusMap,
+    memberEligibility: eligibilityMap
   };
 }
 
@@ -323,6 +361,7 @@ export interface IndividualParticipant {
   year: string;
   isIeeeMember: boolean;
   ieeeId?: string;
+  wantsFood?: boolean;
   teamName?: string;
   totalTeamMembers: number;
   eventIds: string[];
@@ -385,6 +424,7 @@ export function flattenToIndividualParticipants(records: RegistrationRecord[]): 
       year: record.year || '',
       isIeeeMember: Boolean(record.isIeeeMember),
       ieeeId: record.ieeeId || '',
+      wantsFood: isMemberFoodEligible(record, 'lead'),
       teamName: teamName || undefined,
       totalTeamMembers: totalMembers,
       eventIds: record.eventIds || [],
@@ -433,6 +473,7 @@ export function flattenToIndividualParticipants(records: RegistrationRecord[]): 
         year: m.year || record.year || '',
         isIeeeMember: Boolean(m.isIeeeMember),
         ieeeId: m.ieeeId || '',
+        wantsFood: isMemberFoodEligible(record, key),
         teamName: teamName || undefined,
         totalTeamMembers: totalMembers,
         eventIds: record.eventIds || [],

@@ -161,7 +161,7 @@ export const Hero: React.FC<HeroProps> = ({
                 <span className="block text-lg sm:text-2xl lg:text-3xl font-serif-title font-bold text-[#ffffff]">
                   5 Tech + Spot
                 </span>
-                <span className="text-[11px] sm:text-xs text-[#a79f8b]">₹150/₹200 Tech · ₹100 Spot Events</span>
+                <span className="text-[11px] sm:text-xs text-[#a79f8b]">₹150 Normal / ₹200 Food · ₹100 Spot</span>
               </div>
               <div>
                 <span className="block text-lg sm:text-2xl lg:text-3xl font-serif-title font-bold text-[#ffffff] flex items-center gap-1.5">

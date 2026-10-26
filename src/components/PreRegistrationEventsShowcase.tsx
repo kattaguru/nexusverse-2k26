@@ -126,7 +126,7 @@ export const PreRegistrationEventsShowcase: React.FC<PreRegistrationEventsShowca
               <span className="event-track-title">Track 1: Morning Flagship Technical Events (10:00 AM – 12:00 PM)</span>
             </div>
             <span className="event-track-fee text-xs font-mono text-[#f2c14e] bg-[#1f1b0e] px-2.5 py-1 rounded-lg border border-[#d4a935]/30">
-              ₹150 IEEE Member · ₹200 Non-Member
+              ₹150 IEEE (Meal Incl.) · ₹150 Non-Member (+₹50 Food)
             </span>
           </div>
 
@@ -161,7 +161,7 @@ export const PreRegistrationEventsShowcase: React.FC<PreRegistrationEventsShowca
                         ₹150 <span className="event-price-sub text-[10px] text-[#a79f8b] font-normal">IEEE</span>
                       </span>
                       <span className="event-price-non text-[10px] font-mono text-[#a79f8b] block">
-                        ₹200 Non-IEEE
+                        ₹150 Non-IEEE <span className="text-[9px] text-[#f2c14e]">(+₹50 Food)</span>
                       </span>
                     </div>
                   </div>

@@ -34,6 +34,7 @@ export const SYMPOSIUM_CONFIG = {
   email: "nexusverse@nbkrist.org",
   totalPrizePool: "Exciting Cash Prizes & Awards (Revealing Soon!)",
   gstPercent: 2, // 2% GST (₹2 for every ₹100 base registration fee)
+  foodFee: 50, // Extra ₹50 for lunch meal token (optional for non-IEEE members)
   promoCodes: {
     "IEEE10": 10,
     "NEXUS20": 20,
@@ -80,7 +81,7 @@ export const EVENTS: SymposiumEvent[] = [
     category: "Cybersecurity – Capture the Flag (CTF)",
     teamLabel: "Exactly 2 Participants",
     participationText: "Exactly 2 participants per team. Individual participation is not allowed.",
-    feeNonMember: 200,
+    feeNonMember: 150,
     feeMember: 150,
     min: 2,
     max: 2,
@@ -117,7 +118,7 @@ export const EVENTS: SymposiumEvent[] = [
     category: "Rapid Innovation and Prototyping",
     teamLabel: "1–2 Participants",
     participationText: "1–2 participants per team.",
-    feeNonMember: 200,
+    feeNonMember: 150,
     feeMember: 150,
     min: 1,
     max: 2,
@@ -157,7 +158,7 @@ export const EVENTS: SymposiumEvent[] = [
     category: "DSA and Constraint-Based Coding",
     teamLabel: "Individual (1 Participant)",
     participationText: "Individual event – one participant per entry.",
-    feeNonMember: 200,
+    feeNonMember: 150,
     feeMember: 150,
     min: 1,
     max: 1,
@@ -195,7 +196,7 @@ export const EVENTS: SymposiumEvent[] = [
     category: "Project Expo and Idea Pitching",
     teamLabel: "1–2 Participants",
     participationText: "1–2 participants per team.",
-    feeNonMember: 200,
+    feeNonMember: 150,
     feeMember: 150,
     min: 1,
     max: 2,
@@ -235,7 +236,7 @@ export const EVENTS: SymposiumEvent[] = [
     category: "Theme-Based Poster Design",
     teamLabel: "Individual (1 Participant)",
     participationText: "Individual event – one participant per entry.",
-    feeNonMember: 200,
+    feeNonMember: 150,
     feeMember: 150,
     min: 1,
     max: 1,
@@ -350,7 +351,7 @@ export const FAQS = [
   },
   {
     q: "How does the IEEE membership discount work?",
-    a: "Active IEEE student members enjoy reduced delegate fees across all events (e.g. ₹150 instead of ₹200). Simply select 'IEEE Member' on the registration form and enter your 8-digit IEEE member number."
+    a: "Active IEEE student members enjoy reduced delegate fees of ₹150 across all events, with complimentary networking lunch included! For non-IEEE members, standard registration is ₹150 (without food), or ₹200 if you want lunch & food meal token included (extra ₹50). Simply select your status on the registration form."
   },
   {
     q: "Can I register for multiple events?",
@@ -366,7 +367,7 @@ export const FAQS = [
   },
   {
     q: "What is included with the registration fee?",
-    a: "The registration fee covers participation in the selected events, official IEEE delegate kit, high-speed Wi-Fi access, workshop/competition resources, lunch, and refreshments."
+    a: "The registration fee covers participation in the selected events, official IEEE delegate kit, high-speed Wi-Fi access, workshop/competition resources, and physical Certificate of Participation. For IEEE members, lunch and refreshments are complimentary! For non-IEEE members, lunch can be added for just ₹50 extra (₹200 total)."
   },
   {
     q: "What is the cancellation and refund policy?",

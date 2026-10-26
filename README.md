@@ -102,6 +102,40 @@ Access the executive administrative portal at `/nexusadmin`:
 
 ---
 
+## 📱 Native Android Mobile App (Capacitor)
+
+The repository includes a production-ready **Capacitor Android Native App** configured for organizers, desk volunteers, and participants.
+
+### Mobile Features:
+- 📷 **Native Camera QR Scanner**: Rapid hardware-accelerated QR badge scanning with physical phone haptic vibration feedback.
+- 🗂️ **5 Desk Station Mode**: 1-tap check-in across Reception & Kit, Technical Event, Food & Lunch Meal Tokens, Spot Pass, and Certificates.
+- 📱 **Mobile Bottom Navigation Dock**: Instant 1-tap switching between Registration, Ticket Passes, Participant Space, and Admin Scanner.
+- 🔙 **Android Hardware Back Button**: Intelligently dismisses open modals (Scanner, Lookup, Payment, Participant Space) without closing the app.
+- 🎨 **Immersive Dark Status Bar**: Seamlessly integrates with the cyberpunk `#0a0a0d` symposium theme.
+
+### Build & Run the Android App:
+
+1. **Build and Sync Web Assets into Android:**
+   ```bash
+   npm run cap:sync
+   ```
+
+2. **Open in Android Studio:**
+   ```bash
+   npm run cap:open
+   ```
+   *(Or open the `android` folder directly in Android Studio)*
+
+3. **Build the Debug APK directly via Gradle:**
+   ```bash
+   cd android
+   ./gradlew assembleDebug
+   ```
+   The compiled APK will be generated at:
+   `android/app/build/outputs/apk/debug/app-debug.apk`
+
+---
+
 ## 📜 License & Organizers
 
 Organized by the **IEEE Student Branch (IEEE-SB)**  
