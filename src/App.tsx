@@ -2281,128 +2281,6 @@ export default function App() {
                             </button>
                           </div>
 
-                          {/* Spot Event Food Preference or Technical Food Preference */}
-                          {selectedEvents.length === 0 && includeSpotEvents ? (
-                            <div className="p-3.5 rounded-xl bg-[#14141d] border border-[#2e2b22] space-y-2.5">
-                              <div className="flex items-center justify-between">
-                                <div className="flex items-center gap-2">
-                                  <Utensils className="w-4 h-4 text-[#f2c14e]" />
-                                  <span className="text-xs font-bold text-[#ffffff]">
-                                    Spot Event Lunch & Food Token (Desk 3)
-                                  </span>
-                                </div>
-                                <span className="text-[10px] px-2 py-0.5 rounded-full font-mono font-semibold bg-[#f2c14e]/10 text-[#f2c14e] border border-[#f2c14e]/30">
-                                  Optional +₹50
-                                </span>
-                              </div>
-                              <p className="text-[11px] text-[#a79f8b] leading-relaxed">
-                                For Spot Events, food is not included by default (<strong>₹100</strong> Standard Entry). If you want networking lunch & meal tray token, you can add food for an extra <strong>₹50</strong> (Total <strong>₹150</strong>).
-                              </p>
-                              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-0.5">
-                                <button
-                                  type="button"
-                                  onClick={() => setWantsFood(false)}
-                                  className={`p-2.5 rounded-xl border text-left transition-all cursor-pointer ${
-                                    !wantsFood
-                                      ? 'bg-[#1f1b0e] border-[#d4a935] ring-1 ring-[#d4a935]/40 text-[#ffffff]'
-                                      : 'bg-[#0a0a0d] border-[#2e2b22] text-[#a79f8b] hover:border-[#3d382c]'
-                                  }`}
-                                >
-                                  <div className="flex items-center justify-between">
-                                    <span className="text-xs font-bold">Standard Spot Entry</span>
-                                    <span className="font-mono font-bold text-xs text-[#f2c14e]">₹100</span>
-                                  </div>
-                                  <span className="text-[10px] text-[#a79f8b] block mt-0.5">
-                                    No Food / Lunch (Afternoon Games Pass)
-                                  </span>
-                                </button>
-                                <button
-                                  type="button"
-                                  onClick={() => setWantsFood(true)}
-                                  className={`p-2.5 rounded-xl border text-left transition-all cursor-pointer ${
-                                    wantsFood
-                                      ? 'bg-[#1f1b0e] border-[#d4a935] ring-1 ring-[#d4a935]/40 text-[#ffffff]'
-                                      : 'bg-[#0a0a0d] border-[#2e2b22] text-[#a79f8b] hover:border-[#3d382c]'
-                                  }`}
-                                >
-                                  <div className="flex items-center justify-between">
-                                    <span className="text-xs font-bold flex items-center gap-1">
-                                      <span>Spot Pass + Food</span>
-                                      <span className="text-[9px] bg-[#4cc38a]/20 text-[#4cc38a] px-1 rounded font-mono">+₹50</span>
-                                    </span>
-                                    <span className="font-mono font-bold text-xs text-[#f2c14e]">₹150</span>
-                                  </div>
-                                  <span className="text-[10px] text-[#86efac] block mt-0.5">
-                                    Includes Official Desk 3 Meal Tray Token ✓
-                                  </span>
-                                </button>
-                              </div>
-                            </div>
-                          ) : !isIeeeMember ? (
-                            <div className="p-3.5 rounded-xl bg-[#14141d] border border-[#2e2b22] space-y-2.5">
-                              <div className="flex items-center justify-between">
-                                <div className="flex items-center gap-2">
-                                  <Utensils className="w-4 h-4 text-[#f2c14e]" />
-                                  <span className="text-xs font-bold text-[#ffffff]">
-                                    Symposium Lunch & Food Token (Desk 3)
-                                  </span>
-                                </div>
-                                <span className="text-[10px] px-2 py-0.5 rounded-full font-mono font-semibold bg-[#f2c14e]/10 text-[#f2c14e] border border-[#f2c14e]/30">
-                                  Optional +₹50
-                                </span>
-                              </div>
-                              <p className="text-[11px] text-[#a79f8b] leading-relaxed">
-                                Normal registration fee is <strong>₹150</strong> (Without Food). If you want networking lunch & meal tray token, you can add food for an extra <strong>₹50</strong> (Total <strong>₹200</strong>).
-                              </p>
-                              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-0.5">
-                                <button
-                                  type="button"
-                                  onClick={() => setWantsFood(false)}
-                                  className={`p-2.5 rounded-xl border text-left transition-all cursor-pointer ${
-                                    !wantsFood
-                                      ? 'bg-[#1f1b0e] border-[#d4a935] ring-1 ring-[#d4a935]/40 text-[#ffffff]'
-                                      : 'bg-[#0a0a0d] border-[#2e2b22] text-[#a79f8b] hover:border-[#3d382c]'
-                                  }`}
-                                >
-                                  <div className="flex items-center justify-between">
-                                    <span className="text-xs font-bold">Standard Entry</span>
-                                    <span className="font-mono font-bold text-xs text-[#f2c14e]">₹150</span>
-                                  </div>
-                                  <span className="text-[10px] text-[#a79f8b] block mt-0.5">
-                                    No Food / Lunch (Registration & Kit only)
-                                  </span>
-                                </button>
-                                <button
-                                  type="button"
-                                  onClick={() => setWantsFood(true)}
-                                  className={`p-2.5 rounded-xl border text-left transition-all cursor-pointer ${
-                                    wantsFood
-                                      ? 'bg-[#1f1b0e] border-[#d4a935] ring-1 ring-[#d4a935]/40 text-[#ffffff]'
-                                      : 'bg-[#0a0a0d] border-[#2e2b22] text-[#a79f8b] hover:border-[#3d382c]'
-                                  }`}
-                                >
-                                  <div className="flex items-center justify-between">
-                                    <span className="text-xs font-bold flex items-center gap-1">
-                                      <span>Include Food / Lunch</span>
-                                      <span className="text-[9px] bg-[#4cc38a]/20 text-[#4cc38a] px-1 rounded font-mono">+₹50</span>
-                                    </span>
-                                    <span className="font-mono font-bold text-xs text-[#f2c14e]">₹200</span>
-                                  </div>
-                                  <span className="text-[10px] text-[#86efac] block mt-0.5">
-                                    Includes Official Desk 3 Meal Tray Token ✓
-                                  </span>
-                                </button>
-                              </div>
-                            </div>
-                          ) : (
-                            <div className="p-3 rounded-xl bg-[#0f2419] border border-[#4cc38a]/40 text-xs text-[#86efac] flex items-center gap-2">
-                              <CheckCircle2 className="w-4 h-4 text-[#4cc38a] shrink-0" />
-                              <span>
-                                <strong>IEEE Member Perk:</strong> 1 Complimentary Lunch Meal Tray Token is <strong>included</strong> with your ₹150 registration!
-                              </span>
-                            </div>
-                          )}
-
                           {isIeeeMember && (
                             <div className="pt-2" id="field-ieeeId">
                               <label className="block text-xs font-semibold text-[#f2c14e] mb-1.5 flex items-center justify-between">
@@ -2424,6 +2302,129 @@ export default function App() {
                               {errors.ieeeId && <p className="text-xs text-[#ff8a80] mt-1">{errors.ieeeId}</p>}
                             </div>
                           )}
+                        </div>
+
+                        {/* SEPARATE QUESTION: Food & Lunch Token Preference */}
+                        <div className="sm:col-span-2 pt-2" id="field-food-preference">
+                          <div className="p-4 sm:p-5 rounded-2xl bg-gradient-to-br from-[#16161e] via-[#1a1712] to-[#16161e] border-2 border-[#d4a935]/40 shadow-lg space-y-3">
+                            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-2 border-b border-[#2e2b22]">
+                              <div className="flex items-center gap-2.5">
+                                <div className="w-8 h-8 rounded-xl bg-[#f2c14e]/15 border border-[#f2c14e]/40 flex items-center justify-center text-[#f2c14e] shrink-0">
+                                  <Utensils className="w-4 h-4" />
+                                </div>
+                                <div>
+                                  <div className="flex items-center gap-2">
+                                    <h4 className="text-sm font-bold text-white tracking-wide">
+                                      Food & Lunch Preference Question <span className="text-[#ff8a80]">*</span>
+                                    </h4>
+                                    <span className={`text-[10px] font-mono px-2 py-0.5 rounded-full font-bold uppercase ${
+                                      isIeeeMember && selectedEvents.length > 0
+                                        ? 'bg-[#4cc38a]/20 text-[#86efac] border border-[#4cc38a]/40'
+                                        : wantsFood
+                                        ? 'bg-[#f2c14e]/20 text-[#f2c14e] border border-[#f2c14e]/40'
+                                        : 'bg-[#a79f8b]/15 text-[#a79f8b] border border-[#2e2b22]'
+                                    }`}>
+                                      {isIeeeMember && selectedEvents.length > 0 
+                                        ? 'Included (IEEE Member)' 
+                                        : wantsFood 
+                                        ? 'Food Added (+₹50)' 
+                                        : 'No Food (₹0)'}
+                                    </span>
+                                  </div>
+                                  <p className="text-xs text-[#dcd6c7] mt-0.5 font-medium">
+                                    Do you want to add official Symposium Lunch & Food Token for Desk 3?
+                                  </p>
+                                </div>
+                              </div>
+                            </div>
+
+                            {/* Options based on IEEE status */}
+                            {isIeeeMember && selectedEvents.length > 0 ? (
+                              <div className="p-3.5 rounded-xl bg-[#0d2a1c] border border-[#4cc38a]/50 text-xs text-[#86efac] flex items-center gap-3">
+                                <CheckCircle2 className="w-5 h-5 text-[#4cc38a] shrink-0" />
+                                <div>
+                                  <span className="font-bold text-white block">IEEE Member Privilege: Free Lunch Token Included!</span>
+                                  <span className="text-[11px] text-[#86efac]/90">
+                                    Your ₹150 IEEE registration automatically includes 1 official hot lunch meal tray token. No extra payment required.
+                                  </span>
+                                </div>
+                              </div>
+                            ) : (
+                              <div className="space-y-2">
+                                <p className="text-[11px] text-[#a79f8b] leading-relaxed">
+                                  Please select whether you want food included with your registration:
+                                </p>
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                  {/* Answer Option 1: NO FOOD */}
+                                  <button
+                                    type="button"
+                                    onClick={() => setWantsFood(false)}
+                                    className={`p-3.5 rounded-xl border text-left transition-all cursor-pointer relative ${
+                                      !wantsFood
+                                        ? 'bg-[#1b1b22] border-[#70baff] ring-2 ring-[#70baff]/40 text-white shadow-md'
+                                        : 'bg-[#0a0a0d] border-[#2e2b22] text-[#a79f8b] hover:border-[#3d382c] hover:bg-[#121217]'
+                                    }`}
+                                  >
+                                    <div className="flex items-center justify-between mb-1">
+                                      <span className="text-xs font-bold text-white flex items-center gap-1.5">
+                                        <span className={`w-3.5 h-3.5 rounded-full border flex items-center justify-center ${
+                                          !wantsFood ? 'border-[#70baff] bg-[#70baff]' : 'border-[#5a6a80]'
+                                        }`}>
+                                          {!wantsFood && <span className="w-1.5 h-1.5 rounded-full bg-black" />}
+                                        </span>
+                                        No, Without Food
+                                      </span>
+                                      <span className="text-xs font-mono font-bold text-[#a79f8b]">₹0</span>
+                                    </div>
+                                    <p className="text-[11px] text-[#a79f8b] pl-5 leading-normal">
+                                      Event kit, certificate & access only. I will arrange my own food.
+                                    </p>
+                                    <div className="mt-2 pl-5">
+                                      <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-[#2e2b22]/60 text-[#dcd6c7]">
+                                        Total: ₹{selectedEvents.length === 0 ? 100 : 150} Base
+                                      </span>
+                                    </div>
+                                  </button>
+
+                                  {/* Answer Option 2: YES, ADD FOOD */}
+                                  <button
+                                    type="button"
+                                    onClick={() => setWantsFood(true)}
+                                    className={`p-3.5 rounded-xl border text-left transition-all cursor-pointer relative ${
+                                      wantsFood
+                                        ? 'bg-[#221c0e] border-[#f2c14e] ring-2 ring-[#f2c14e]/50 text-white shadow-md'
+                                        : 'bg-[#0a0a0d] border-[#2e2b22] text-[#a79f8b] hover:border-[#3d382c] hover:bg-[#121217]'
+                                    }`}
+                                  >
+                                    <div className="flex items-center justify-between mb-1">
+                                      <span className="text-xs font-bold text-white flex items-center gap-1.5">
+                                        <span className={`w-3.5 h-3.5 rounded-full border flex items-center justify-center ${
+                                          wantsFood ? 'border-[#f2c14e] bg-[#f2c14e]' : 'border-[#5a6a80]'
+                                        }`}>
+                                          {wantsFood && <span className="w-1.5 h-1.5 rounded-full bg-black" />}
+                                        </span>
+                                        Yes, I Want Food / Lunch
+                                      </span>
+                                      <span className="text-xs font-mono font-bold text-[#f2c14e] bg-[#f2c14e]/10 px-1.5 py-0.5 rounded border border-[#f2c14e]/30">
+                                        +₹50
+                                      </span>
+                                    </div>
+                                    <p className="text-[11px] text-[#dcd6c7] pl-5 leading-normal">
+                                      Includes official Desk 3 hot meal tray token & dining pass.
+                                    </p>
+                                    <div className="mt-2 pl-5 flex items-center gap-2">
+                                      <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-[#4cc38a]/15 text-[#86efac] border border-[#4cc38a]/30 font-semibold">
+                                        Total: ₹{selectedEvents.length === 0 ? 150 : 200}
+                                      </span>
+                                      <span className="text-[10px] text-[#f2c14e] font-semibold">
+                                        ✓ Food Token Active
+                                      </span>
+                                    </div>
+                                  </button>
+                                </div>
+                              </div>
+                            )}
+                          </div>
                         </div>
                       </div>
                     </div>
@@ -2849,24 +2850,30 @@ export default function App() {
 
                                               {/* Teammate Food Selection if Non-IEEE */}
                                               {!member.isIeeeMember && (
-                                                <div className="pt-2 flex items-center justify-between border-t border-[#2e2b22]/60 mt-1">
-                                                  <div>
-                                                    <span className="text-[11px] font-semibold text-[#f3ecd9] flex items-center gap-1">
-                                                      <Utensils className="w-3.5 h-3.5 text-[#d4a935]" />
-                                                      <span>Food / Lunch Token (+₹50)</span>
-                                                    </span>
-                                                    <span className="text-[10px] text-[#a79f8b] block">
-                                                      {member.wantsFood ? '₹200 total (₹150 + ₹50 Lunch)' : '₹150 standard (Without Food)'}
+                                                <div className="p-3 rounded-xl bg-[#0a0a0d] border border-[#d4a935]/30 space-y-2 mt-2">
+                                                  <div className="flex items-center justify-between">
+                                                    <div className="flex items-center gap-1.5">
+                                                      <Utensils className="w-3.5 h-3.5 text-[#f2c14e]" />
+                                                      <span className="text-xs font-bold text-[#f3ecd9]">
+                                                        Food Question: Do they want Lunch?
+                                                      </span>
+                                                    </div>
+                                                    <span className={`text-[10px] font-mono font-semibold px-2 py-0.5 rounded ${
+                                                      member.wantsFood
+                                                        ? 'bg-[#f2c14e]/20 text-[#f2c14e] border border-[#f2c14e]/40'
+                                                        : 'bg-[#2e2b22] text-[#a79f8b]'
+                                                    }`}>
+                                                      {member.wantsFood ? '+₹50 Food Added' : 'No Food (₹0)'}
                                                     </span>
                                                   </div>
-                                                  <div className="flex items-center gap-1.5">
+                                                  <div className="grid grid-cols-2 gap-2">
                                                     <button
                                                       type="button"
                                                       onClick={() => handleUpdateTeamMemberField(event.id, mIdx, 'wantsFood', false)}
-                                                      className={`px-2.5 py-1 rounded-lg text-[11px] font-medium border transition-colors cursor-pointer ${
+                                                      className={`p-2 rounded-lg text-xs transition-colors cursor-pointer text-center ${
                                                         !member.wantsFood
-                                                          ? 'bg-[#1f1b0e] text-[#f2c14e] border-[#d4a935]'
-                                                          : 'bg-[#131318] text-[#a79f8b] border-[#2e2b22]'
+                                                          ? 'bg-[#1b1b22] text-[#70baff] border border-[#70baff] ring-1 ring-[#70baff]/40 font-bold'
+                                                          : 'bg-[#131318] text-[#a79f8b] border border-[#2e2b22] hover:border-[#3d382c]'
                                                       }`}
                                                     >
                                                       No Food (₹150)
@@ -2874,13 +2881,13 @@ export default function App() {
                                                     <button
                                                       type="button"
                                                       onClick={() => handleUpdateTeamMemberField(event.id, mIdx, 'wantsFood', true)}
-                                                      className={`px-2.5 py-1 rounded-lg text-[11px] font-medium border transition-colors cursor-pointer ${
+                                                      className={`p-2 rounded-lg text-xs transition-colors cursor-pointer text-center ${
                                                         member.wantsFood
-                                                          ? 'bg-[#1f1b0e] text-[#f2c14e] border-[#d4a935]'
-                                                          : 'bg-[#131318] text-[#a79f8b] border-[#2e2b22]'
+                                                          ? 'bg-[#221c0e] text-[#f2c14e] border border-[#f2c14e] ring-1 ring-[#f2c14e]/40 font-bold'
+                                                          : 'bg-[#131318] text-[#a79f8b] border border-[#2e2b22] hover:border-[#3d382c]'
                                                       }`}
                                                     >
-                                                      With Food (₹200)
+                                                      Yes, Add Food (₹200)
                                                     </button>
                                                   </div>
                                                 </div>
