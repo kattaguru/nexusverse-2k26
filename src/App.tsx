@@ -317,22 +317,25 @@ export default function App() {
   const [isParticipantSpaceOpen, setIsParticipantSpaceOpen] = useState(false);
   const [participantSpaceInitialMode, setParticipantSpaceInitialMode] = useState<'signin' | 'signup'>('signup');
 
-  // Auto-populate registration form when participant space user is authenticated
-  useEffect(() => {
-    if (currentUser) {
-      if (currentUser.name) setName(currentUser.name);
-      if (currentUser.email) setEmail(currentUser.email);
-      if (currentUser.phone) setPhone(currentUser.phone);
-      if (currentUser.college) setCollege(currentUser.college);
-      if (currentUser.roll) setRoll(currentUser.roll);
-      if (currentUser.branch) setDept(currentUser.branch);
-      if (currentUser.year) setYear(currentUser.year);
-      if (currentUser.isIeeeMember) {
-        setIsIeeeMember(true);
-        if (currentUser.ieeeId) setIeeeId(currentUser.ieeeId);
-      }
-    }
-  }, [currentUser]);
+  // Reset all registration fields & clear persisted drafts
+  const handleClearAllFields = () => {
+    setName('');
+    setRoll('');
+    setClassNameVal('');
+    setSectionVal('');
+    setDept('');
+    setYear('');
+    setPhone('');
+    setCollege('');
+    setEmail('');
+    setIsIeeeMember(false);
+    setIeeeId('');
+    setWantsFood(false);
+    setErrors({});
+    clearFormDraft();
+    setIsDraftSaved(false);
+    setDraftRestoredNotice(null);
+  };
 
   const handleLogoutParticipant = async () => {
     await logoutParticipant();
@@ -2004,6 +2007,15 @@ export default function App() {
                           <span>1. Participant Information (Team Lead / Delegate)</span>
                         </h3>
                         <div className="flex items-center gap-2">
+                          <button
+                            type="button"
+                            onClick={handleClearAllFields}
+                            className="text-[11px] font-sans px-2.5 py-1 rounded-lg bg-[#ff4d4d]/10 hover:bg-[#ff4d4d]/20 text-[#ff8a80] border border-[#ff4d4d]/30 transition-all flex items-center gap-1 cursor-pointer"
+                            title="Clear all registration fields"
+                          >
+                            <Trash2 className="w-3 h-3" />
+                            Clear Fields
+                          </button>
                           {isDraftSaved && (
                             <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-[#4cc38a]/15 text-[#4cc38a] border border-[#4cc38a]/30 flex items-center gap-1">
                               <span className="w-1.5 h-1.5 rounded-full bg-[#4cc38a]" />

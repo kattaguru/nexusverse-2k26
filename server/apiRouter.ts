@@ -1675,7 +1675,7 @@ apiRouter.post('/auth/register', authRateLimiter.middleware(), async (req: Reque
       username: cleanUsername,
       passwordHash: hashPassword(password),
       phone: phone?.trim() || '',
-      college: college?.trim() || 'N.B.K.R. Institute of Science & Technology',
+      college: college?.trim() || '',
       roll: roll?.trim().toUpperCase() || '',
       branch: branch?.trim() || '',
       year: year?.trim() || '',
@@ -1794,7 +1794,7 @@ apiRouter.post('/auth/google', authRateLimiter.middleware(), async (req: Request
         username: cleanUsername,
         avatarUrl: avatarUrl || '',
         phone: phone?.trim() || '',
-        college: college?.trim() || 'N.B.K.R. Institute of Science & Technology',
+        college: college?.trim() || '',
         roll: derivedRoll,
         authProvider: 'google',
         createdAt: new Date().toISOString()

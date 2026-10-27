@@ -45,7 +45,7 @@ export interface RegistrationFormDraft {
   savedAt: number; // epoch ms
 }
 
-const FORM_CACHE_KEY = 'nexusverse_form_draft_v2';
+const FORM_CACHE_KEY = 'nexusverse_form_draft_v3';
 const DRAFT_MAX_AGE_MS = 48 * 60 * 60 * 1000; // 48 Hours
 
 /**
@@ -59,6 +59,7 @@ export function hasMeaningfulContent(draft: Partial<RegistrationFormDraft>): boo
     (draft.email && draft.email.trim().length > 0) ||
     (draft.phone && draft.phone.trim().length > 0) ||
     (draft.dept && draft.dept.trim().length > 0) ||
+    (draft.college && draft.college.trim().length > 0) ||
     (draft.selectedEvents && draft.selectedEvents.length > 0) ||
     (draft.teamDetails && Object.values(draft.teamDetails).some(t => t.teamName || (t.members && t.members.length > 0)))
   );
@@ -91,6 +92,14 @@ export function saveFormDraft(data: Omit<RegistrationFormDraft, 'savedAt'>): boo
 export function loadFormDraft(): RegistrationFormDraft | null {
   if (typeof window === 'undefined') return null;
   try {
+    // Purge outdated drafts from prior versions
+    try {
+      localStorage.removeItem('nexusverse_form_draft_v1');
+      localStorage.removeItem('nexusverse_form_draft_v2');
+    } catch {
+      // Ignore storage errors
+    }
+
     const raw = localStorage.getItem(FORM_CACHE_KEY);
     if (!raw) return null;
     const parsed = JSON.parse(raw) as RegistrationFormDraft;
@@ -114,12 +123,14 @@ export function loadFormDraft(): RegistrationFormDraft | null {
 }
 
 /**
- * Delete persisted form draft (e.g. upon successful registration submission).
+ * Delete persisted form draft across all version keys.
  */
 export function clearFormDraft(): void {
   if (typeof window === 'undefined') return;
   try {
-    localStorage.removeItem(FORM_CACHE_KEY);
+    localStorage.removeItem('nexusverse_form_draft_v1');
+    localStorage.removeItem('nexusverse_form_draft_v2');
+    localStorage.removeItem('nexusverse_form_draft_v3');
   } catch (err) {
     console.warn('Form cache clear notice:', err);
   }

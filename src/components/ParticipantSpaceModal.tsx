@@ -77,7 +77,7 @@ export const ParticipantSpaceModal: React.FC<ParticipantSpaceModalProps> = ({
   const [signUpUsername, setSignUpUsername] = useState('');
   const [signUpRoll, setSignUpRoll] = useState('');
   const [signUpPhone, setSignUpPhone] = useState('');
-  const [signUpCollege, setSignUpCollege] = useState('N.B.K.R. Institute of Science & Technology');
+  const [signUpCollege, setSignUpCollege] = useState('');
   const [signUpPassword, setSignUpPassword] = useState('');
   const [signUpConfirmPass, setSignUpConfirmPass] = useState('');
 
@@ -162,7 +162,7 @@ export const ParticipantSpaceModal: React.FC<ParticipantSpaceModalProps> = ({
 
       setEditName(currentUser.name || '');
       setEditPhone(currentUser.phone || '');
-      setEditCollege(currentUser.college || 'N.B.K.R. Institute of Science & Technology');
+      setEditCollege(currentUser.college || '');
       setEditRoll(derivedRoll);
       setEditBranch(currentUser.branch || '');
       setEditYear(currentUser.year || '');
@@ -387,7 +387,7 @@ export const ParticipantSpaceModal: React.FC<ParticipantSpaceModalProps> = ({
     const result = await googleLoginParticipant({
       email: googleSimEmail.trim().toLowerCase(),
       name: googleSimName.trim() || googleSimEmail.split('@')[0],
-      college: 'N.B.K.R. Institute of Science & Technology',
+      college: '',
     });
     setLoading(false);
     setGooglePromptOpen(false);
