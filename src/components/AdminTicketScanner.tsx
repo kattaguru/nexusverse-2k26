@@ -73,6 +73,8 @@ import { EVENTS, SPOT_EVENT, ALL_EVENTS, SYMPOSIUM_CONFIG } from '../data/sympos
 import { sendTicketEmailApi } from '../services/api';
 import { triggerHaptic } from '../utils/mobileApp';
 
+export type ActiveScanStation = 'tech' | 'lunch' | 'spot';
+
 interface AdminTicketScannerProps {
   records: RegistrationRecord[];
   onUpdateRecord: (updated: RegistrationRecord) => void;
@@ -98,23 +100,21 @@ export const AdminTicketScanner: React.FC<AdminTicketScannerProps> = ({
   const [searchQuery, setSearchQuery] = useState('');
   const [copiedId, setCopiedId] = useState(false);
 
-  // 5 Desk Station Scan Mode:
-  // 'reception': Desk 1 · Reception & Kit Desk
-  // 'tech':      Desk 2 · Technical Events Desk
-  // 'lunch':     Desk 3 · Food & Lunch Token Desk
-  // 'spot':      Desk 4 · Spot Events Pass Desk
-  // 'cert':      Desk 5 · Certificates & Valedictory Desk
-  const [scannerMode, setScannerMode] = useState<DeskKey>(() => {
+  // 3 Station Scan Modes:
+  // 'tech':      Desk 2 · Technical Events Desk (Strict 1-Time Limit)
+  // 'lunch':     Desk 3 · Food & Lunch Token Desk (Strict 1-Time Limit)
+  // 'spot':      Desk 4 · Spot Events Pass Desk (Strict 1-Time Limit)
+  const [scannerMode, setScannerMode] = useState<ActiveScanStation>(() => {
     try {
       const saved = localStorage.getItem('nexusverse_scanner_desk_mode');
-      if (saved && ['reception', 'tech', 'lunch', 'spot', 'cert'].includes(saved)) {
-        return saved as DeskKey;
+      if (saved && (saved === 'tech' || saved === 'lunch' || saved === 'spot')) {
+        return saved as ActiveScanStation;
       }
     } catch (e) {}
-    return 'reception';
+    return 'tech';
   });
 
-  const handleSelectScannerMode = (mode: DeskKey) => {
+  const handleSelectScannerMode = (mode: ActiveScanStation) => {
     setScannerMode(mode);
     setLunchAlert(null);
     setScanResultModal(null);
@@ -176,16 +176,17 @@ export const AdminTicketScanner: React.FC<AdminTicketScannerProps> = ({
 
   const lastScanAttemptRef = useRef<{ payload: string; time: number } | null>(null);
 
-  // Auto-dismiss popup modal after 1.4 seconds to resume scanning snappy and automatically (except interactive quick-action modals)
+  // Auto-dismiss popup modal (longer 5s for 'already_scanned' so duplicate warning is clearly visible to operator & attendee; 2s for success)
   useEffect(() => {
     if (!scanResultModal) return;
     if (scanResultModal.allowSpotScan || scanResultModal.allowLunchDispense || scanResultModal.type === 'info_spot') {
       return;
     }
+    const dismissDuration = scanResultModal.type === 'already_scanned' ? 5000 : 2000;
     const timer = setTimeout(() => {
       setScanResultModal(null);
       lastScanAttemptRef.current = null;
-    }, 1400);
+    }, dismissDuration);
     return () => clearTimeout(timer);
   }, [scanResultModal]);
 
@@ -577,125 +578,9 @@ export const AdminTicketScanner: React.FC<AdminTicketScannerProps> = ({
       }
 
       // -------------------------------------------------------------
-      // DESK 1: RECEPTION & KIT DESK (STRICT 1-TIME SCAN RULE)
+      // DESK: TECHNICAL EVENT SCAN (STRICT 1-TIME SCAN RULE)
       // -------------------------------------------------------------
-      if (scannerMode === 'reception') {
-        const currentCheckInStatus = { ...(matched.memberCheckInStatus || {}) };
-        const currentCheckInTimes = { ...(matched.memberCheckInTimes || {}) };
-
-        // Legacy fallback
-        if (matched.checkedIn && Object.keys(currentCheckInStatus).length === 0) {
-          currentCheckInStatus['lead'] = true;
-          if (matched.checkInTime) currentCheckInTimes['lead'] = matched.checkInTime;
-          matchedTeammates.forEach((_, i) => {
-            currentCheckInStatus[`teammate_${i}`] = true;
-            if (matched.checkInTime) currentCheckInTimes[`teammate_${i}`] = matched.checkInTime;
-          });
-        }
-
-        // AUTO-ADVANCE FOR MULTI-MEMBER TEAMS:
-        if (targetMemberIndex === null && !targetMemberRoll && Boolean(currentCheckInStatus['lead'])) {
-          const nextUnscannedIdx = matchedTeammates.findIndex((_, idx) => !Boolean(currentCheckInStatus[`teammate_${idx}`]));
-          if (nextUnscannedIdx >= 0) {
-            scannedMemberKey = `teammate_${nextUnscannedIdx}`;
-            const tMember = matchedTeammates[nextUnscannedIdx];
-            scannedMemberName = tMember?.name || `Member ${nextUnscannedIdx + 2}`;
-            scannedMemberRoll = tMember?.roll || `M${nextUnscannedIdx + 2}`;
-            scannedMemberRole = `Member ${nextUnscannedIdx + 2}`;
-          }
-        }
-
-        const isAlreadyScanned = Boolean(currentCheckInStatus[scannedMemberKey]);
-        if (isAlreadyScanned) {
-          playBuzzer();
-          try { navigator.vibrate?.([300, 150, 300, 150, 400]); } catch (e) {}
-          const existingTime = currentCheckInTimes[scannedMemberKey]
-            ? new Date(currentCheckInTimes[scannedMemberKey]).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })
-            : (matched.checkInTime ? new Date(matched.checkInTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }) : 'Earlier Today');
-
-          const allScanned = ['lead', ...matchedTeammates.map((_, i) => `teammate_${i}`)].every(k => Boolean(currentCheckInStatus[k]));
-
-          setScanResultModal({
-            type: 'already_scanned',
-            scanTrack: 'Desk 1: Reception & Kit',
-            deskNumber: 1,
-            title: allScanned && matchedTotalMembers > 1 ? 'ALL TEAM MEMBERS ALREADY CHECKED IN!' : 'ALREADY CHECKED IN! NO OTHER CHANCE.',
-            message: allScanned && matchedTotalMembers > 1
-              ? `All ${matchedTotalMembers} delegates for team "${matched.name}" have ALREADY been checked in at Desk 1 Reception.`
-              : `This QR code has ALREADY been scanned and checked in for ${scannedMemberName} (${scannedMemberRoll} · ${scannedMemberRole}) at ${existingTime}. Duplicate check-in rejected! Each delegate can only be checked in ONCE.`,
-            delegateName: scannedMemberName,
-            delegateRoll: scannedMemberRoll,
-            delegateRole: scannedMemberRole,
-            teamName: matched.name,
-            scannedAt: existingTime,
-            eventName: 'Desk 1: Reception & Welcome Kit',
-            scannedBadge: scannedBadgeLabel
-          });
-          setActiveRecord(matched);
-        } else {
-          playBeep(true);
-          try {
-            navigator.vibrate?.([80, 40, 80]);
-            confetti({
-              particleCount: 75,
-              spread: 75,
-              origin: { y: 0.6 },
-              colors: ['#22c55e', '#4cc38a', '#ffffff', '#f2c14e']
-            });
-          } catch (e) {}
-
-          const now = new Date().toISOString();
-          currentCheckInStatus[scannedMemberKey] = true;
-          currentCheckInTimes[scannedMemberKey] = now;
-
-          const memberKeys = ['lead', ...matchedTeammates.map((_, i) => `teammate_${i}`)];
-          const newCheckInCount = memberKeys.filter(k => Boolean(currentCheckInStatus[k])).length;
-
-          const currentDeskScans = { ...(matched.deskScans || {}) };
-          currentDeskScans['desk1_reception'] = {
-            scanned: true,
-            time: now,
-            by: 'Reception Desk Scanner',
-            memberStatus: currentCheckInStatus,
-            memberTimes: currentCheckInTimes
-          };
-
-          const updated: RegistrationRecord = {
-            ...matched,
-            memberCheckInStatus: currentCheckInStatus,
-            memberCheckInTimes: currentCheckInTimes,
-            checkedIn: true,
-            checkInTime: matched.checkInTime || now,
-            checkedInBy: 'Reception Desk Scanner',
-            kitIssued: true,
-            deskScans: currentDeskScans
-          };
-
-          commitRecordUpdate(updated);
-
-          setScanResultModal({
-            type: 'success',
-            scanTrack: 'Desk 1: Reception & Kit',
-            deskNumber: 1,
-            title: 'RECEPTION CHECK-IN VERIFIED (1-TIME LOGGED)',
-            message: `1 Delegate Check-In Counted ✓: ${scannedMemberName} (${scannedMemberRoll} · ${scannedMemberRole}) verified at Desk 1 Reception & Welcome Kit Dispatched. [${newCheckInCount} of ${matchedTotalMembers} team delegates checked in].`,
-            delegateName: scannedMemberName,
-            delegateRoll: scannedMemberRoll,
-            delegateRole: scannedMemberRole,
-            teamName: matched.name,
-            scannedAt: new Date(now).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }),
-            eventName: 'Desk 1: Reception & Welcome Kit',
-            totalTeamCount: matchedTotalMembers,
-            attendedTeamCount: newCheckInCount,
-            scannedBadge: scannedBadgeLabel
-          });
-        }
-      }
-
-      // -------------------------------------------------------------
-      // DESK 2: TECHNICAL EVENT SCAN (STRICT 1-TIME SCAN RULE)
-      // -------------------------------------------------------------
-      else if (scannerMode === 'tech') {
+      if (scannerMode === 'tech') {
         if (!trackStats.hasTech) {
           if (trackStats.hasSpot) {
             playBeep(true);
@@ -786,12 +671,12 @@ export const AdminTicketScanner: React.FC<AdminTicketScannerProps> = ({
 
           setScanResultModal({
             type: 'already_scanned',
-            scanTrack: 'Desk 2: Technical Event',
+            scanTrack: 'Desk: Technical Track',
             deskNumber: 2,
-            title: allScanned && matchedTotalMembers > 1 ? 'ALL TEAM MEMBERS ALREADY SCANNED!' : 'ALREADY SCANNED! NO OTHER CHANCE.',
+            title: allScanned && matchedTotalMembers > 1 ? 'ALL TEAM MEMBERS ALREADY SCANNED OR USED!' : 'ALREADY SCANNED OR USED!',
             message: allScanned && matchedTotalMembers > 1
-              ? `All ${matchedTotalMembers} delegates for team "${matched.name}" have ALREADY been verified and counted for Technical Events.`
-              : `This QR code has ALREADY been scanned and counted for ${scannedMemberName} (${scannedMemberRoll} · ${scannedMemberRole}) at ${existingTime}. Duplicate entry is strictly rejected! Each delegate can only be scanned and counted ONCE.`,
+              ? `All ${matchedTotalMembers} delegates for team "${matched.name}" have ALREADY been scanned or used for Technical Events.`
+              : `This participant QR has ALREADY been scanned or used for ${scannedMemberName} (${scannedMemberRoll} · ${scannedMemberRole}) at ${existingTime}. Duplicate entry is strictly rejected! Each participant ticket can only be used 1 time.`,
             delegateName: scannedMemberName,
             delegateRoll: scannedMemberRoll,
             delegateRole: scannedMemberRole,
@@ -930,18 +815,18 @@ export const AdminTicketScanner: React.FC<AdminTicketScannerProps> = ({
 
           setScanResultModal({
             type: 'already_scanned',
-            scanTrack: 'Desk 3: Food Meal Token',
+            scanTrack: 'Desk: Food Meal Token',
             deskNumber: 3,
-            title: allCollected && matchedTotalMembers > 1 ? 'ALL TEAM MEALS ALREADY DISPENSED!' : 'ALREADY SCANNED! NO OTHER CHANCE.',
+            title: allCollected && matchedTotalMembers > 1 ? 'ALL TEAM MEALS ALREADY CLAIMED OR USED!' : 'ALREADY SCANNED OR USED!',
             message: allCollected && matchedTotalMembers > 1
-              ? `All ${matchedTotalMembers} meal trays for team "${matched.name}" have ALREADY been dispensed. Duplicate meal rejected!`
-              : `DUPLICATE MEAL CLAIM! Meal tray for ${scannedMemberName} (${scannedMemberRoll} · ${scannedMemberRole}) was already dispensed at ${claimTime}. Duplicate meal rejected!`,
+              ? `All ${matchedTotalMembers} meal trays for team "${matched.name}" have ALREADY been scanned or used. Duplicate meal rejected!`
+              : `DUPLICATE MEAL CLAIM! Meal token for ${scannedMemberName} (${scannedMemberRoll} · ${scannedMemberRole}) has ALREADY been scanned or used at ${claimTime}. Duplicate claim rejected! Each meal token can only be used 1 time.`,
             delegateName: scannedMemberName,
             delegateRoll: scannedMemberRoll,
             delegateRole: scannedMemberRole,
             teamName: matched.name,
             scannedAt: claimTime,
-            eventName: 'Desk 3: Food & Lunch Token',
+            eventName: 'Food & Lunch Token',
             scannedBadge: scannedBadgeLabel
           });
           setActiveRecord(matched);
@@ -1062,12 +947,12 @@ export const AdminTicketScanner: React.FC<AdminTicketScannerProps> = ({
 
           setScanResultModal({
             type: 'already_scanned',
-            scanTrack: 'Desk 4: Spot Event',
+            scanTrack: 'Desk: Spot Arena Pass',
             deskNumber: 4,
-            title: allScanned && matchedTotalMembers > 1 ? 'ALL TEAM MEMBERS ALREADY SCANNED!' : 'ALREADY SCANNED! NO OTHER CHANCE.',
+            title: allScanned && matchedTotalMembers > 1 ? 'ALL TEAM MEMBERS ALREADY SCANNED OR USED!' : 'ALREADY SCANNED OR USED!',
             message: allScanned && matchedTotalMembers > 1
-              ? `All ${matchedTotalMembers} delegates for team "${matched.name}" have ALREADY been verified and counted for Spot Events.`
-              : `This QR code has ALREADY been scanned and counted for ${scannedMemberName} (${scannedMemberRoll} · ${scannedMemberRole}) at ${existingTime}. Duplicate entry is strictly rejected! Each delegate can only be scanned and counted ONCE.`,
+              ? `All ${matchedTotalMembers} delegates for team "${matched.name}" have ALREADY been scanned or used for Spot Events.`
+              : `This participant QR has ALREADY been scanned or used for ${scannedMemberName} (${scannedMemberRoll} · ${scannedMemberRole}) at ${existingTime}. Duplicate entry is strictly rejected! Each participant ticket can only be used 1 time.`,
             delegateName: scannedMemberName,
             delegateRoll: scannedMemberRoll,
             delegateRole: scannedMemberRole,
@@ -1146,119 +1031,6 @@ export const AdminTicketScanner: React.FC<AdminTicketScannerProps> = ({
         }
       }
 
-      // -------------------------------------------------------------
-      // DESK 5: CERTIFICATES & VALEDICTORY (STRICT 1-TIME SCAN RULE)
-      // -------------------------------------------------------------
-      else if (scannerMode === 'cert') {
-        const currentCertStatus = { ...(matched.memberCertStatus || {}) };
-        const currentCertTimes = { ...(matched.memberCertTimes || {}) };
-
-        // Legacy fallback
-        if (matched.certificateIssued && Object.keys(currentCertStatus).length === 0) {
-          currentCertStatus['lead'] = true;
-          if (matched.certificateIssuedTime) currentCertTimes['lead'] = matched.certificateIssuedTime;
-          matchedTeammates.forEach((_, i) => {
-            currentCertStatus[`teammate_${i}`] = true;
-            if (matched.certificateIssuedTime) currentCertTimes[`teammate_${i}`] = matched.certificateIssuedTime;
-          });
-        }
-
-        // AUTO-ADVANCE FOR MULTI-MEMBER TEAMS:
-        if (targetMemberIndex === null && !targetMemberRoll && Boolean(currentCertStatus['lead'])) {
-          const nextUnscannedIdx = matchedTeammates.findIndex((_, idx) => !Boolean(currentCertStatus[`teammate_${idx}`]));
-          if (nextUnscannedIdx >= 0) {
-            scannedMemberKey = `teammate_${nextUnscannedIdx}`;
-            const tMember = matchedTeammates[nextUnscannedIdx];
-            scannedMemberName = tMember?.name || `Member ${nextUnscannedIdx + 2}`;
-            scannedMemberRoll = tMember?.roll || `M${nextUnscannedIdx + 2}`;
-            scannedMemberRole = `Member ${nextUnscannedIdx + 2}`;
-          }
-        }
-
-        const isAlreadyIssued = Boolean(currentCertStatus[scannedMemberKey]);
-        if (isAlreadyIssued) {
-          playBuzzer();
-          try { navigator.vibrate?.([300, 150, 300, 150, 400]); } catch (e) {}
-          const existingTime = currentCertTimes[scannedMemberKey]
-            ? new Date(currentCertTimes[scannedMemberKey]).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })
-            : (matched.certificateIssuedTime ? new Date(matched.certificateIssuedTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }) : 'Earlier Today');
-
-          const allIssued = (['lead', ...matchedTeammates.map((_, i) => `teammate_${i}`)].every(k => Boolean(currentCertStatus[k])));
-
-          setScanResultModal({
-            type: 'already_scanned',
-            scanTrack: 'Desk 5: Certificates & Valedictory',
-            deskNumber: 5,
-            title: allIssued && matchedTotalMembers > 1 ? 'ALL TEAM CERTIFICATES ALREADY ISSUED!' : 'CERTIFICATE ALREADY ISSUED! NO OTHER CHANCE.',
-            message: allIssued && matchedTotalMembers > 1
-              ? `All ${matchedTotalMembers} participation certificates for team "${matched.name}" have ALREADY been issued at Desk 5.`
-              : `Certificate has ALREADY been issued for ${scannedMemberName} (${scannedMemberRoll} · ${scannedMemberRole}) at ${existingTime}. Duplicate certificate request is strictly rejected! Each delegate can only receive their certificate ONCE.`,
-            delegateName: scannedMemberName,
-            delegateRoll: scannedMemberRoll,
-            delegateRole: scannedMemberRole,
-            teamName: matched.name,
-            scannedAt: existingTime,
-            eventName: 'Desk 5: Participation Certificate'
-          });
-          setActiveRecord(matched);
-        } else {
-          playBeep(true);
-          try {
-            navigator.vibrate?.([80, 40, 80]);
-            confetti({
-              particleCount: 75,
-              spread: 75,
-              origin: { y: 0.6 },
-              colors: ['#ec4899', '#f43f5e', '#ffffff', '#f2c14e']
-            });
-          } catch (e) {}
-
-          const now = new Date().toISOString();
-          currentCertStatus[scannedMemberKey] = true;
-          currentCertTimes[scannedMemberKey] = now;
-
-          const memberKeys = ['lead', ...matchedTeammates.map((_, i) => `teammate_${i}`)];
-          const newCertCount = memberKeys.filter(k => Boolean(currentCertStatus[k])).length;
-          const allIssued = newCertCount >= matchedTotalMembers && matchedTotalMembers > 0;
-
-          const currentDeskScans = { ...(matched.deskScans || {}) };
-          currentDeskScans['desk5_cert'] = {
-            scanned: true,
-            time: now,
-            by: 'Valedictory Desk Scanner',
-            memberStatus: currentCertStatus,
-            memberTimes: currentCertTimes
-          };
-
-          const updated: RegistrationRecord = {
-            ...matched,
-            memberCertStatus: currentCertStatus,
-            memberCertTimes: currentCertTimes,
-            certificateIssued: allIssued,
-            certificateIssuedTime: now,
-            certificateIssuedBy: 'Valedictory Desk Scanner',
-            deskScans: currentDeskScans
-          };
-
-          commitRecordUpdate(updated);
-
-          setScanResultModal({
-            type: 'success',
-            scanTrack: 'Desk 5: Certificates & Valedictory',
-            deskNumber: 5,
-            title: 'CERTIFICATE ISSUED & LOGGED (1-TIME)',
-            message: `1 Participation Certificate Issued ✓: ${scannedMemberName} (${scannedMemberRoll} · ${scannedMemberRole}) issued at Desk 5 Certificates. [${newCertCount} of ${matchedTotalMembers} team certificates handed over].`,
-            delegateName: scannedMemberName,
-            delegateRoll: scannedMemberRoll,
-            delegateRole: scannedMemberRole,
-            teamName: matched.name,
-            scannedAt: new Date(now).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }),
-            eventName: 'Desk 5: Participation Certificate',
-            totalTeamCount: matchedTotalMembers,
-            attendedTeamCount: newCertCount
-          });
-        }
-      }
 
       setNotesInput(matched.checkInNotes || '');
     } else {
@@ -1295,8 +1067,8 @@ export const AdminTicketScanner: React.FC<AdminTicketScannerProps> = ({
       setScanResultModal({
         type: 'already_scanned',
         scanTrack: 'Technical Event',
-        title: 'ALREADY SCANNED! NO OTHER CHANCE.',
-        message: `This QR code has ALREADY been scanned and counted for Technical Events. Duplicate entry is strictly rejected! Each QR code can only be scanned and counted ONCE.`,
+        title: 'ALREADY SCANNED OR USED!',
+        message: `This participant QR has ALREADY been scanned or used for Technical Events. Duplicate entry is strictly rejected! Each QR code can only be scanned and counted ONCE.`,
         delegateName: mName,
         delegateRoll: mRoll,
         delegateRole: mRole,
@@ -1396,8 +1168,8 @@ export const AdminTicketScanner: React.FC<AdminTicketScannerProps> = ({
       setScanResultModal({
         type: 'already_scanned',
         scanTrack: 'Spot Event',
-        title: 'ALREADY SCANNED! NO OTHER CHANCE.',
-        message: `This QR code has ALREADY been scanned and counted for Spot Events. Duplicate entry is strictly rejected! Each QR code can only be scanned and counted ONCE.`,
+        title: 'ALREADY SCANNED OR USED!',
+        message: `This participant QR has ALREADY been scanned or used for Spot Events. Duplicate entry is strictly rejected! Each QR code can only be scanned and counted ONCE.`,
         delegateName: mName,
         delegateRoll: mRoll,
         delegateRole: mRole,
@@ -2225,7 +1997,7 @@ export const AdminTicketScanner: React.FC<AdminTicketScannerProps> = ({
               </h3>
             </div>
             <p className={`text-xs ${isLight ? 'text-[#3e556e]' : 'text-[#9fc7e8]'}`}>
-              Scan entry ticket QR codes from delegate phones or paper passes. Strict 1-time scanning for Technical vs Spot tracks.
+              Scan entry ticket QR codes from delegate phones or paper passes. Strict 1-time scanning for Technical, Food, and Spot tracks.
             </p>
           </div>
 
@@ -2289,7 +2061,7 @@ export const AdminTicketScanner: React.FC<AdminTicketScannerProps> = ({
           </div>
         </div>
 
-        {/* 5-Desk Station Mode Switcher */}
+        {/* 3 Scan Station Mode Switcher: Technical, Food/Lunch, Spot Arena */}
         <div className={`mt-4 pt-4 border-t flex flex-col gap-2.5 ${
           isLight ? 'border-[#c0d6ea]' : 'border-[#234259]/60'
         }`}>
@@ -2299,172 +2071,125 @@ export const AdminTicketScanner: React.FC<AdminTicketScannerProps> = ({
               <span>Select Scan Desk Station (Strict 1-Time QR Limit):</span>
             </span>
             <div className={`text-xs ${isLight ? 'text-[#6b6250]' : 'text-[#a79f8b]'}`}>
-              {scannerMode === 'reception' ? (
-                <span className="text-[#22c55e] font-semibold flex items-center gap-1.5 bg-[#22c55e]/10 border border-[#22c55e]/30 px-2 py-0.5 rounded-md">
-                  <UserCheck className="w-3.5 h-3.5 text-[#22c55e]" />
-                  <span>Desk 1: Reception Active · 1-Time Scan</span>
-                </span>
-              ) : scannerMode === 'tech' ? (
-                <span className="text-[#0088d4] font-semibold flex items-center gap-1.5 bg-[#0088d4]/10 border border-[#0088d4]/30 px-2 py-0.5 rounded-md">
+              {scannerMode === 'tech' ? (
+                <span className="text-[#0088d4] font-semibold flex items-center gap-1.5 bg-[#0088d4]/10 border border-[#0088d4]/30 px-2.5 py-1 rounded-md">
                   <Zap className="w-3.5 h-3.5 text-[#0088d4]" />
-                  <span>Desk 2: Technical Active · 1-Time Scan</span>
+                  <span>Technical Active · Strict 1-Time Scan</span>
                 </span>
               ) : scannerMode === 'lunch' ? (
-                <span className="text-[#f59e0b] font-semibold flex items-center gap-1.5 bg-[#f59e0b]/10 border border-[#f59e0b]/30 px-2 py-0.5 rounded-md">
+                <span className="text-[#f59e0b] font-semibold flex items-center gap-1.5 bg-[#f59e0b]/10 border border-[#f59e0b]/30 px-2.5 py-1 rounded-md">
                   <Utensils className="w-3.5 h-3.5 text-[#f59e0b]" />
-                  <span>Desk 3: Food & Lunch Active · Token Dispenser</span>
-                </span>
-              ) : scannerMode === 'spot' ? (
-                <span className="text-[#a78bfa] font-semibold flex items-center gap-1.5 bg-[#8b5cf6]/10 border border-[#8b5cf6]/30 px-2 py-0.5 rounded-md">
-                  <Sparkles className="w-3.5 h-3.5 text-[#a78bfa]" />
-                  <span>Desk 4: Spot Events Active · 1-Time Scan</span>
+                  <span>Food / Lunch Active · Strict 1-Time Scan</span>
                 </span>
               ) : (
-                <span className="text-[#ec4899] font-semibold flex items-center gap-1.5 bg-[#ec4899]/10 border border-[#ec4899]/30 px-2 py-0.5 rounded-md">
-                  <Award className="w-3.5 h-3.5 text-[#ec4899]" />
-                  <span>Desk 5: Certificates Active · 1-Time Handover</span>
+                <span className="text-[#a78bfa] font-semibold flex items-center gap-1.5 bg-[#8b5cf6]/10 border border-[#8b5cf6]/30 px-2.5 py-1 rounded-md">
+                  <Sparkles className="w-3.5 h-3.5 text-[#a78bfa]" />
+                  <span>Spot Arena Active · Strict 1-Time Scan</span>
                 </span>
               )}
             </div>
           </div>
 
-          <div className={`grid grid-cols-2 sm:grid-cols-5 gap-2 w-full p-1.5 rounded-2xl border shadow-inner ${
+          <div className={`grid grid-cols-1 sm:grid-cols-3 gap-2.5 w-full p-1.5 rounded-2xl border shadow-inner ${
             isLight ? 'bg-white border-[#c0d6ea]' : 'bg-[#09111c] border-[#1b3447]'
           }`}>
-            {/* Desk 1: Reception & Kit Desk */}
-            <button
-              type="button"
-              onClick={() => handleSelectScannerMode('reception')}
-              className={`w-full py-2.5 sm:py-2 px-2.5 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
-                scannerMode === 'reception'
-                  ? 'bg-gradient-to-r from-[#22c55e] to-[#16a34a] text-white shadow-md shadow-[#22c55e]/30 scale-[1.01]'
-                  : isLight ? 'text-[#3e556e] hover:text-[#1c1811] bg-[#f0fdf4]' : 'text-[#9fc7e8] hover:text-white bg-[#0e2417]'
-              }`}
-            >
-              <UserCheck className="w-4 h-4 text-[#f2c14e] shrink-0" />
-              <span className="truncate">Desk 1 · Reception</span>
-            </button>
-
-            {/* Desk 2: Technical Event Scan */}
+            {/* Station 1: Technical Event Scan */}
             <button
               type="button"
               onClick={() => handleSelectScannerMode('tech')}
-              className={`w-full py-2.5 sm:py-2 px-2.5 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
+              className={`w-full py-2.5 px-3 rounded-xl text-xs sm:text-sm font-bold flex items-center justify-center gap-2 transition-all cursor-pointer ${
                 scannerMode === 'tech'
-                  ? 'bg-gradient-to-r from-[#0088d4] to-[#026aa6] text-white shadow-md shadow-[#0088d4]/30 scale-[1.01]'
+                  ? 'bg-gradient-to-r from-[#0088d4] to-[#026aa6] text-white shadow-lg shadow-[#0088d4]/30 scale-[1.01] ring-2 ring-white/30'
                   : isLight ? 'text-[#3e556e] hover:text-[#1c1811] bg-[#f4f8fc]' : 'text-[#9fc7e8] hover:text-white bg-[#0e1c2e]'
               }`}
             >
               <Zap className="w-4 h-4 text-[#f2c14e] shrink-0" />
-              <span className="truncate">Desk 2 · Technical</span>
+              <span className="truncate">Desk: Technical Track</span>
             </button>
 
-            {/* Desk 3: Food & Catering Counter */}
+            {/* Station 2: Food & Catering Counter */}
             <button
               type="button"
               onClick={() => handleSelectScannerMode('lunch')}
-              className={`w-full py-2.5 sm:py-2 px-2.5 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
+              className={`w-full py-2.5 px-3 rounded-xl text-xs sm:text-sm font-bold flex items-center justify-center gap-2 transition-all cursor-pointer ${
                 scannerMode === 'lunch'
-                  ? 'bg-gradient-to-r from-[#d97706] to-[#b45309] text-white shadow-md shadow-[#d97706]/30 scale-[1.01]'
+                  ? 'bg-gradient-to-r from-[#d97706] to-[#b45309] text-white shadow-lg shadow-[#d97706]/30 scale-[1.01] ring-2 ring-white/30'
                   : isLight ? 'text-[#3e556e] hover:text-[#1c1811] bg-[#fef8ed]' : 'text-[#9fc7e8] hover:text-white bg-[#281c0c]'
               }`}
             >
               <Utensils className="w-4 h-4 text-[#f2c14e] shrink-0" />
-              <span className="truncate">Desk 3 · Food/Lunch</span>
+              <span className="truncate">Desk: Food / Lunch</span>
             </button>
 
-            {/* Desk 4: Spot Event Scan */}
+            {/* Station 3: Spot Event Scan */}
             <button
               type="button"
               onClick={() => handleSelectScannerMode('spot')}
-              className={`w-full py-2.5 sm:py-2 px-2.5 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
+              className={`w-full py-2.5 px-3 rounded-xl text-xs sm:text-sm font-bold flex items-center justify-center gap-2 transition-all cursor-pointer ${
                 scannerMode === 'spot'
-                  ? 'bg-gradient-to-r from-[#8b5cf6] to-[#6d28d9] text-white shadow-md shadow-[#8b5cf6]/30 scale-[1.01]'
+                  ? 'bg-gradient-to-r from-[#8b5cf6] to-[#6d28d9] text-white shadow-lg shadow-[#8b5cf6]/30 scale-[1.01] ring-2 ring-white/30'
                   : isLight ? 'text-[#3e556e] hover:text-[#1c1811] bg-[#f7f4fe]' : 'text-[#9fc7e8] hover:text-white bg-[#1e1533]'
               }`}
             >
               <Sparkles className="w-4 h-4 text-[#f2c14e] shrink-0" />
-              <span className="truncate">Desk 4 · Spot Arena</span>
-            </button>
-
-            {/* Desk 5: Certificates & Valedictory */}
-            <button
-              type="button"
-              onClick={() => handleSelectScannerMode('cert')}
-              className={`w-full py-2.5 sm:py-2 px-2.5 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
-                scannerMode === 'cert'
-                  ? 'bg-gradient-to-r from-[#ec4899] to-[#be185d] text-white shadow-md shadow-[#ec4899]/30 scale-[1.01]'
-                  : isLight ? 'text-[#3e556e] hover:text-[#1c1811] bg-[#fdf2f8]' : 'text-[#9fc7e8] hover:text-white bg-[#260f1e]'
-              }`}
-            >
-              <Award className="w-4 h-4 text-[#f2c14e] shrink-0" />
-              <span className="truncate">Desk 5 · Certificates</span>
+              <span className="truncate">Desk: Spot Arena</span>
             </button>
           </div>
         </div>
 
-        {/* Live Attendance Metric Cards for All 5 Desks */}
+        {/* Live Attendance Metric Cards for 3 Scanning Stations */}
         {(() => {
-          const fiveDeskStats = get5DesksGlobalStats(localRecords);
-          const certCount = fiveDeskStats.desk5ScannedDelegates;
-          const certPercent = totalDelegates > 0 ? Math.round((certCount / totalDelegates) * 100) : 0;
+          const techPercent = totalTechDelegates > 0 ? Math.round((techAttendedCount / totalTechDelegates) * 100) : 0;
+          const spotPercent = totalSpotDelegates > 0 ? Math.round((spotAttendedCount / totalSpotDelegates) * 100) : 0;
 
           return (
-            <div className={`grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 pt-4 border-t mt-4 ${
+            <div className={`grid grid-cols-1 sm:grid-cols-3 gap-3 pt-4 border-t mt-4 ${
               isLight ? 'border-[#c0d6ea]' : 'border-[#234259]/60'
             }`}>
-              {/* Desk 1 Metric */}
-              <div className={`p-3 rounded-xl border space-y-1 ${
-                isLight ? 'bg-white border-[#c8d9e8] shadow-sm' : 'bg-[#09111c] border-[#1b3447]'
-              }`}>
-                <span className={`text-[11px] font-medium flex items-center gap-1 block ${isLight ? 'text-[#425d78]' : 'text-[#9fc7e8]'}`}>
-                  <UserCheck className="w-3.5 h-3.5 text-[#22c55e]" />
-                  <span>Desk 1: Reception Check-In</span>
-                </span>
-                <div className="flex items-baseline gap-2">
-                  <span className="text-xl sm:text-2xl font-bold font-mono text-[#4cc38a]">{checkedInDelegates}</span>
-                  <span className={`text-xs ${isLight ? 'text-[#6b6250]' : 'text-[#a79f8b]'}`}>/ {totalDelegates}</span>
-                  <span className="text-[10px] font-bold font-mono text-[#4cc38a] bg-[#4cc38a]/15 px-1.5 py-0.5 rounded ml-auto">
-                    {checkInPercent}%
+              {/* Technical Metric */}
+              <div className={`p-3.5 rounded-xl border space-y-1.5 ${
+                scannerMode === 'tech' ? 'ring-2 ring-[#0088d4]/60' : ''
+              } ${isLight ? 'bg-white border-[#c8d9e8] shadow-sm' : 'bg-[#09111c] border-[#1b3447]'}`}>
+                <div className="flex items-center justify-between">
+                  <span className={`text-[11px] sm:text-xs font-semibold flex items-center gap-1.5 ${isLight ? 'text-[#006ca8]' : 'text-[#70baff]'}`}>
+                    <Zap className="w-3.5 h-3.5 text-[#0088d4]" />
+                    <span>Technical Track</span>
                   </span>
+                  <span className="text-[10px] font-bold font-mono text-[#0088d4] bg-[#0088d4]/15 px-1.5 py-0.5 rounded">
+                    {techPercent}%
+                  </span>
+                </div>
+                <div className="flex items-baseline gap-2">
+                  <span className="text-2xl font-bold font-mono text-[#0088d4]">{techAttendedCount}</span>
+                  <span className={`text-xs ${isLight ? 'text-[#6b6250]' : 'text-[#a79f8b]'}`}>/ {totalTechDelegates}</span>
+                  <span className="text-[10px] text-white/50 ml-auto font-mono">1-Time Scans</span>
                 </div>
                 <div className={`w-full h-1.5 rounded-full overflow-hidden mt-1 ${isLight ? 'bg-[#d8e7f5]' : 'bg-[#1b2b3a]'}`}>
                   <div 
                     className="bg-gradient-to-r from-[#0088d4] to-[#4cc38a] h-full transition-all duration-500 rounded-full" 
-                    style={{ width: `${checkInPercent}%` }}
+                    style={{ width: `${techPercent}%` }}
                   />
                 </div>
+                <span className="text-[10px] text-[#0088d4] font-medium block truncate">Track 1: Morning Sessions (Strict 1-Time Limit)</span>
               </div>
 
-              {/* Desk 2 Metric */}
-              <div className={`p-3 rounded-xl border space-y-1 ${
-                isLight ? 'bg-white border-[#c8d9e8] shadow-sm' : 'bg-[#09111c] border-[#1b3447]'
-              }`}>
-                <span className={`text-[11px] font-medium flex items-center gap-1 block ${isLight ? 'text-[#425d78]' : 'text-[#9fc7e8]'}`}>
-                  <Zap className="w-3.5 h-3.5 text-[#0088d4]" />
-                  <span>Desk 2: Technical Track</span>
-                </span>
-                <div className="flex items-baseline gap-2">
-                  <span className="text-xl sm:text-2xl font-bold font-mono text-[#0088d4]">{techAttendedCount}</span>
-                  <span className={`text-xs ${isLight ? 'text-[#6b6250]' : 'text-[#a79f8b]'}`}>/ {totalTechDelegates}</span>
-                </div>
-                <span className="text-[10px] text-[#0088d4] font-semibold block truncate">Track 1: Morning Sessions (1-Time)</span>
-              </div>
-
-              {/* Desk 3 Metric */}
-              <div className={`p-3 rounded-xl border space-y-1 ${
-                isLight ? 'bg-white border-[#c8d9e8] shadow-sm' : 'bg-[#09111c] border-[#1b3447]'
-              }`}>
-                <span className={`text-[11px] font-medium flex items-center gap-1 block ${isLight ? 'text-[#425d78]' : 'text-[#9fc7e8]'}`}>
-                  <Utensils className="w-3.5 h-3.5 text-[#f59e0b]" />
-                  <span>Desk 3: Food & Lunch</span>
-                </span>
-                <div className="flex items-baseline gap-2">
-                  <span className="text-xl sm:text-2xl font-bold font-mono text-[#f59e0b]">{lunchCollectedCount}</span>
-                  <span className={`text-xs ${isLight ? 'text-[#6b6250]' : 'text-[#a79f8b]'}`}>/ {totalDelegates}</span>
-                  <span className="text-[10px] font-bold font-mono text-[#f59e0b] bg-[#f59e0b]/15 px-1.5 py-0.5 rounded ml-auto">
+              {/* Food & Lunch Metric */}
+              <div className={`p-3.5 rounded-xl border space-y-1.5 ${
+                scannerMode === 'lunch' ? 'ring-2 ring-[#f59e0b]/60' : ''
+              } ${isLight ? 'bg-white border-[#c8d9e8] shadow-sm' : 'bg-[#09111c] border-[#1b3447]'}`}>
+                <div className="flex items-center justify-between">
+                  <span className={`text-[11px] sm:text-xs font-semibold flex items-center gap-1.5 ${isLight ? 'text-[#b45309]' : 'text-[#f59e0b]'}`}>
+                    <Utensils className="w-3.5 h-3.5 text-[#f59e0b]" />
+                    <span>Food & Lunch Tokens</span>
+                  </span>
+                  <span className="text-[10px] font-bold font-mono text-[#f59e0b] bg-[#f59e0b]/15 px-1.5 py-0.5 rounded">
                     {lunchPercent}%
                   </span>
+                </div>
+                <div className="flex items-baseline gap-2">
+                  <span className="text-2xl font-bold font-mono text-[#f59e0b]">{lunchCollectedCount}</span>
+                  <span className={`text-xs ${isLight ? 'text-[#6b6250]' : 'text-[#a79f8b]'}`}>/ {totalDelegates}</span>
+                  <span className="text-[10px] text-white/50 ml-auto font-mono">Trays Dispensed</span>
                 </div>
                 <div className={`w-full h-1.5 rounded-full overflow-hidden mt-1 ${isLight ? 'bg-[#d8e7f5]' : 'bg-[#1b2b3a]'}`}>
                   <div 
@@ -2472,44 +2197,34 @@ export const AdminTicketScanner: React.FC<AdminTicketScannerProps> = ({
                     style={{ width: `${lunchPercent}%` }}
                   />
                 </div>
+                <span className="text-[10px] text-[#f59e0b] font-medium block truncate">Campus Dining Hall Meal Tokens (Strict 1-Time)</span>
               </div>
 
-              {/* Desk 4 Metric */}
-              <div className={`p-3 rounded-xl border space-y-1 ${
-                isLight ? 'bg-white border-[#c8d9e8] shadow-sm' : 'bg-[#09111c] border-[#1b3447]'
-              }`}>
-                <span className={`text-[11px] font-medium flex items-center gap-1 block ${isLight ? 'text-[#425d78]' : 'text-[#9fc7e8]'}`}>
-                  <Sparkles className="w-3.5 h-3.5 text-[#8b5cf6]" />
-                  <span>Desk 4: Spot Arena</span>
-                </span>
-                <div className="flex items-baseline gap-2">
-                  <span className="text-xl sm:text-2xl font-bold font-mono text-[#8b5cf6]">{spotAttendedCount}</span>
-                  <span className={`text-xs ${isLight ? 'text-[#6b6250]' : 'text-[#a79f8b]'}`}>/ {totalSpotDelegates}</span>
-                </div>
-                <span className="text-[10px] text-[#8b5cf6] font-semibold block truncate">Track 2: Afternoon Arena (1-Time)</span>
-              </div>
-
-              {/* Desk 5 Metric */}
-              <div className={`p-3 rounded-xl border space-y-1 ${
-                isLight ? 'bg-white border-[#c8d9e8] shadow-sm' : 'bg-[#09111c] border-[#1b3447]'
-              }`}>
-                <span className={`text-[11px] font-medium flex items-center gap-1 block ${isLight ? 'text-[#425d78]' : 'text-[#9fc7e8]'}`}>
-                  <Award className="w-3.5 h-3.5 text-[#ec4899]" />
-                  <span>Desk 5: Certificates</span>
-                </span>
-                <div className="flex items-baseline gap-2">
-                  <span className="text-xl sm:text-2xl font-bold font-mono text-[#ec4899]">{certCount}</span>
-                  <span className={`text-xs ${isLight ? 'text-[#6b6250]' : 'text-[#a79f8b]'}`}>/ {totalDelegates}</span>
-                  <span className="text-[10px] font-bold font-mono text-[#ec4899] bg-[#ec4899]/15 px-1.5 py-0.5 rounded ml-auto">
-                    {certPercent}%
+              {/* Spot Arena Metric */}
+              <div className={`p-3.5 rounded-xl border space-y-1.5 ${
+                scannerMode === 'spot' ? 'ring-2 ring-[#8b5cf6]/60' : ''
+              } ${isLight ? 'bg-white border-[#c8d9e8] shadow-sm' : 'bg-[#09111c] border-[#1b3447]'}`}>
+                <div className="flex items-center justify-between">
+                  <span className={`text-[11px] sm:text-xs font-semibold flex items-center gap-1.5 ${isLight ? 'text-[#6d28d9]' : 'text-[#c4b5fd]'}`}>
+                    <Sparkles className="w-3.5 h-3.5 text-[#8b5cf6]" />
+                    <span>Spot Arena Pass</span>
                   </span>
+                  <span className="text-[10px] font-bold font-mono text-[#8b5cf6] bg-[#8b5cf6]/15 px-1.5 py-0.5 rounded">
+                    {spotPercent}%
+                  </span>
+                </div>
+                <div className="flex items-baseline gap-2">
+                  <span className="text-2xl font-bold font-mono text-[#8b5cf6]">{spotAttendedCount}</span>
+                  <span className={`text-xs ${isLight ? 'text-[#6b6250]' : 'text-[#a79f8b]'}`}>/ {totalSpotDelegates}</span>
+                  <span className="text-[10px] text-white/50 ml-auto font-mono">1-Time Scans</span>
                 </div>
                 <div className={`w-full h-1.5 rounded-full overflow-hidden mt-1 ${isLight ? 'bg-[#d8e7f5]' : 'bg-[#1b2b3a]'}`}>
                   <div 
-                    className="bg-gradient-to-r from-[#f43f5e] to-[#ec4899] h-full transition-all duration-500 rounded-full" 
-                    style={{ width: `${certPercent}%` }}
+                    className="bg-gradient-to-r from-[#7c3aed] to-[#8b5cf6] h-full transition-all duration-500 rounded-full" 
+                    style={{ width: `${spotPercent}%` }}
                   />
                 </div>
+                <span className="text-[10px] text-[#8b5cf6] font-medium block truncate">Track 2: Afternoon Arena (Strict 1-Time Limit)</span>
               </div>
             </div>
           );
@@ -3024,13 +2739,16 @@ export const AdminTicketScanner: React.FC<AdminTicketScannerProps> = ({
                   }`}
                 >
                   <span>Close / Next</span>
-                  <span>&rarr;</span>
                 </button>
               </div>
 
-              {/* 5-DESK AUDIT DOSSIER & PROGRESS STEPPER */}
+              {/* 3-STATION TRACKING DOSSIER (STRICT 1-TIME SCAN) */}
               {(() => {
                 const fiveDeskSummary = getRecord5DeskSummary(activeRecord);
+                const activeDesks = fiveDeskSummary.desks.filter(d => d.key === 'tech' || d.key === 'lunch' || d.key === 'spot');
+                const completedCount = activeDesks.filter(d => d.isScanned).length;
+                const totalCount = activeDesks.filter(d => d.isApplicable).length;
+
                 return (
                   <div className={`p-3.5 sm:p-4 rounded-xl border space-y-2.5 ${
                     isLight ? 'bg-[#f4f8fc] border-[#c0d6ea]' : 'bg-[#0b1624] border-[#1f3a52]'
@@ -3040,25 +2758,25 @@ export const AdminTicketScanner: React.FC<AdminTicketScannerProps> = ({
                         isLight ? 'text-[#006ca8]' : 'text-[#70baff]'
                       }`}>
                         <Layers className="w-3.5 h-3.5" />
-                        <span>5-Desk Station Tracking Dossier</span>
+                        <span>Station Tracking Dossier (Strict 1-Time QR Limit)</span>
                       </span>
                       <span className={`text-[11px] font-mono font-bold px-2 py-0.5 rounded-full border ${
-                        fiveDeskSummary.allApplicableCompleted
+                        completedCount >= totalCount && totalCount > 0
                           ? 'bg-[#22c55e]/20 text-[#4cc38a] border-[#22c55e]/40'
                           : 'bg-[#f59e0b]/15 text-[#f59e0b] border-[#f59e0b]/30'
                       }`}>
-                        {fiveDeskSummary.completedDesksCount} of {fiveDeskSummary.applicableDesksCount} Desks Completed
+                        {completedCount} of {totalCount} Stations Completed
                       </span>
                     </div>
 
-                    <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
-                      {fiveDeskSummary.desks.map(d => {
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                      {activeDesks.map(d => {
                         if (!d.isApplicable) {
                           return (
                             <div key={d.id} className={`p-2 rounded-lg border text-center opacity-50 ${
                               isLight ? 'bg-white/60 border-gray-200 text-gray-500' : 'bg-black/30 border-white/10 text-white/40'
                             }`}>
-                              <span className="text-[10px] font-mono block font-bold">D{d.deskNumber}</span>
+                              <span className="text-[10px] font-mono block font-bold">{d.shortLabel.split(' · ')[0]}</span>
                               <span className="text-[11px] font-semibold block truncate">{d.shortLabel.split(' · ')[1]}</span>
                               <span className="text-[9px] block text-gray-400">Not Registered</span>
                             </div>
@@ -3068,7 +2786,7 @@ export const AdminTicketScanner: React.FC<AdminTicketScannerProps> = ({
                         return (
                           <div
                             key={d.id}
-                            className={`p-2 rounded-lg border text-center transition-all ${
+                            className={`p-2.5 rounded-lg border text-center transition-all ${
                               d.isScanned
                                 ? isLight
                                   ? 'bg-white border-[#22c55e]/60 shadow-sm ring-1 ring-[#22c55e]/30'
@@ -3082,18 +2800,18 @@ export const AdminTicketScanner: React.FC<AdminTicketScannerProps> = ({
                               <span className={`text-[10px] font-mono font-bold ${
                                 d.isScanned ? 'text-[#22c55e]' : (isLight ? 'text-gray-400' : 'text-white/40')
                               }`}>
-                                D{d.deskNumber}
+                                {d.shortLabel.split(' · ')[0]}
                               </span>
-                              {d.isScanned && <CheckCircle2 className="w-3 h-3 text-[#22c55e]" />}
+                              {d.isScanned && <CheckCircle2 className="w-3.5 h-3.5 text-[#22c55e]" />}
                             </div>
-                            <span className={`text-[11px] font-bold block truncate ${
+                            <span className={`text-xs font-bold block truncate mt-0.5 ${
                               d.isScanned
                                 ? isLight ? 'text-[#14532d]' : 'text-[#86efac]'
                                 : isLight ? 'text-gray-600' : 'text-white/70'
                             }`}>
                               {d.shortLabel.split(' · ')[1]}
                             </span>
-                            <span className={`text-[9px] font-mono block truncate ${
+                            <span className={`text-[10px] font-mono block truncate mt-0.5 ${
                               d.isScanned
                                 ? 'text-[#22c55e] font-semibold'
                                 : (isLight ? 'text-gray-400' : 'text-white/40')
@@ -3101,7 +2819,7 @@ export const AdminTicketScanner: React.FC<AdminTicketScannerProps> = ({
                               {d.isScanned
                                 ? (d.primaryTime
                                     ? new Date(d.primaryTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-                                    : 'Scanned ✓')
+                                    : 'Scanned (1-Time) ✓')
                                 : 'Pending'}
                             </span>
                           </div>
@@ -3143,218 +2861,6 @@ export const AdminTicketScanner: React.FC<AdminTicketScannerProps> = ({
                 </a>
               </div>
 
-              {/* INDIVIDUAL MEMBER ATTENDANCE & CHECK-IN SYSTEM */}
-              {(() => {
-                const checkInStats = getRecordCheckInStats(activeRecord);
-                const teammates = getRecordTeammates(activeRecord);
-                const totalMembers = 1 + teammates.length;
-                const memberAttendanceList = [
-                  {
-                    key: 'lead',
-                    role: totalMembers > 1 ? 'Team Lead (Member 1)' : 'Lead Delegate',
-                    name: activeRecord.name,
-                    roll: activeRecord.roll || 'N/A',
-                    phone: activeRecord.phone,
-                    isPresent: Boolean(checkInStats.memberStatus['lead']),
-                    time: checkInStats.memberTimes['lead'] || (activeRecord.checkedIn ? activeRecord.checkInTime : undefined)
-                  },
-                  ...teammates.map((m, idx) => ({
-                    key: `teammate_${idx}`,
-                    role: `Team Member ${idx + 2}`,
-                    name: m.name || `Member ${idx + 2}`,
-                    roll: m.roll || 'N/A',
-                    phone: m.phone || activeRecord.phone,
-                    isPresent: Boolean(checkInStats.memberStatus[`teammate_${idx}`]),
-                    time: checkInStats.memberTimes[`teammate_${idx}`]
-                  }))
-                ];
-
-                return (
-                  <div className={`p-5 rounded-2xl border transition-all ${
-                    checkInStats.isFullyCheckedIn
-                      ? isLight
-                        ? 'bg-gradient-to-r from-[#eaf8f0] via-[#f1faf4] to-[#e4f6eb] border-[#4cc38a] shadow-md shadow-[#4cc38a]/10'
-                        : 'bg-gradient-to-r from-[#0d2a1c] via-[#091f14] to-[#07170f] border-[#4cc38a] shadow-lg shadow-[#4cc38a]/10 ring-1 ring-[#4cc38a]/50'
-                      : checkInStats.isPartiallyCheckedIn
-                        ? isLight
-                          ? 'bg-gradient-to-r from-[#fefbf2] via-[#faf4e4] to-[#f7eed6] border-[#d4a935] shadow-md'
-                          : 'bg-gradient-to-r from-[#1c1809] via-[#141006] to-[#0e0c04] border-[#d4a935] shadow-lg shadow-[#d4a935]/15'
-                        : isLight
-                          ? 'bg-[#fcfaf5] border-[#d8d0ba] shadow-sm'
-                          : 'bg-[#0e0e13] border-[#2e2b22]'
-                  }`}>
-                    {/* Header Summary */}
-                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                      <div className="space-y-1">
-                        <div className="flex items-center gap-2">
-                          {checkInStats.isFullyCheckedIn ? (
-                            <>
-                              <CheckCircle2 className="w-5 h-5 text-[#4cc38a]" />
-                              <span className={`text-base font-bold ${isLight ? 'text-[#14532d]' : 'text-white'}`}>
-                                ALL DELEGATES PRESENT ✓ ({checkInStats.checkedInCount}/{checkInStats.totalMembers})
-                              </span>
-                            </>
-                          ) : checkInStats.isPartiallyCheckedIn ? (
-                            <>
-                              <Sparkles className="w-5 h-5 text-[#f2c14e]" />
-                              <span className={`text-base font-bold ${isLight ? 'text-[#594200]' : 'text-white'}`}>
-                                PARTIAL ATTENDANCE ({checkInStats.checkedInCount}/{checkInStats.totalMembers} Present · {checkInStats.absentCount} Absent)
-                              </span>
-                            </>
-                          ) : (
-                            <>
-                              <Clock className="w-5 h-5 text-[#a79f8b]" />
-                              <span className={`text-base font-bold ${isLight ? 'text-[#1c1811]' : 'text-white'}`}>
-                                NOT CHECKED IN (0/{checkInStats.totalMembers} Present · All Absent)
-                              </span>
-                            </>
-                          )}
-                        </div>
-                        <p className={`text-xs ${isLight ? 'text-[#6b6250]' : 'text-[#a79f8b]'}`}>
-                          {totalMembers > 1 
-                            ? 'Individual member attendance tracking. Each team member is counted separately.'
-                            : 'Verify student ID badge and confirm entry attendance.'}
-                        </p>
-                      </div>
-
-                      {/* Quick Bulk Action Buttons */}
-                      <div className="flex items-center gap-2 shrink-0">
-                        {totalMembers > 1 && !checkInStats.isFullyCheckedIn && (
-                          <button
-                            type="button"
-                            onClick={() => handleCheckInAllMembers(activeRecord)}
-                            className="px-3 py-1.5 rounded-xl bg-gradient-to-r from-[#22c55e] to-[#16a34a] hover:from-[#16a34a] hover:to-[#15803d] text-white font-bold text-xs shadow-md transition-all cursor-pointer flex items-center gap-1.5"
-                          >
-                            <CheckCircle2 className="w-3.5 h-3.5" />
-                            <span>Check In All ({totalMembers})</span>
-                          </button>
-                        )}
-
-                        {checkInStats.checkedInCount > 0 && (
-                          <button
-                            type="button"
-                            onClick={() => handleResetAllMembers(activeRecord)}
-                            className="px-3 py-1.5 rounded-xl bg-[#2a1215] hover:bg-[#3d181d] text-[#ff8a80] border border-[#ff8a80]/30 font-semibold text-xs transition-all cursor-pointer flex items-center gap-1.5"
-                          >
-                            <RotateCcw className="w-3.5 h-3.5" />
-                            <span>Mark All Absent</span>
-                          </button>
-                        )}
-                      </div>
-                    </div>
-
-                    {/* Member-by-Member Attendance Checklist */}
-                    <div className="mt-4 pt-3 border-t border-white/10 space-y-2">
-                      <span className={`text-xs font-bold uppercase tracking-wider block ${isLight ? 'text-[#705600]' : 'text-[#d4a935]'}`}>
-                        Individual Participants Attendance List ({checkInStats.checkedInCount} Present · {checkInStats.absentCount} Absent):
-                      </span>
-
-                      {memberAttendanceList.map((m) => (
-                        <div
-                          key={m.key}
-                          className={`p-3 rounded-xl border flex items-center justify-between gap-3 transition-all ${
-                            m.isPresent
-                              ? isLight
-                                ? 'bg-[#f0fdf4] border-[#86efac]'
-                                : 'bg-[#0f1f14] border-[#4cc38a]/40 shadow-sm'
-                              : isLight
-                                ? 'bg-white border-[#d8d0ba]'
-                                : 'bg-[#14141d] border-[#2e2b22]'
-                          }`}
-                        >
-                          <div className="flex items-center gap-2.5 min-w-0">
-                            <button
-                              type="button"
-                              onClick={() => handleToggleMemberCheckIn(activeRecord, m.key)}
-                              className={`w-5 h-5 rounded flex items-center justify-center transition-colors cursor-pointer shrink-0 ${
-                                m.isPresent
-                                  ? 'bg-[#22c55e] text-white'
-                                  : isLight ? 'border border-[#d8d0ba] hover:border-[#4cc38a]' : 'border border-[#2e2b22] hover:border-[#4cc38a]'
-                              }`}
-                              title={m.isPresent ? "Click to mark as absent" : "Click to mark as present"}
-                            >
-                              {m.isPresent && <Check className="w-3.5 h-3.5" />}
-                            </button>
-
-                            <div className="min-w-0">
-                              <div className="flex items-center gap-2 flex-wrap">
-                                <span className={`text-xs font-bold truncate ${isLight ? 'text-[#1c1811]' : 'text-white'}`}>
-                                  {m.name}
-                                </span>
-                                <span className={`text-[10px] font-mono px-1.5 py-0.2 rounded border font-semibold uppercase ${
-                                  m.role.includes('Lead')
-                                    ? 'bg-[#d4a935]/15 text-[#d4a935] border-[#d4a935]/30'
-                                    : 'bg-[#9fc7e8]/15 text-[#9fc7e8] border-[#9fc7e8]/30'
-                                }`}>
-                                  {m.role}
-                                </span>
-                              </div>
-                              <div className="text-[10px] text-[#a79f8b] font-mono mt-0.5 flex items-center gap-2">
-                                <span>Roll: {m.roll}</span>
-                                {m.phone && <span>· 📞 {m.phone}</span>}
-                              </div>
-                            </div>
-                          </div>
-
-                          <div className="flex items-center gap-2 shrink-0">
-                            {m.isPresent ? (
-                              <div className="flex items-center gap-1.5">
-                                <span className="text-[10px] font-bold text-[#4cc38a] flex items-center gap-1 bg-[#4cc38a]/15 px-2 py-1 rounded-lg border border-[#4cc38a]/30">
-                                  <CheckCircle2 className="w-3 h-3 text-[#4cc38a]" />
-                                  <span>PRESENT ✓</span>
-                                  {m.time && (
-                                    <span className="hidden sm:inline text-[9px] opacity-75">
-                                      ({new Date(m.time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })})
-                                    </span>
-                                  )}
-                                </span>
-                                <button
-                                  type="button"
-                                  onClick={() => handleToggleMemberCheckIn(activeRecord, m.key, false)}
-                                  className="text-[10px] text-[#ff8a80] hover:underline px-1 cursor-pointer"
-                                  title="Mark this delegate absent"
-                                >
-                                  Undo
-                                </button>
-                              </div>
-                            ) : (
-                              <div className="flex items-center gap-2">
-                                <span className="text-[10px] font-bold text-[#f59e0b] bg-[#f59e0b]/15 px-2 py-1 rounded-lg border border-[#f59e0b]/30">
-                                  ABSENT
-                                </span>
-                                <button
-                                  type="button"
-                                  onClick={() => handleToggleMemberCheckIn(activeRecord, m.key, true)}
-                                  className="px-2.5 py-1 rounded-lg bg-gradient-to-r from-[#22c55e] to-[#16a34a] hover:from-[#16a34a] hover:to-[#15803d] text-white font-bold text-[10px] shadow transition-all cursor-pointer flex items-center gap-1"
-                                >
-                                  <Check className="w-3 h-3" />
-                                  <span>Check In</span>
-                                </button>
-                              </div>
-                            )}
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-
-                    {/* Welcome Kit Dispatch */}
-                    <div className={`mt-4 pt-3 border-t ${isLight ? 'border-[#d8d0ba]' : 'border-white/10'} flex items-center justify-between text-xs`}>
-                      <label className="flex items-center gap-2.5 cursor-pointer select-none">
-                        <input
-                          type="checkbox"
-                          checked={Boolean(activeRecord.kitIssued)}
-                          onChange={handleToggleKit}
-                          className="w-4 h-4 rounded text-[#4cc38a] accent-[#4cc38a] cursor-pointer"
-                        />
-                        <span className={`font-medium ${isLight ? 'text-[#1c1811]' : 'text-white'}`}>Welcome Kit & Delegate ID Badge Dispatched</span>
-                      </label>
-                      <span className={`text-[11px] font-semibold ${activeRecord.kitIssued ? 'text-[#4cc38a]' : (isLight ? 'text-[#6b6250]' : 'text-[#a79f8b]')}`}>
-                        {activeRecord.kitIssued ? 'Kit Handed Over ✓' : 'Pending Kit'}
-                      </span>
-                    </div>
-                  </div>
-                );
-              })()}
 
                 {/* Food / Lunch Token Check & Anti-Dispute Verification (Based on Members) */}
                 {(() => {
@@ -3622,8 +3128,8 @@ export const AdminTicketScanner: React.FC<AdminTicketScannerProps> = ({
                                         setScanResultModal({
                                           type: 'already_scanned',
                                           scanTrack: 'Technical Event',
-                                          title: 'ALREADY SCANNED! NO OTHER CHANCE.',
-                                          message: `This QR code has ALREADY been scanned and counted for Technical Events. Duplicate entry is strictly rejected! Each QR code can only be scanned and counted ONCE.`,
+                                          title: 'ALREADY SCANNED OR USED!',
+                                          message: `This participant QR has ALREADY been scanned or used for Technical Events. Duplicate entry is strictly rejected! Each participant ticket can only be used 1 time.`,
                                           delegateName: m.name,
                                           delegateRoll: m.roll,
                                           delegateRole: m.role,
@@ -3776,8 +3282,8 @@ export const AdminTicketScanner: React.FC<AdminTicketScannerProps> = ({
                                       setScanResultModal({
                                         type: 'already_scanned',
                                         scanTrack: 'Spot Event',
-                                        title: 'ALREADY SCANNED! NO OTHER CHANCE.',
-                                        message: `This QR code has ALREADY been scanned and counted for Spot Events. Duplicate entry is strictly rejected! Each QR code can only be scanned and counted ONCE.`,
+                                        title: 'ALREADY SCANNED OR USED!',
+                                        message: `This participant QR has ALREADY been scanned or used for Spot Events. Duplicate entry is strictly rejected! Each participant ticket can only be used 1 time.`,
                                         delegateName: m.name,
                                         delegateRoll: m.roll,
                                         delegateRole: m.role,
@@ -3825,163 +3331,6 @@ export const AdminTicketScanner: React.FC<AdminTicketScannerProps> = ({
                 })()}
               </div>
 
-              {/* DESK 5: CERTIFICATES & VALEDICTORY DESK */}
-              {(() => {
-                const certStats = getRecordCertStats(activeRecord);
-                const teammates = getRecordTeammates(activeRecord);
-                const totalMembers = 1 + teammates.length;
-                const memberList = [
-                  {
-                    key: 'lead',
-                    role: totalMembers > 1 ? 'Lead' : 'Delegate',
-                    name: activeRecord.name,
-                    roll: activeRecord.roll || 'N/A',
-                    isIssued: Boolean(certStats.memberStatus['lead']),
-                    time: certStats.memberTimes['lead']
-                  },
-                  ...teammates.map((m, idx) => ({
-                    key: `teammate_${idx}`,
-                    role: `Member ${idx + 2}`,
-                    name: m.name || `Member ${idx + 2}`,
-                    roll: m.roll || 'N/A',
-                    isIssued: Boolean(certStats.memberStatus[`teammate_${idx}`]),
-                    time: certStats.memberTimes[`teammate_${idx}`]
-                  }))
-                ];
-
-                return (
-                  <div className={`p-4 rounded-xl border transition-all ${
-                    certStats.isFullyIssued
-                      ? isLight ? 'bg-[#fdf2f8] border-[#ec4899] shadow-sm' : 'bg-[#200d18] border-[#ec4899]/60 shadow-sm'
-                      : isLight ? 'bg-[#faf5f8] border-[#d8d0ba]' : 'bg-[#151016] border-[#2e2b22]'
-                  }`}>
-                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                      <div className="space-y-1">
-                        <div className="flex items-center gap-2">
-                          <Award className="w-4 h-4 text-[#ec4899]" />
-                          <span className={`font-serif-title font-bold text-base ${isLight ? 'text-[#1c1811]' : 'text-white'}`}>
-                            Desk 5: Certificates & Valedictory Desk
-                          </span>
-                          <span className="text-[10px] text-[#ec4899] bg-[#ec4899]/10 px-2 py-0.5 rounded border border-[#ec4899]/30 font-semibold">
-                            Valedictory
-                          </span>
-                          {certStats.certificatesIssuedCount > 0 && (
-                            <span className="text-[10px] font-bold text-[#4cc38a] bg-[#4cc38a]/15 px-2 py-0.5 rounded border border-[#4cc38a]/30">
-                              {certStats.certificatesIssuedCount}/{certStats.totalCertificates} Issued (1-Time)
-                            </span>
-                          )}
-                        </div>
-                        <div className={`text-xs ${isLight ? 'text-[#6b6250]' : 'text-[#a79f8b]'}`}>
-                          Valedictory Session · Physical certificate distribution · Strict 1-Time Issuance Logging
-                        </div>
-                      </div>
-
-                      {totalMembers > 1 && (
-                        <div className="flex items-center gap-2 shrink-0">
-                          {!certStats.isFullyIssued && (
-                            <button
-                              type="button"
-                              onClick={() => handleIssueAllCerts(activeRecord)}
-                              className="px-3 py-1.5 rounded-lg bg-gradient-to-r from-[#ec4899] to-[#db2777] text-white font-bold text-[11px] shadow hover:opacity-90 transition-all cursor-pointer flex items-center gap-1"
-                            >
-                              <Award className="w-3.5 h-3.5" />
-                              <span>Issue All ({totalMembers})</span>
-                            </button>
-                          )}
-                          {certStats.certificatesIssuedCount > 0 && (
-                            <button
-                              type="button"
-                              onClick={() => handleResetAllCerts(activeRecord)}
-                              className="px-2 py-1 rounded-lg bg-white/5 hover:bg-white/10 text-[#a79f8b] hover:text-white border border-white/10 text-[10px] transition-all cursor-pointer"
-                            >
-                              Reset Certs
-                            </button>
-                          )}
-                        </div>
-                      )}
-                    </div>
-
-                    {/* Member-by-Member Certificates Checklist */}
-                    <div className="mt-3 pt-3 border-t border-white/10 space-y-2">
-                      <span className={`text-[11px] font-bold uppercase tracking-wider block ${isLight ? 'text-[#705600]' : 'text-[#d4a935]'}`}>
-                        Participation Certificates ({certStats.certificatesIssuedCount} Issued · {certStats.certificatesRemaining} Remaining):
-                      </span>
-                      {memberList.map((m) => (
-                        <div
-                          key={m.key}
-                          className={`p-2.5 rounded-xl border flex items-center justify-between gap-2 text-xs transition-all ${
-                            m.isIssued
-                              ? (isLight ? 'bg-[#fdf2f8] border-[#f472b6]' : 'bg-[#260f1e] border-[#ec4899]/40')
-                              : (isLight ? 'bg-white border-[#d8d0ba]' : 'bg-[#14141d] border-[#2e2b22]')
-                          }`}
-                        >
-                          <div className="min-w-0">
-                            <div className="flex items-center gap-1.5 flex-wrap">
-                              <span className={`font-bold ${isLight ? 'text-[#1c1811]' : 'text-white'}`}>{m.name}</span>
-                              <span className="text-[10px] font-mono text-[#ec4899] px-1.5 py-0.2 rounded bg-[#ec4899]/10 border border-[#ec4899]/30 font-semibold uppercase">{m.role}</span>
-                            </div>
-                            <span className="text-[10px] text-[#a79f8b] font-mono">Roll: {m.roll} · 1 Certificate</span>
-                          </div>
-
-                          <div className="shrink-0 flex items-center gap-2">
-                            {m.isIssued ? (
-                              <div className="flex items-center gap-1.5">
-                                <button
-                                  type="button"
-                                  onClick={() => {
-                                    playBuzzer();
-                                    try { navigator.vibrate?.([300, 150, 300, 150, 400]); } catch (e) {}
-                                    setScanResultModal({
-                                      type: 'already_scanned',
-                                      scanTrack: 'Desk 5: Certificates & Valedictory',
-                                      deskNumber: 5,
-                                      title: 'ALREADY ISSUED CERTIFICATE! NO OTHER CHANCE.',
-                                      message: `Certificate has ALREADY been issued for ${m.name} (${m.roll} · ${m.role}). Duplicate certificate is strictly rejected! Each delegate can only receive their certificate ONCE.`,
-                                      delegateName: m.name,
-                                      delegateRoll: m.roll,
-                                      delegateRole: m.role,
-                                      teamName: activeRecord.name,
-                                      scannedAt: m.time ? new Date(m.time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'Earlier Today',
-                                      eventName: 'Desk 5: Participation Certificate'
-                                    });
-                                  }}
-                                  className="text-[10px] font-bold text-[#ec4899] flex items-center gap-1 bg-[#ec4899]/15 hover:bg-[#ec4899]/25 px-2 py-1 rounded-lg border border-[#ec4899]/30 cursor-pointer transition-colors"
-                                  title="Already issued · Click to test duplicate alert"
-                                >
-                                  <CheckCircle2 className="w-3 h-3 text-[#ec4899]" />
-                                  <span>CERTIFICATE ISSUED ✓</span>
-                                  {m.time && (
-                                    <span className="hidden sm:inline text-[9px] opacity-75">
-                                      ({new Date(m.time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })})
-                                    </span>
-                                  )}
-                                </button>
-                                <button
-                                  type="button"
-                                  onClick={() => handleToggleMemberCert(activeRecord, m.key, false)}
-                                  className="text-[10px] text-[#ff8a80] hover:underline px-1 cursor-pointer"
-                                  title="Reset this delegate's certificate"
-                                >
-                                  Reset
-                                </button>
-                              </div>
-                            ) : (
-                              <button
-                                type="button"
-                                onClick={() => handleToggleMemberCert(activeRecord, m.key, true)}
-                                className="px-2.5 py-1 rounded-lg bg-gradient-to-r from-[#ec4899] to-[#be185d] text-white font-bold text-[10px] shadow hover:opacity-95 transition-all cursor-pointer flex items-center gap-1"
-                              >
-                                <Award className="w-3 h-3 text-[#f2c14e]" />
-                                <span>Issue Certificate (1-Time)</span>
-                              </button>
-                            )}
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                );
-              })()}
 
               {/* PAYMENT & VERIFICATION STATUS */}
               <div className={`p-4 rounded-xl border space-y-2 ${isLight ? 'bg-[#f8f5ee] border-[#d8d0ba]' : 'bg-[#131318] border-[#2e2b22]'}`}>
@@ -4098,24 +3447,34 @@ export const AdminTicketScanner: React.FC<AdminTicketScannerProps> = ({
               isLight ? 'bg-white border-[#d8d0ba]' : 'bg-[#0a0a0d] border-[#2e2b22]'
             }`}>
               <div className={`w-16 h-16 rounded-2xl border flex items-center justify-center mx-auto shadow-inner ${
-                isLight ? 'bg-[#f8f5ee] border-[#d8d0ba] text-[#705600]' : 'bg-[#14141c] border-[#2e2b22] text-[#d4a935]'
+                scannerMode === 'tech'
+                  ? isLight ? 'bg-[#edf5fc] border-[#0088d4]/40 text-[#0088d4]' : 'bg-[#0c1824] border-[#0088d4]/40 text-[#70baff]'
+                  : scannerMode === 'lunch'
+                  ? isLight ? 'bg-[#fef3c7] border-[#f59e0b]/40 text-[#d97706]' : 'bg-[#261908] border-[#f59e0b]/40 text-[#f59e0b]'
+                  : isLight ? 'bg-[#f5f3ff] border-[#8b5cf6]/40 text-[#7c3aed]' : 'bg-[#181126] border-[#8b5cf6]/40 text-[#c4b5fd]'
               }`}>
-                {scannerMode === 'lunch' ? (
+                {scannerMode === 'tech' ? (
+                  <Zap className="w-8 h-8 text-[#0088d4]" />
+                ) : scannerMode === 'lunch' ? (
                   <Utensils className="w-8 h-8 text-[#f59e0b]" />
                 ) : (
-                  <QrCode className="w-8 h-8 opacity-60" />
+                  <Sparkles className="w-8 h-8 text-[#8b5cf6]" />
                 )}
               </div>
               <div className="max-w-md mx-auto space-y-1">
                 <h4 className={`font-serif-title text-xl font-bold ${isLight ? 'text-[#1c1811]' : 'text-white'}`}>
-                  {scannerMode === 'lunch'
+                  {scannerMode === 'tech'
+                    ? 'Waiting for Technical Track Pass Scan...'
+                    : scannerMode === 'lunch'
                     ? 'Waiting for Food / Lunch Token Scan...'
-                    : 'Waiting for Ticket QR Scan...'}
+                    : 'Waiting for Spot Arena Pass Scan...'}
                 </h4>
                 <p className={`text-xs leading-relaxed ${isLight ? 'text-[#6b6250]' : 'text-[#a79f8b]'}`}>
-                  {scannerMode === 'lunch'
-                    ? 'Point the camera at delegate badge QR code. System will automatically verify token, dispense 1 meal box, and immediately alert if duplicate claim is detected.'
-                    : "Point the camera at any participant's entry ticket QR code, upload a pass image, or type their name, roll number, or phone into the manual search box."}
+                  {scannerMode === 'tech'
+                    ? 'Point camera at participant QR code. Strict 1-time scanning: verifies Technical event eligibility and rejects immediately if already scanned or used.'
+                    : scannerMode === 'lunch'
+                    ? 'Point camera at delegate QR code. Strict 1-time scanning: verifies meal token, dispenses 1 meal tray, and alerts immediately if already scanned or used.'
+                    : 'Point camera at participant QR code. Strict 1-time scanning: verifies Track 2 Spot Events pass and rejects immediately if already scanned or used.'}
                 </p>
               </div>
 
@@ -4656,7 +4015,7 @@ export const AdminTicketScanner: React.FC<AdminTicketScannerProps> = ({
             </div>
 
             {/* Quick Action Buttons for Spot and Lunch delegates */}
-            {(scanResultModal.allowSpotScan || scanResultModal.allowLunchDispense || scanResultModal.allowReceptionCheckIn) && scanResultModal.targetRecord && (
+            {(scanResultModal.allowSpotScan || scanResultModal.allowLunchDispense) && scanResultModal.targetRecord && (
               <div className="mt-4 p-3.5 rounded-2xl bg-white/5 border border-white/10 space-y-2.5">
                 <span className="text-[11px] font-bold text-[#fde68a] uppercase tracking-wider block font-mono">
                   1-Click Desk Actions for this Delegate:
@@ -4673,7 +4032,7 @@ export const AdminTicketScanner: React.FC<AdminTicketScannerProps> = ({
                       className="w-full py-2.5 px-3 rounded-xl bg-gradient-to-r from-[#f59e0b] to-[#d97706] hover:from-[#d97706] hover:to-[#b45309] text-[#121217] font-bold text-xs shadow-lg transition-all cursor-pointer flex items-center justify-center gap-1.5"
                     >
                       <Utensils className="w-4 h-4 text-[#121217]" />
-                      <span>Dispense Lunch (Desk 3)</span>
+                      <span>Dispense Lunch (Food Token)</span>
                     </button>
                   )}
 
@@ -4688,22 +4047,7 @@ export const AdminTicketScanner: React.FC<AdminTicketScannerProps> = ({
                       className="w-full py-2.5 px-3 rounded-xl bg-gradient-to-r from-[#8b5cf6] to-[#6d28d9] hover:from-[#7c3aed] hover:to-[#5b21b6] text-white font-bold text-xs shadow-lg transition-all cursor-pointer flex items-center justify-center gap-1.5"
                     >
                       <Sparkles className="w-4 h-4 text-[#f2c14e]" />
-                      <span>Verify Spot Arena (Desk 4)</span>
-                    </button>
-                  )}
-
-                  {scanResultModal.allowReceptionCheckIn && (
-                    <button
-                      type="button"
-                      onClick={() => {
-                        handleToggleMemberCheckIn(scanResultModal.targetRecord!, scanResultModal.scannedMemberKey || 'lead', true);
-                        setScanResultModal(null);
-                        lastScanAttemptRef.current = null;
-                      }}
-                      className="w-full py-2.5 px-3 rounded-xl bg-gradient-to-r from-[#22c55e] to-[#16a34a] hover:from-[#16a34a] hover:to-[#15803d] text-white font-bold text-xs shadow-lg transition-all cursor-pointer flex items-center justify-center gap-1.5 sm:col-span-2"
-                    >
-                      <UserCheck className="w-4 h-4 text-white" />
-                      <span>Reception Check-In & Issue Kit (Desk 1)</span>
+                      <span>Verify Spot Arena Pass</span>
                     </button>
                   )}
                 </div>
@@ -4712,9 +4056,9 @@ export const AdminTicketScanner: React.FC<AdminTicketScannerProps> = ({
 
             {/* Warning Notice Banner for Already Scanned */}
             {scanResultModal.type === 'already_scanned' && (
-              <div className="mt-3.5 sm:mt-4 p-2.5 sm:p-3 rounded-xl bg-[#ef4444]/20 border border-[#ef4444]/50 flex items-center gap-2 text-xs text-[#ff9999] font-semibold">
-                <XCircle className="w-4 h-4 text-[#ef4444] shrink-0" />
-                <span>Zero count added. Only 1 scan allowed per QR. No other chance.</span>
+              <div className="mt-3.5 sm:mt-4 p-3 rounded-xl bg-[#ef4444]/25 border-2 border-[#ef4444] flex items-center gap-2.5 text-xs text-[#ffb4b4] font-bold">
+                <XCircle className="w-5 h-5 text-[#ef4444] shrink-0 animate-pulse" />
+                <span>⚠️ DUPLICATE TICKET BLOCKED · ZERO COUNT ADDED · Each ticket can only be used 1 time.</span>
               </div>
             )}
 

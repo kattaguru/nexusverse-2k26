@@ -21,7 +21,8 @@ describe('Dedicated QR Codes & Checkpoint Routing Unit Tests', () => {
       isIeeeMember: false,
       wantsFood: true,
       eventIds: ['innovrush'],
-      totalPaid: 204
+      totalPaid: 204,
+      timestamp: '2026-10-27T06:00:00.000Z'
     };
 
     const hasTech1 = techWithFoodRecord.eventIds.some(id => id !== 'spot');
@@ -48,7 +49,8 @@ describe('Dedicated QR Codes & Checkpoint Routing Unit Tests', () => {
       isIeeeMember: false,
       wantsFood: false,
       eventIds: ['flaghunt'],
-      totalPaid: 153
+      totalPaid: 153,
+      timestamp: '2026-10-27T06:00:00.000Z'
     };
 
     const hasTech2 = techNoFoodRecord.eventIds.some(id => id !== 'spot');
@@ -72,7 +74,8 @@ describe('Dedicated QR Codes & Checkpoint Routing Unit Tests', () => {
       isIeeeMember: false,
       wantsFood: true,
       eventIds: ['spot'],
-      totalPaid: 153
+      totalPaid: 153,
+      timestamp: '2026-10-27T06:00:00.000Z'
     };
 
     const hasTech3 = spotWithFoodRecord.eventIds.some(id => id !== 'spot');
@@ -99,7 +102,8 @@ describe('Dedicated QR Codes & Checkpoint Routing Unit Tests', () => {
       isIeeeMember: false,
       wantsFood: false,
       eventIds: ['spot'],
-      totalPaid: 102
+      totalPaid: 102,
+      timestamp: '2026-10-27T06:00:00.000Z'
     };
 
     const isFoodEligible4 = isMemberFoodEligible(spotNoFoodRecord, 'lead');
@@ -161,6 +165,7 @@ describe('Dedicated QR Codes & Checkpoint Routing Unit Tests', () => {
       isIeeeMember: true, // IEEE member has food included
       eventIds: ['innovrush'],
       totalPaid: 450,
+      timestamp: '2026-10-27T06:00:00.000Z',
       teamDetails: {
         innovrush: {
           teamName: 'CyberKnights',
