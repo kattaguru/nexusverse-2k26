@@ -526,7 +526,7 @@ export const AdminModal: React.FC<AdminModalProps> = ({
   const [ieeeFilter, setIeeeFilter] = useState<'all' | 'ieee' | 'non-ieee'>('all');
   const [verificationFilter, setVerificationFilter] = useState<'all' | 'verified' | 'unverified' | 'upi' | 'razorpay'>('all');
   const [checkInFilter, setCheckInFilter] = useState<'all' | 'checked-in' | 'not-checked-in'>('all');
-  const [deskFilter, setDeskFilter] = useState<'all' | 'desk1' | 'desk2' | 'desk3' | 'desk4' | 'desk5' | 'all-completed'>('all');
+  const [deskFilter, setDeskFilter] = useState<'all' | 'tech' | 'lunch' | 'spot' | 'desk1' | 'desk2' | 'desk3' | 'desk4' | 'desk5' | 'all-completed'>('all');
   const [registrationViewMode, setRegistrationViewMode] = useState<'teams' | 'individual'>('teams');
   const [individualAttendeeFilter, setIndividualAttendeeFilter] = useState<'all' | 'present' | 'absent'>('all');
   const [sortBy, setSortBy] = useState<SortOption>('date-desc');
@@ -1454,20 +1454,14 @@ export const AdminModal: React.FC<AdminModalProps> = ({
       'Teammate 3 Phone',
       'Teammate 3 IEEE Member',
       'Teammate 3 IEEE ID',
-      'Desk 1 (Reception & Kit) Status',
-      'Desk 1 Scan Time',
-      'Desk 1 Scanned Count',
-      'Desk 2 (Tech Events) Status',
-      'Desk 2 Scan Time',
-      'Desk 3 (Food & Lunch) Status',
-      'Desk 3 Scan Time',
-      'Desk 3 Meals Dispensed',
-      'Desk 4 (Spot Arena) Status',
-      'Desk 4 Scan Time',
-      'Desk 5 (Certificates) Status',
-      'Desk 5 Scan Time',
-      'Desk 5 Certs Issued',
-      'All 5 Desks Completed'
+      'Technical Events Station Status',
+      'Technical Scan Time',
+      'Food & Lunch Station Status',
+      'Food Scan Time',
+      'Food Meals Dispensed',
+      'Spot Arena Station Status',
+      'Spot Scan Time',
+      'All Stations Completed'
     ];
 
     const rows = savedRecords.map(r => {
@@ -1481,11 +1475,9 @@ export const AdminModal: React.FC<AdminModalProps> = ({
       const m3 = members[2] || {};
 
       const deskSummary = getRecord5DeskSummary(r);
-      const d1 = deskSummary.desks[0];
-      const d2 = deskSummary.desks[1];
-      const d3 = deskSummary.desks[2];
-      const d4 = deskSummary.desks[3];
-      const d5 = deskSummary.desks[4];
+      const dTech = deskSummary.desks.find(d => d.key === 'tech');
+      const dLunch = deskSummary.desks.find(d => d.key === 'lunch');
+      const dSpot = deskSummary.desks.find(d => d.key === 'spot');
 
       return [
         `"${r.regId}"`,
@@ -1535,19 +1527,13 @@ export const AdminModal: React.FC<AdminModalProps> = ({
         `"${m3.phone || ''}"`,
         `"${m3.isIeeeMember ? 'YES' : 'NO'}"`,
         `"${m3.ieeeId || ''}"`,
-        `"${d1?.isScanned ? (d1.isFullyScanned ? 'FULL' : 'PARTIAL') : 'PENDING'}"`,
-        `"${d1?.primaryTime ? new Date(d1.primaryTime).toLocaleString() : 'N/A'}"`,
-        `"${d1?.scannedCount || 0}/${d1?.totalMembers || 1}"`,
-        `"${!d2?.isApplicable ? 'N/A' : d2?.isScanned ? (d2.isFullyScanned ? 'ATTENDED' : 'PARTIAL') : 'PENDING'}"`,
-        `"${d2?.primaryTime ? new Date(d2.primaryTime).toLocaleString() : 'N/A'}"`,
-        `"${d3?.isScanned ? (d3.isFullyScanned ? 'DISPENSED' : 'PARTIAL') : 'PENDING'}"`,
-        `"${d3?.primaryTime ? new Date(d3.primaryTime).toLocaleString() : 'N/A'}"`,
-        `"${d3?.scannedCount || 0}/${d3?.totalMembers || 1}"`,
-        `"${!d4?.isApplicable ? 'N/A' : d4?.isScanned ? 'VERIFIED' : 'PENDING'}"`,
-        `"${d4?.primaryTime ? new Date(d4.primaryTime).toLocaleString() : 'N/A'}"`,
-        `"${d5?.isScanned ? (d5.isFullyScanned ? 'ISSUED' : 'PARTIAL') : 'PENDING'}"`,
-        `"${d5?.primaryTime ? new Date(d5.primaryTime).toLocaleString() : 'N/A'}"`,
-        `"${d5?.scannedCount || 0}/${d5?.totalMembers || 1}"`,
+        `"${!dTech?.isApplicable ? 'N/A' : dTech?.isScanned ? (dTech.isFullyScanned ? 'ATTENDED' : 'PARTIAL') : 'PENDING'}"`,
+        `"${dTech?.primaryTime ? new Date(dTech.primaryTime).toLocaleString() : 'N/A'}"`,
+        `"${!dLunch?.isApplicable ? 'N/A' : dLunch?.isScanned ? (dLunch.isFullyScanned ? 'DISPENSED' : 'PARTIAL') : 'PENDING'}"`,
+        `"${dLunch?.primaryTime ? new Date(dLunch.primaryTime).toLocaleString() : 'N/A'}"`,
+        `"${dLunch?.scannedCount || 0}/${dLunch?.totalMembers || 0}"`,
+        `"${!dSpot?.isApplicable ? 'N/A' : dSpot?.isScanned ? 'VERIFIED' : 'PENDING'}"`,
+        `"${dSpot?.primaryTime ? new Date(dSpot.primaryTime).toLocaleString() : 'N/A'}"`,
         `"${deskSummary.allApplicableCompleted ? 'YES' : 'NO'}"`
       ].join(',');
     });
@@ -1843,16 +1829,12 @@ export const AdminModal: React.FC<AdminModalProps> = ({
         ? true
         : deskFilter === 'all-completed'
         ? fiveDeskSummary.allApplicableCompleted
-        : deskFilter === 'desk1'
-        ? fiveDeskSummary.desks[0]?.isScanned
-        : deskFilter === 'desk2'
-        ? fiveDeskSummary.desks[1]?.isScanned
-        : deskFilter === 'desk3'
-        ? fiveDeskSummary.desks[2]?.isScanned
-        : deskFilter === 'desk4'
-        ? fiveDeskSummary.desks[3]?.isScanned
-        : deskFilter === 'desk5'
-        ? fiveDeskSummary.desks[4]?.isScanned
+        : (deskFilter === 'tech' || deskFilter === 'desk2')
+        ? Boolean(fiveDeskSummary.desks.find(d => d.key === 'tech')?.isScanned)
+        : (deskFilter === 'lunch' || deskFilter === 'desk3')
+        ? Boolean(fiveDeskSummary.desks.find(d => d.key === 'lunch')?.isScanned)
+        : (deskFilter === 'spot' || deskFilter === 'desk4')
+        ? Boolean(fiveDeskSummary.desks.find(d => d.key === 'spot')?.isScanned)
         : true;
 
       return matchesEvent && matchesIeee && matchesVerification && matchesCheckIn && matchesDesk && matchesQuery;
@@ -2568,7 +2550,7 @@ export const AdminModal: React.FC<AdminModalProps> = ({
                           <option value="not-checked-in">Not Checked In ({totalRegistrations - checkedInCount})</option>
                         </select>
 
-                        {/* 5-Desk Station Filter */}
+                        {/* Station Filter */}
                         <select
                           value={deskFilter}
                           onChange={(e) => setDeskFilter(e.target.value as any)}
@@ -2577,15 +2559,13 @@ export const AdminModal: React.FC<AdminModalProps> = ({
                               ? 'bg-[#1f1b0e] border-[#d4a935] text-[#f2c14e]'
                               : 'bg-[#131318] border-[#2e2b22] text-[#f3ecd9] focus:border-[#d4a935]'
                           }`}
-                          aria-label="Filter by 5-Desk Station"
+                          aria-label="Filter by Scan Station"
                         >
-                          <option value="all">All 5 Desks (No desk filter)</option>
-                          <option value="desk1">Desk 1: Reception & Kit Scanned ({fiveDesksGlobal.desk1ScannedDelegates})</option>
-                          <option value="desk2">Desk 2: Technical Events Scanned ({fiveDesksGlobal.desk2ScannedDelegates})</option>
-                          <option value="desk3">Desk 3: Food & Lunch Dispensed ({fiveDesksGlobal.desk3ScannedDelegates})</option>
-                          <option value="desk4">Desk 4: Spot Events Scanned ({fiveDesksGlobal.desk4ScannedDelegates})</option>
-                          <option value="desk5">Desk 5: Certificates Issued ({fiveDesksGlobal.desk5ScannedDelegates})</option>
-                          <option value="all-completed">★ All Desks Completed ({fiveDesksGlobal.fullyCompletedRegistrations} teams)</option>
+                          <option value="all">All Stations (No station filter)</option>
+                          <option value="tech">Technical Events Scanned ({fiveDesksGlobal.desk2ScannedDelegates})</option>
+                          <option value="lunch">Food & Lunch Dispensed ({fiveDesksGlobal.desk3ScannedDelegates})</option>
+                          <option value="spot">Spot Events Scanned ({fiveDesksGlobal.desk4ScannedDelegates})</option>
+                          <option value="all-completed">★ All Stations Completed ({fiveDesksGlobal.fullyCompletedRegistrations} teams)</option>
                         </select>
                       </div>
                     </div>
@@ -2675,71 +2655,45 @@ export const AdminModal: React.FC<AdminModalProps> = ({
                       </button>
 
                       <span className="text-[#2e2b22] px-1">|</span>
-                      <span className="text-[10px] text-[#a79f8b] uppercase tracking-wider font-semibold">5 Desks:</span>
+                      <span className="text-[10px] text-[#a79f8b] uppercase tracking-wider font-semibold">Stations:</span>
 
                       <button
                         type="button"
-                        onClick={() => setDeskFilter(deskFilter === 'desk1' ? 'all' : 'desk1')}
+                        onClick={() => setDeskFilter(deskFilter === 'tech' ? 'all' : 'tech')}
                         className={`px-2 py-0.5 rounded-full text-[10px] font-semibold transition-all cursor-pointer flex items-center gap-1 ${
-                          deskFilter === 'desk1'
-                            ? 'bg-[#22c55e] text-[#0a1a0f] font-bold'
-                            : 'bg-[#181820] text-[#4cc38a] hover:bg-[#142617] border border-[#2e2b22]'
-                        }`}
-                        title="Desk 1: Reception & Kit Scanned"
-                      >
-                        <span>D1 Reception ({fiveDesksGlobal.desk1ScannedDelegates})</span>
-                      </button>
-
-                      <button
-                        type="button"
-                        onClick={() => setDeskFilter(deskFilter === 'desk2' ? 'all' : 'desk2')}
-                        className={`px-2 py-0.5 rounded-full text-[10px] font-semibold transition-all cursor-pointer flex items-center gap-1 ${
-                          deskFilter === 'desk2'
+                          deskFilter === 'tech'
                             ? 'bg-[#0088d4] text-white font-bold'
                             : 'bg-[#181820] text-[#70baff] hover:bg-[#0f2c4a] border border-[#2e2b22]'
                         }`}
-                        title="Desk 2: Technical Events Scanned"
+                        title="Technical Events Scanned"
                       >
-                        <span>D2 Tech ({fiveDesksGlobal.desk2ScannedDelegates})</span>
+                        <span>Technical ({fiveDesksGlobal.desk2ScannedDelegates})</span>
                       </button>
 
                       <button
                         type="button"
-                        onClick={() => setDeskFilter(deskFilter === 'desk3' ? 'all' : 'desk3')}
+                        onClick={() => setDeskFilter(deskFilter === 'lunch' ? 'all' : 'lunch')}
                         className={`px-2 py-0.5 rounded-full text-[10px] font-semibold transition-all cursor-pointer flex items-center gap-1 ${
-                          deskFilter === 'desk3'
+                          deskFilter === 'lunch'
                             ? 'bg-[#f59e0b] text-[#1a1300] font-bold'
                             : 'bg-[#181820] text-[#f2c14e] hover:bg-[#2a1e06] border border-[#2e2b22]'
                         }`}
-                        title="Desk 3: Food & Lunch Dispensed"
+                        title="Food & Lunch Dispensed"
                       >
-                        <span>D3 Lunch ({fiveDesksGlobal.desk3ScannedDelegates})</span>
+                        <span>Food / Lunch ({fiveDesksGlobal.desk3ScannedDelegates})</span>
                       </button>
 
                       <button
                         type="button"
-                        onClick={() => setDeskFilter(deskFilter === 'desk4' ? 'all' : 'desk4')}
+                        onClick={() => setDeskFilter(deskFilter === 'spot' ? 'all' : 'spot')}
                         className={`px-2 py-0.5 rounded-full text-[10px] font-semibold transition-all cursor-pointer flex items-center gap-1 ${
-                          deskFilter === 'desk4'
+                          deskFilter === 'spot'
                             ? 'bg-[#8b5cf6] text-white font-bold'
                             : 'bg-[#181820] text-[#c084fc] hover:bg-[#2a1740] border border-[#2e2b22]'
                         }`}
-                        title="Desk 4: Spot Arena Scanned"
+                        title="Spot Events Scanned"
                       >
-                        <span>D4 Spot ({fiveDesksGlobal.desk4ScannedDelegates})</span>
-                      </button>
-
-                      <button
-                        type="button"
-                        onClick={() => setDeskFilter(deskFilter === 'desk5' ? 'all' : 'desk5')}
-                        className={`px-2 py-0.5 rounded-full text-[10px] font-semibold transition-all cursor-pointer flex items-center gap-1 ${
-                          deskFilter === 'desk5'
-                            ? 'bg-[#ec4899] text-white font-bold'
-                            : 'bg-[#181820] text-[#f472b6] hover:bg-[#3b1227] border border-[#2e2b22]'
-                        }`}
-                        title="Desk 5: Certificates Issued"
-                      >
-                        <span>D5 Cert ({fiveDesksGlobal.desk5ScannedDelegates})</span>
+                        <span>Spot Events ({fiveDesksGlobal.desk4ScannedDelegates})</span>
                       </button>
 
                       <button
@@ -2750,9 +2704,9 @@ export const AdminModal: React.FC<AdminModalProps> = ({
                             ? 'bg-gradient-to-r from-[#d4a935] to-[#f2c14e] text-[#1a1300] font-bold'
                             : 'bg-[#181820] text-[#d4a935] hover:bg-[#241a06] border border-[#d4a935]/40'
                         }`}
-                        title="All Applicable Desks Completed"
+                        title="All Applicable Stations Completed"
                       >
-                        <span>★ All 5 Done ({fiveDesksGlobal.fullyCompletedRegistrations})</span>
+                        <span>★ All Done ({fiveDesksGlobal.fullyCompletedRegistrations})</span>
                       </button>
                     </div>
 
@@ -3060,31 +3014,23 @@ export const AdminModal: React.FC<AdminModalProps> = ({
                                         {p.email && <span>✉️ {cleanAdminText(p.email)}</span>}
                                       </div>
 
-                                      {/* 5-Desk Member Status Strip */}
+                                      {/* 3-Station Member Status Strip */}
                                       {(() => {
-                                        const isD1 = p.isCheckedIn;
-                                        const isD2 = (p.record.attendedEvents && p.record.attendedEvents.length > 0) || Boolean(p.record.deskScans?.['desk2_tech']?.scanned);
-                                        const isD3 = p.isLunchCollected;
-                                        const isD4 = Boolean(p.record.deskScans?.['desk4_spot']?.scanned);
-                                        const isD5 = Boolean(p.record.memberCertStatus?.[p.memberKey] || p.record.certificateIssued);
+                                        const isTech = (p.record.attendedEvents && p.record.attendedEvents.length > 0) || Boolean(p.record.deskScans?.['desk2_tech']?.scanned);
+                                        const isLunch = p.isLunchCollected;
+                                        const isSpot = Boolean(p.record.deskScans?.['desk4_spot']?.scanned);
 
                                         return (
                                           <div className="flex flex-wrap items-center gap-1 pt-1">
-                                            <span className="text-[9px] text-[#7e7663] font-medium mr-0.5">Desks:</span>
-                                            <span className={`text-[9px] font-mono px-1.5 py-0.2 rounded border ${isD1 ? 'bg-[#142617] text-[#4cc38a] border-[#4cc38a]/40 font-bold' : 'bg-[#181820] text-[#777] border-[#2e2b22]'}`} title={`Desk 1 (Reception): ${isD1 ? `Checked In (${p.checkInTime ? new Date(p.checkInTime).toLocaleTimeString() : 'Yes'})` : 'Pending'}`}>
-                                              D1 {isD1 ? '✓' : '—'}
+                                            <span className="text-[9px] text-[#7e7663] font-medium mr-0.5">Stations:</span>
+                                            <span className={`text-[9px] font-mono px-1.5 py-0.2 rounded border ${isTech ? 'bg-[#002238] text-[#70baff] border-[#0088d4]/40 font-bold' : 'bg-[#181820] text-[#777] border-[#2e2b22]'}`} title={`Technical Event: ${isTech ? 'Attended' : 'Pending'}`}>
+                                              Tech {isTech ? '✓' : '—'}
                                             </span>
-                                            <span className={`text-[9px] font-mono px-1.5 py-0.2 rounded border ${isD2 ? 'bg-[#002238] text-[#70baff] border-[#0088d4]/40 font-bold' : 'bg-[#181820] text-[#777] border-[#2e2b22]'}`} title={`Desk 2 (Tech): ${isD2 ? 'Attended' : 'Pending'}`}>
-                                              D2 {isD2 ? '✓' : '—'}
+                                            <span className={`text-[9px] font-mono px-1.5 py-0.2 rounded border ${isLunch ? 'bg-[#2b1f07] text-[#f2c14e] border-[#d4a935]/40 font-bold' : 'bg-[#181820] text-[#777] border-[#2e2b22]'}`} title={`Food & Lunch: ${isLunch ? 'Dispensed' : 'Pending'}`}>
+                                              Food {isLunch ? '✓' : '—'}
                                             </span>
-                                            <span className={`text-[9px] font-mono px-1.5 py-0.2 rounded border ${isD3 ? 'bg-[#2b1f07] text-[#f2c14e] border-[#d4a935]/40 font-bold' : 'bg-[#181820] text-[#777] border-[#2e2b22]'}`} title={`Desk 3 (Lunch): ${isD3 ? 'Dispensed' : 'Pending'}`}>
-                                              D3 {isD3 ? '✓' : '—'}
-                                            </span>
-                                            <span className={`text-[9px] font-mono px-1.5 py-0.2 rounded border ${isD4 ? 'bg-[#24133d] text-[#c084fc] border-[#8b5cf6]/40 font-bold' : 'bg-[#181820] text-[#777] border-[#2e2b22]'}`} title={`Desk 4 (Spot Arena): ${isD4 ? 'Verified' : 'Pending'}`}>
-                                              D4 {isD4 ? '✓' : '—'}
-                                            </span>
-                                            <span className={`text-[9px] font-mono px-1.5 py-0.2 rounded border ${isD5 ? 'bg-[#3b1227] text-[#f472b6] border-[#ec4899]/40 font-bold' : 'bg-[#181820] text-[#777] border-[#2e2b22]'}`} title={`Desk 5 (Certificate): ${isD5 ? 'Issued' : 'Pending'}`}>
-                                              D5 {isD5 ? '✓' : '—'}
+                                            <span className={`text-[9px] font-mono px-1.5 py-0.2 rounded border ${isSpot ? 'bg-[#24133d] text-[#c084fc] border-[#8b5cf6]/40 font-bold' : 'bg-[#181820] text-[#777] border-[#2e2b22]'}`} title={`Spot Events: ${isSpot ? 'Verified' : 'Pending'}`}>
+                                              Spot {isSpot ? '✓' : '—'}
                                             </span>
                                           </div>
                                         );
@@ -3259,9 +3205,9 @@ export const AdminModal: React.FC<AdminModalProps> = ({
                                   {record.college && <span>🏫 {cleanAdminText(record.college)}</span>}
                                 </div>
 
-                                {/* 5-Desk Station Status Badge Strip */}
+                                {/* 3-Station Status Badge Strip */}
                                 <div className="flex flex-wrap items-center gap-1.5 pt-1">
-                                  <span className="text-[10px] text-[#7e7663] font-semibold mr-0.5">5 Desks:</span>
+                                  <span className="text-[10px] text-[#7e7663] font-semibold mr-0.5">Stations:</span>
                                   {(() => {
                                     const summary = getRecord5DeskSummary(record);
                                     return summary.desks.map(desk => {
@@ -3527,7 +3473,7 @@ export const AdminModal: React.FC<AdminModalProps> = ({
                                   </div>
                                 </div>
 
-                                {/* 5-DESK STATION VERIFICATION DOSSIER */}
+                                {/* 3-STATION VERIFICATION DOSSIER */}
                                 {(() => {
                                   const summary = getRecord5DeskSummary(record);
                                   return (
@@ -3537,10 +3483,10 @@ export const AdminModal: React.FC<AdminModalProps> = ({
                                           <span className="text-base">🏢</span>
                                           <div>
                                             <span className="text-xs font-bold text-white block">
-                                              5-Desk Station Verification Dossier
+                                              Station Verification Dossier (Technical, Food & Spot)
                                             </span>
                                             <span className="text-[10px] text-[#a79f8b]">
-                                              Live desk scanning audit trail, verified operator & timestamps
+                                              Live station scanning audit trail, verified operator & timestamps
                                             </span>
                                           </div>
                                         </div>
@@ -3550,12 +3496,12 @@ export const AdminModal: React.FC<AdminModalProps> = ({
                                               ? 'bg-[#142617] text-[#4cc38a] border-[#4cc38a]/40'
                                               : 'bg-[#2a1e06] text-[#f2c14e] border-[#d4a935]/40'
                                           }`}>
-                                            {summary.allApplicableCompleted ? '★ ALL 5 DESKS COMPLETED' : `${summary.completedDesksCount} of ${summary.applicableDesksCount} Desks Completed`}
+                                            {summary.allApplicableCompleted ? '★ ALL STATIONS COMPLETED' : `${summary.completedDesksCount} of ${summary.applicableDesksCount} Stations Completed`}
                                           </span>
                                         </div>
                                       </div>
 
-                                      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-2">
+                                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
                                         {summary.desks.map(desk => {
                                           const isDone = desk.isScanned;
                                           const isFull = desk.isFullyScanned;
@@ -3576,7 +3522,7 @@ export const AdminModal: React.FC<AdminModalProps> = ({
                                               <div className="space-y-1">
                                                 <div className="flex items-center justify-between">
                                                   <span className="text-[10px] font-mono font-bold uppercase tracking-wider text-[#a79f8b]">
-                                                    Desk {desk.deskNumber}
+                                                    {desk.badgeLabel}
                                                   </span>
                                                   <span className={`text-[9px] font-mono font-bold px-1.5 py-0.2 rounded border ${
                                                     !desk.isApplicable

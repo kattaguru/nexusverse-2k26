@@ -663,26 +663,12 @@ export interface DeskDefinition {
 
 export const SYMPOSIUM_DESKS: DeskDefinition[] = [
   {
-    id: 'desk1_reception',
-    deskNumber: 1,
-    key: 'reception',
-    defaultTitle: 'Reception & Kit Desk',
-    shortLabel: 'Desk 1 · Reception',
-    badgeLabel: 'D1: Reception',
-    description: 'Main Entry Verification & Delegate Welcome Kit Issuance',
-    color: '#22c55e',
-    borderColor: '#22c55e',
-    bgLight: '#f0fdf4',
-    bgDark: '#06180f',
-    iconName: 'UserCheck'
-  },
-  {
     id: 'desk2_tech',
-    deskNumber: 2,
+    deskNumber: 1,
     key: 'tech',
     defaultTitle: 'Technical Events Desk',
-    shortLabel: 'Desk 2 · Technical',
-    badgeLabel: 'D2: Tech Event',
+    shortLabel: 'Technical Event',
+    badgeLabel: 'Technical',
     description: 'Morning Technical Competition Verification & Lab Seating',
     color: '#0088d4',
     borderColor: '#0088d4',
@@ -692,11 +678,11 @@ export const SYMPOSIUM_DESKS: DeskDefinition[] = [
   },
   {
     id: 'desk3_lunch',
-    deskNumber: 3,
+    deskNumber: 2,
     key: 'lunch',
     defaultTitle: 'Food & Lunch Desk',
-    shortLabel: 'Desk 3 · Food/Lunch',
-    badgeLabel: 'D3: Lunch Token',
+    shortLabel: 'Food & Lunch',
+    badgeLabel: 'Food / Lunch',
     description: 'Campus Dining Hall Meal Tray & Refreshment Token Dispenser',
     color: '#f59e0b',
     borderColor: '#f59e0b',
@@ -706,31 +692,17 @@ export const SYMPOSIUM_DESKS: DeskDefinition[] = [
   },
   {
     id: 'desk4_spot',
-    deskNumber: 4,
+    deskNumber: 3,
     key: 'spot',
     defaultTitle: 'Spot Events Desk',
-    shortLabel: 'Desk 4 · Spot Events',
-    badgeLabel: 'D4: Spot Arena',
+    shortLabel: 'Spot Events',
+    badgeLabel: 'Spot Arena',
     description: 'Track 2 Non-Technical Arena Games & Courtyard Activities',
     color: '#8b5cf6',
     borderColor: '#8b5cf6',
     bgLight: '#faf5ff',
     bgDark: '#1a0e2e',
     iconName: 'Sparkles'
-  },
-  {
-    id: 'desk5_cert',
-    deskNumber: 5,
-    key: 'cert',
-    defaultTitle: 'Certificates & Valedictory Desk',
-    shortLabel: 'Desk 5 · Certificates',
-    badgeLabel: 'D5: Certificate',
-    description: 'Official Participation Certificate, Merit Shields & Valedictory Exit',
-    color: '#ec4899',
-    borderColor: '#ec4899',
-    bgLight: '#fdf2f8',
-    bgDark: '#240718',
-    iconName: 'Award'
   }
 ];
 
@@ -828,39 +800,19 @@ export function getRecord5DeskSummary(record: RegistrationRecord | undefined | n
     };
   }
 
-  const teammates = getRecordTeammates(record);
   const totalMembers = getRecordMemberCount(record);
-  const checkInStats = getRecordCheckInStats(record);
   const trackStats = getRecordTrackAttendanceStats(record);
   const lunchStats = getRecordLunchStats(record);
-  const certStats = getRecordCertStats(record);
 
+  // Strictly track only the 3 event stations: Technical, Food/Lunch, and Spot Events
   const desks: RecordDeskItem[] = [
     {
-      id: 'desk1_reception',
-      deskNumber: 1,
-      key: 'reception',
-      title: 'Reception & Kit Desk',
-      shortLabel: 'Desk 1 · Reception',
-      badgeLabel: 'D1: Reception',
-      color: '#22c55e',
-      isApplicable: true,
-      isScanned: checkInStats.checkedInCount > 0,
-      isFullyScanned: checkInStats.isFullyCheckedIn,
-      scannedCount: checkInStats.checkedInCount,
-      totalMembers,
-      primaryTime: record.checkInTime || checkInStats.memberTimes['lead'],
-      operator: record.checkedInBy || 'Reception Desk',
-      memberStatus: checkInStats.memberStatus,
-      memberTimes: checkInStats.memberTimes
-    },
-    {
       id: 'desk2_tech',
-      deskNumber: 2,
+      deskNumber: 1,
       key: 'tech',
       title: 'Technical Events Desk',
-      shortLabel: 'Desk 2 · Technical',
-      badgeLabel: 'D2: Tech Event',
+      shortLabel: 'Technical Event',
+      badgeLabel: 'Technical',
       color: '#0088d4',
       isApplicable: trackStats.hasTech,
       isScanned: trackStats.techAttendedCount > 0,
@@ -874,17 +826,17 @@ export function getRecord5DeskSummary(record: RegistrationRecord | undefined | n
     },
     {
       id: 'desk3_lunch',
-      deskNumber: 3,
+      deskNumber: 2,
       key: 'lunch',
       title: 'Food & Lunch Desk',
-      shortLabel: 'Desk 3 · Food/Lunch',
-      badgeLabel: 'D3: Lunch Token',
+      shortLabel: 'Food & Lunch',
+      badgeLabel: 'Food / Lunch',
       color: '#f59e0b',
-      isApplicable: true,
+      isApplicable: lunchStats.totalMealsAllocated > 0,
       isScanned: lunchStats.mealsDispensed > 0,
       isFullyScanned: lunchStats.isFullyCollected,
       scannedCount: lunchStats.mealsDispensed,
-      totalMembers,
+      totalMembers: lunchStats.totalMealsAllocated,
       primaryTime: record.lunchCollectedTime,
       operator: record.lunchCollectedBy || 'Catering Counter',
       memberStatus: lunchStats.memberStatus,
@@ -892,11 +844,11 @@ export function getRecord5DeskSummary(record: RegistrationRecord | undefined | n
     },
     {
       id: 'desk4_spot',
-      deskNumber: 4,
+      deskNumber: 3,
       key: 'spot',
       title: 'Spot Events Desk',
-      shortLabel: 'Desk 4 · Spot Events',
-      badgeLabel: 'D4: Spot Arena',
+      shortLabel: 'Spot Events',
+      badgeLabel: 'Spot Arena',
       color: '#8b5cf6',
       isApplicable: trackStats.hasSpot,
       isScanned: trackStats.spotAttendedCount > 0,
@@ -907,24 +859,6 @@ export function getRecord5DeskSummary(record: RegistrationRecord | undefined | n
       operator: 'Spot Desk Scanner',
       memberStatus: trackStats.spotMemberStatus,
       memberTimes: trackStats.spotMemberTimes
-    },
-    {
-      id: 'desk5_cert',
-      deskNumber: 5,
-      key: 'cert',
-      title: 'Certificates & Valedictory Desk',
-      shortLabel: 'Desk 5 · Certificates',
-      badgeLabel: 'D5: Certificate',
-      color: '#ec4899',
-      isApplicable: true,
-      isScanned: certStats.certificatesIssuedCount > 0,
-      isFullyScanned: certStats.isFullyIssued,
-      scannedCount: certStats.certificatesIssuedCount,
-      totalMembers,
-      primaryTime: record.certificateIssuedTime || certStats.memberTimes['lead'],
-      operator: record.certificateIssuedBy || 'Valedictory Desk',
-      memberStatus: certStats.memberStatus,
-      memberTimes: certStats.memberTimes
     }
   ];
 
@@ -950,31 +884,30 @@ export interface FiveDesksGlobalStats {
 }
 
 export function get5DesksGlobalStats(records: RegistrationRecord[]): FiveDesksGlobalStats {
-  let d1 = 0;
-  let d2 = 0;
-  let d3 = 0;
-  let d4 = 0;
-  let d5 = 0;
+  let dTech = 0;
+  let dLunch = 0;
+  let dSpot = 0;
   let allDone = 0;
 
   for (const r of records) {
     const summary = getRecord5DeskSummary(r);
-    d1 += summary.desks[0]?.scannedCount || 0;
-    d2 += summary.desks[1]?.scannedCount || 0;
-    d3 += summary.desks[2]?.scannedCount || 0;
-    d4 += summary.desks[3]?.scannedCount || 0;
-    d5 += summary.desks[4]?.scannedCount || 0;
+    const techD = summary.desks.find(d => d.key === 'tech');
+    const lunchD = summary.desks.find(d => d.key === 'lunch');
+    const spotD = summary.desks.find(d => d.key === 'spot');
+    dTech += techD?.scannedCount || 0;
+    dLunch += lunchD?.scannedCount || 0;
+    dSpot += spotD?.scannedCount || 0;
     if (summary.allApplicableCompleted) {
       allDone++;
     }
   }
 
   return {
-    desk1ScannedDelegates: d1,
-    desk2ScannedDelegates: d2,
-    desk3ScannedDelegates: d3,
-    desk4ScannedDelegates: d4,
-    desk5ScannedDelegates: d5,
+    desk1ScannedDelegates: 0,
+    desk2ScannedDelegates: dTech,
+    desk3ScannedDelegates: dLunch,
+    desk4ScannedDelegates: dSpot,
+    desk5ScannedDelegates: 0,
     fullyCompletedRegistrations: allDone
   };
 }
