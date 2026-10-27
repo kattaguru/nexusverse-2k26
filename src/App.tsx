@@ -142,12 +142,12 @@ export default function App() {
   // Participant form fields (Lead / Individual)
   const [name, setName] = useState('');
   const [roll, setRoll] = useState('');
-  const [classNameVal, setClassNameVal] = useState('B.Tech');
-  const [sectionVal, setSectionVal] = useState('A');
+  const [classNameVal, setClassNameVal] = useState('');
+  const [sectionVal, setSectionVal] = useState('');
   const [dept, setDept] = useState('');
-  const [year, setYear] = useState('3rd Year');
+  const [year, setYear] = useState('');
   const [phone, setPhone] = useState('');
-  const [college, setCollege] = useState('N.B.K.R. Institute of Science & Technology');
+  const [college, setCollege] = useState('');
   const [email, setEmail] = useState('');
   const [isIeeeMember, setIsIeeeMember] = useState(false);
   const [ieeeId, setIeeeId] = useState('');
@@ -179,7 +179,7 @@ export default function App() {
     ctf: {
       teamName: '',
       members: [
-        { name: '', roll: '', className: 'B.Tech', section: 'A', branch: '', year: '3rd Year', phone: '', isIeeeMember: false, ieeeId: '', wantsFood: false }
+        { name: '', roll: '', className: '', section: '', branch: '', year: '', phone: '', isIeeeMember: false, ieeeId: '', wantsFood: false }
       ]
     },
     expo: {
@@ -987,7 +987,7 @@ export default function App() {
             ctf: {
               ...cur,
               members: [
-                { name: '', roll: '', className: classNameVal || 'B.Tech', section: sectionVal || 'A', branch: dept || '', year: year || '3rd Year', phone: '', isIeeeMember: false, ieeeId: '', wantsFood: false }
+                { name: '', roll: '', className: '', section: '', branch: '', year: '', phone: '', isIeeeMember: false, ieeeId: '', wantsFood: false }
               ]
             }
           };
@@ -1046,10 +1046,10 @@ export default function App() {
           { 
             name: '', 
             roll: '', 
-            className: classNameVal || 'B.Tech', 
-            section: sectionVal || 'A', 
-            branch: dept || '', 
-            year: year || '3rd Year', 
+            className: '', 
+            section: '', 
+            branch: '', 
+            year: '', 
             phone: '',
             isIeeeMember: false,
             ieeeId: '',
@@ -1090,10 +1090,10 @@ export default function App() {
         updatedMembers[index] = { 
           name: '', 
           roll: '', 
-          className: 'B.Tech', 
-          section: 'A', 
+          className: '', 
+          section: '', 
           branch: '', 
-          year: '3rd Year', 
+          year: '', 
           phone: '',
           isIeeeMember: false,
           ieeeId: '',
@@ -2070,6 +2070,7 @@ export default function App() {
                               errors.className ? 'border-[#ff8a80]' : 'border-[#2e2b22]'
                             }`}
                           >
+                            <option value="" disabled className="text-[#5a6a80]">Select Class / Degree</option>
                             <option value="B.Tech">B.Tech</option>
                             <option value="M.Tech">M.Tech</option>
                             <option value="MCA">MCA</option>
@@ -2135,6 +2136,7 @@ export default function App() {
                               errors.year ? 'border-[#ff8a80]' : 'border-[#2e2b22]'
                             }`}
                           >
+                            <option value="" disabled className="text-[#5a6a80]">Select Year of Study</option>
                             <option value="1st Year">1st Year (Freshman)</option>
                             <option value="2nd Year">2nd Year (Sophomore)</option>
                             <option value="3rd Year">3rd Year (Junior)</option>
@@ -2621,7 +2623,7 @@ export default function App() {
                                           </span>
                                         </div>
                                         <div className="text-[#a79f8b] text-[11px] font-mono">
-                                          Roll: {roll || 'Pending'} · Phone: {phone || 'Pending'} · {classNameVal} ({sectionVal ? `Sec ${sectionVal}` : 'Sec A'}) · {dept || 'Branch'} ({year})
+                                          Roll: {roll || 'Pending'} · Phone: {phone || 'Pending'} · {[classNameVal, sectionVal ? `Sec ${sectionVal}` : '', dept, year].filter(Boolean).join(' · ') || 'Academic Details Pending'}
                                         </div>
                                         <div className="text-[11px] pt-0.5">
                                           {isIeeeMember ? (
@@ -2704,10 +2706,13 @@ export default function App() {
                                               <div>
                                                 <label className="text-[10px] text-[#a79f8b] block mb-1">Class / Degree *</label>
                                                 <select
-                                                  value={member.className}
+                                                  value={member.className || ''}
                                                   onChange={(e) => handleUpdateTeamMemberField(event.id, mIdx, 'className', e.target.value)}
-                                                  className="w-full px-2.5 py-1.5 rounded-lg bg-[#131318] border border-[#2e2b22] text-xs text-[#f3ecd9] focus:outline-none focus:border-[#d4a935]"
+                                                  className={`w-full px-2.5 py-1.5 rounded-lg bg-[#131318] border text-xs text-[#f3ecd9] focus:outline-none focus:border-[#d4a935] ${
+                                                    errors[`member_${event.id}_${mIdx}_className`] ? 'border-[#ff8a80]' : 'border-[#2e2b22]'
+                                                  }`}
                                                 >
+                                                  <option value="" disabled className="text-[#5a6a80]">Select Class / Degree</option>
                                                   <option value="B.Tech">B.Tech</option>
                                                   <option value="M.Tech">M.Tech</option>
                                                   <option value="MCA">MCA</option>
@@ -2715,6 +2720,9 @@ export default function App() {
                                                   <option value="Diploma">Diploma</option>
                                                   <option value="B.Sc / Degree">B.Sc / Degree</option>
                                                 </select>
+                                                {errors[`member_${event.id}_${mIdx}_className`] && (
+                                                  <p className="text-[10px] text-[#ff8a80] mt-0.5">{errors[`member_${event.id}_${mIdx}_className`]}</p>
+                                                )}
                                               </div>
 
                                               {/* Member Section */}
@@ -2722,13 +2730,16 @@ export default function App() {
                                                 <label className="text-[10px] text-[#a79f8b] block mb-1">Section *</label>
                                                 <input
                                                   type="text"
-                                                  value={member.section}
+                                                  value={member.section || ''}
                                                   onChange={(e) => handleUpdateTeamMemberField(event.id, mIdx, 'section', e.target.value)}
                                                   placeholder="e.g. A, B"
                                                   className={`w-full px-2.5 py-1.5 rounded-lg bg-[#131318] border text-xs text-[#f3ecd9] focus:outline-none focus:border-[#d4a935] ${
                                                     errors[`member_${event.id}_${mIdx}_section`] ? 'border-[#ff8a80]' : 'border-[#2e2b22]'
                                                   }`}
                                                 />
+                                                {errors[`member_${event.id}_${mIdx}_section`] && (
+                                                  <p className="text-[10px] text-[#ff8a80] mt-0.5">{errors[`member_${event.id}_${mIdx}_section`]}</p>
+                                                )}
                                               </div>
 
                                               {/* Member Branch */}
@@ -2736,28 +2747,37 @@ export default function App() {
                                                 <label className="text-[10px] text-[#a79f8b] block mb-1">Branch *</label>
                                                 <input
                                                   type="text"
-                                                  value={member.branch}
+                                                  value={member.branch || ''}
                                                   onChange={(e) => handleUpdateTeamMemberField(event.id, mIdx, 'branch', e.target.value)}
                                                   placeholder="e.g. CSE"
                                                   className={`w-full px-2.5 py-1.5 rounded-lg bg-[#131318] border text-xs text-[#f3ecd9] focus:outline-none focus:border-[#d4a935] ${
                                                     errors[`member_${event.id}_${mIdx}_branch`] ? 'border-[#ff8a80]' : 'border-[#2e2b22]'
                                                   }`}
                                                 />
+                                                {errors[`member_${event.id}_${mIdx}_branch`] && (
+                                                  <p className="text-[10px] text-[#ff8a80] mt-0.5">{errors[`member_${event.id}_${mIdx}_branch`]}</p>
+                                                )}
                                               </div>
 
                                               {/* Member Year */}
                                               <div className="sm:col-span-2 md:col-span-1">
                                                 <label className="text-[10px] text-[#a79f8b] block mb-1">Year *</label>
                                                 <select
-                                                  value={member.year}
+                                                  value={member.year || ''}
                                                   onChange={(e) => handleUpdateTeamMemberField(event.id, mIdx, 'year', e.target.value)}
-                                                  className="w-full px-2.5 py-1.5 rounded-lg bg-[#131318] border border-[#2e2b22] text-xs text-[#f3ecd9] focus:outline-none focus:border-[#d4a935]"
+                                                  className={`w-full px-2.5 py-1.5 rounded-lg bg-[#131318] border text-xs text-[#f3ecd9] focus:outline-none focus:border-[#d4a935] ${
+                                                    errors[`member_${event.id}_${mIdx}_year`] ? 'border-[#ff8a80]' : 'border-[#2e2b22]'
+                                                  }`}
                                                 >
+                                                  <option value="" disabled className="text-[#5a6a80]">Select Year</option>
                                                   <option value="1st Year">1st Year</option>
                                                   <option value="2nd Year">2nd Year</option>
                                                   <option value="3rd Year">3rd Year</option>
                                                   <option value="4th Year">4th Year</option>
                                                 </select>
+                                                {errors[`member_${event.id}_${mIdx}_year`] && (
+                                                  <p className="text-[10px] text-[#ff8a80] mt-0.5">{errors[`member_${event.id}_${mIdx}_year`]}</p>
+                                                )}
                                               </div>
                                             </div>
 

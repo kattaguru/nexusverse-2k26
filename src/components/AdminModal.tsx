@@ -541,13 +541,13 @@ export const AdminModal: React.FC<AdminModalProps> = ({
   // Manual / Spot Registration Form state
   const [manualName, setManualName] = useState('');
   const [manualRoll, setManualRoll] = useState('');
-  const [manualClass, setManualClass] = useState('B.Tech');
-  const [manualSec, setManualSec] = useState('A');
-  const [manualDept, setManualDept] = useState('CSE');
-  const [manualYear, setManualYear] = useState('3rd Year');
+  const [manualClass, setManualClass] = useState('');
+  const [manualSec, setManualSec] = useState('');
+  const [manualDept, setManualDept] = useState('');
+  const [manualYear, setManualYear] = useState('');
   const [manualPhone, setManualPhone] = useState('');
   const [manualEmail, setManualEmail] = useState('');
-  const [manualCollege, setManualCollege] = useState('N.B.K.R. Institute of Science & Technology');
+  const [manualCollege, setManualCollege] = useState('');
   const [manualIsIeee, setManualIsIeee] = useState(false);
   const [manualIeeeId, setManualIeeeId] = useState('');
   const [manualEventId, setManualEventId] = useState('ctf');
@@ -4063,10 +4063,10 @@ export const AdminModal: React.FC<AdminModalProps> = ({
                                   {
                                     name: '',
                                     roll: '',
-                                    className: 'B.Tech',
-                                    section: 'A',
-                                    branch: manualDept || 'CSE',
-                                    year: manualYear || '3rd Year',
+                                    className: '',
+                                    section: '',
+                                    branch: '',
+                                    year: '',
                                     phone: '',
                                     isIeeeMember: false,
                                     ieeeId: ''
@@ -5901,10 +5901,10 @@ export const AdminModal: React.FC<AdminModalProps> = ({
                             {
                               name: '',
                               roll: '',
-                              className: 'B.Tech',
-                              section: 'A',
-                              branch: editingRecord.dept || 'CSE',
-                              year: editingRecord.year || '3rd Year',
+                              className: '',
+                              section: '',
+                              branch: '',
+                              year: '',
                               phone: '',
                               isIeeeMember: false,
                               ieeeId: ''

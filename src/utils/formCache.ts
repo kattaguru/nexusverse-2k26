@@ -45,7 +45,7 @@ export interface RegistrationFormDraft {
   savedAt: number; // epoch ms
 }
 
-const FORM_CACHE_KEY = 'nexusverse_form_draft_v1';
+const FORM_CACHE_KEY = 'nexusverse_form_draft_v2';
 const DRAFT_MAX_AGE_MS = 48 * 60 * 60 * 1000; // 48 Hours
 
 /**
