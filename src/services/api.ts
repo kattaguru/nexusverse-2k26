@@ -538,8 +538,8 @@ export async function fetchSettingsApi(): Promise<PortalSettingsData> {
   const rawLocalMsg = localStorage.getItem('nexusverse_closed_msg') || 'Registration is currently closed.';
   const { cleanMessage: cleanLocalMsg } = extractQuotaFromMessage(rawLocalMsg);
   return {
-    isRegClosed: localStorage.getItem('nexusverse_reg_closed') === 'true',
-    closedMessage: cleanLocalMsg || 'Registration is currently closed.',
+    isRegClosed: localStorage.getItem('nexusverse_reg_closed') !== 'false',
+    closedMessage: cleanLocalMsg || 'Registration is currently closed. For inquiries or spot availability, contact the IEEE-SB desk.',
     totalSlotsLimit: Number(localStorage.getItem('nexusverse_total_slots_limit')) || 0,
     ieeeSlotsLimit: Number(localStorage.getItem('nexusverse_ieee_slots_limit')) || 0,
     nonIeeeSlotsLimit: Number(localStorage.getItem('nexusverse_non_ieee_slots_limit')) || 0

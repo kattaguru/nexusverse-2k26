@@ -11,6 +11,8 @@ interface HeroProps {
   leftLogo?: string;
   rightLogo?: string;
   eventWarning?: string;
+  isRegClosed?: boolean;
+  onOpenLookup?: () => void;
 }
 
 export const Hero: React.FC<HeroProps> = ({
@@ -23,7 +25,9 @@ export const Hero: React.FC<HeroProps> = ({
   isIeeeMember = false,
   leftLogo = '/symposium-poster.jpg',
   rightLogo = '/ieee-sb-logo.png',
-  eventWarning = ''
+  eventWarning = '',
+  isRegClosed = false,
+  onOpenLookup
 }) => {
   const displayEvents = selectedEventIds && selectedEventIds.length > 0
     ? ALL_EVENTS.filter(e => selectedEventIds.includes(e.id))
@@ -138,14 +142,39 @@ export const Hero: React.FC<HeroProps> = ({
             </p>
 
             <div className="flex flex-wrap gap-2.5 sm:gap-3 pt-2">
-              <button
-                type="button"
-                onClick={onRegisterClick}
-                className="inline-flex items-center gap-2 px-5 sm:px-6 py-2.5 sm:py-3 rounded-lg bg-[#f2c14e] text-[#1a1300] font-semibold text-sm sm:text-base hover:bg-[#d4a935] transition-all shadow-md hover:shadow-[#f2c14e]/25 cursor-pointer"
-              >
-                <span>Register now</span>
-                <ArrowRight className="w-4 h-4" />
-              </button>
+              {isRegClosed ? (
+                <>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      document.getElementById('register-section')?.scrollIntoView({ behavior: 'smooth' });
+                    }}
+                    className="inline-flex items-center gap-2 px-5 sm:px-6 py-2.5 sm:py-3 rounded-lg bg-[#2a1315] border border-[#ff8a80]/50 text-[#ffb4ab] font-bold text-sm sm:text-base hover:bg-[#3d1a1e] transition-all shadow-md cursor-pointer"
+                  >
+                    <AlertCircle className="w-4 h-4 text-[#ff8a80]" />
+                    <span>Registrations Closed</span>
+                  </button>
+                  {onOpenLookup && (
+                    <button
+                      type="button"
+                      onClick={onOpenLookup}
+                      className="inline-flex items-center gap-2 px-5 sm:px-6 py-2.5 sm:py-3 rounded-lg bg-[#f2c14e] text-[#1a1300] font-semibold text-sm sm:text-base hover:bg-[#d4a935] transition-all shadow-md hover:shadow-[#f2c14e]/25 cursor-pointer"
+                    >
+                      <span>Find My Ticket</span>
+                      <ArrowRight className="w-4 h-4" />
+                    </button>
+                  )}
+                </>
+              ) : (
+                <button
+                  type="button"
+                  onClick={onRegisterClick}
+                  className="inline-flex items-center gap-2 px-5 sm:px-6 py-2.5 sm:py-3 rounded-lg bg-[#f2c14e] text-[#1a1300] font-semibold text-sm sm:text-base hover:bg-[#d4a935] transition-all shadow-md hover:shadow-[#f2c14e]/25 cursor-pointer"
+                >
+                  <span>Register now</span>
+                  <ArrowRight className="w-4 h-4" />
+                </button>
+              )}
               
               <a
                 href="#timeline-section"

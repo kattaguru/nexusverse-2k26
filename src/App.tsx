@@ -64,7 +64,9 @@ import {
   Trophy,
   ArrowRight,
   CheckCircle2,
-  Utensils
+  Utensils,
+  Lock,
+  Ticket
 } from 'lucide-react';
 
 export interface FormTeamMember {
@@ -715,7 +717,14 @@ export default function App() {
     return () => window.removeEventListener('nexusverse:back', handleNativeBack);
   }, [isAdminOpen, isParticipantSpaceOpen, isLookupOpen, isPaymentOpen, inspectEvent, confirmedRecord]);
 
-  const [isRegClosed, setIsRegClosed] = useState(false);
+  const [isRegClosed, setIsRegClosed] = useState<boolean>(() => {
+    try {
+      const v = localStorage.getItem('nexusverse_reg_closed');
+      return v === null ? true : v === 'true';
+    } catch {
+      return true;
+    }
+  });
   const [closedMessage, setClosedMessage] = useState(() => {
     try {
       return localStorage.getItem('nexusverse_closed_msg') || 'Registration for NexusVerse 2K26 is currently closed. For inquiries, contact IEEE-SB NBKRIST.';
@@ -747,10 +756,9 @@ export default function App() {
   const [leftLogo, setLeftLogoState] = useState(() => getLeftLogo());
   const [rightLogo, setRightLogoState] = useState(() => getRightLogo());
 
-  // Force registrations open on mount and migrate left logo to symposium poster
+  // Migrate left logo to symposium poster if needed
   useEffect(() => {
     try {
-      localStorage.setItem('nexusverse_reg_closed', 'false');
       const stored = localStorage.getItem('nexusverse_logo_left');
       if (!stored || stored === '/nbkrist-logo.png') {
         localStorage.setItem('nexusverse_logo_left', '/symposium-poster.jpg');
@@ -1771,6 +1779,8 @@ export default function App() {
               leftLogo={leftLogo}
               rightLogo={rightLogo}
               eventWarning={eventWarning}
+              isRegClosed={isRegClosed}
+              onOpenLookup={() => setIsLookupOpen(true)}
             />
 
             {/* Previous Symposium Memories & Photo Gallery Section */}
@@ -1787,20 +1797,93 @@ export default function App() {
               <div className="space-y-8">
                 {/* Section Title */}
                 <div className="max-w-3xl">
-                  <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-[#1f1b0e] border border-[#d4a935]/40 text-[#f2c14e] text-xs font-semibold tracking-wider uppercase mb-3">
-                    <Sparkles className="w-3.5 h-3.5" />
-                    <span>Official Registration Portal</span>
-                  </div>
-                  <h2 className="font-serif-title text-2xl xs:text-3xl sm:text-4xl lg:text-5xl font-bold text-[#ffffff] tracking-tight break-words">
-                    Register for NexusVerse 2K26
-                  </h2>
-                  <p className="text-base text-[#b9ae94] mt-3 leading-relaxed">
-                    Enter participant details, add team members for team events, scan the dynamic QR or checkout via Razorpay, and download your instant verified entry pass. Technical events cost <span className="text-[#f2c14e] font-semibold">₹150 per head for IEEE members</span> and <span className="text-[#f3ecd9] font-medium">₹200 per head for non-members</span>.
-                  </p>
+                  {isRegClosed ? (
+                    <>
+                      <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-[#2a1315] border border-[#ff8a80]/40 text-[#ffb4ab] text-xs font-semibold tracking-wider uppercase mb-3">
+                        <AlertCircle className="w-3.5 h-3.5 text-[#ff8a80]" />
+                        <span>Registration Closed</span>
+                      </div>
+                      <h2 className="font-serif-title text-2xl xs:text-3xl sm:text-4xl lg:text-5xl font-bold text-[#ffffff] tracking-tight break-words">
+                        Symposium Registrations Concluded
+                      </h2>
+                      <p className="text-base text-[#b9ae94] mt-3 leading-relaxed">
+                        Online registration for NexusVerse 2K26 is officially closed. Registered participants can view and print their official entry pass or review schedules below.
+                      </p>
+                    </>
+                  ) : (
+                    <>
+                      <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-[#1f1b0e] border border-[#d4a935]/40 text-[#f2c14e] text-xs font-semibold tracking-wider uppercase mb-3">
+                        <Sparkles className="w-3.5 h-3.5" />
+                        <span>Official Registration Portal</span>
+                      </div>
+                      <h2 className="font-serif-title text-2xl xs:text-3xl sm:text-4xl lg:text-5xl font-bold text-[#ffffff] tracking-tight break-words">
+                        Register for NexusVerse 2K26
+                      </h2>
+                      <p className="text-base text-[#b9ae94] mt-3 leading-relaxed">
+                        Enter participant details, add team members for team events, scan the dynamic QR or checkout via Razorpay, and download your instant verified entry pass. Technical events cost <span className="text-[#f2c14e] font-semibold">₹150 per head for IEEE members</span> and <span className="text-[#f3ecd9] font-medium">₹200 per head for non-members</span>.
+                      </p>
+                    </>
+                  )}
                 </div>
 
-                {/* AUTHENTICATION GATE: Required before registration */}
-                {!currentUser ? (
+                {isRegClosed ? (
+                  /* Prominent Authority Card when Registration is Closed */
+                  <div className="bg-gradient-to-br from-[#1c1214] via-[#241315] to-[#140b0d] border-2 border-[#ff8a80]/60 rounded-3xl p-6 sm:p-12 shadow-2xl relative overflow-hidden space-y-6 text-center max-w-3xl mx-auto">
+                    <div className="w-16 h-16 sm:w-20 sm:h-20 mx-auto rounded-full bg-[#ff8a80]/15 border-2 border-[#ff8a80]/50 flex items-center justify-center shadow-lg">
+                      <Lock className="w-8 h-8 sm:w-10 sm:h-10 text-[#ff8a80]" />
+                    </div>
+
+                    <div className="space-y-3">
+                      <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-[#2a1315] border border-[#ff8a80]/40 text-[#ffb4ab] text-xs font-bold uppercase tracking-wider">
+                        <AlertCircle className="w-4 h-4 text-[#ff8a80]" />
+                        <span>Portal Status: Closed</span>
+                      </div>
+                      
+                      <h3 className="font-serif-title text-2xl sm:text-3xl md:text-4xl font-bold text-white tracking-tight">
+                        Registrations are Currently Closed
+                      </h3>
+
+                      <p className="text-sm sm:text-base text-[#ffb4ab] max-w-xl mx-auto leading-relaxed">
+                        {closedMessage || 'Registration is currently closed. For inquiries or spot availability, contact the IEEE-SB desk.'}
+                      </p>
+                    </div>
+
+                    <div className="p-4 sm:p-5 rounded-2xl bg-black/40 border border-[#2e2b22] max-w-xl mx-auto text-left space-y-2">
+                      <div className="flex items-center gap-2 text-xs font-bold text-[#f2c14e] uppercase tracking-wider">
+                        <Sparkles className="w-3.5 h-3.5" />
+                        <span>Already Registered? Access Your Pass Anytime</span>
+                      </div>
+                      <p className="text-xs text-[#b9ae94] leading-relaxed">
+                        If you have already registered, your seat and tickets are 100% active and saved. You can look up your official PDF ticket pass or sign into Your Space anytime below.
+                      </p>
+                    </div>
+
+                    {/* Quick Access Action Buttons */}
+                    <div className="flex flex-col sm:flex-row items-center justify-center gap-3 max-w-md mx-auto pt-2">
+                      <button
+                        type="button"
+                        onClick={() => setIsLookupOpen(true)}
+                        className="w-full sm:w-auto px-6 py-3 rounded-xl bg-gradient-to-r from-[#f2c14e] to-[#d4a935] text-[#1a1300] font-bold text-sm shadow-lg hover:brightness-105 transition-all flex items-center justify-center gap-2 cursor-pointer"
+                      >
+                        <Ticket className="w-4 h-4" />
+                        <span>Find My Ticket</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => setIsParticipantSpaceOpen(true)}
+                        className="w-full sm:w-auto px-6 py-3 rounded-xl bg-[#1f1b0e] border border-[#d4a935]/40 text-[#f2c14e] font-bold text-sm hover:bg-[#2e250f] transition-all flex items-center justify-center gap-2 cursor-pointer"
+                      >
+                        <User className="w-4 h-4" />
+                        <span>Open Your Space</span>
+                      </button>
+                    </div>
+
+                    <div className="pt-4 border-t border-[#2e2b22] text-xs text-[#8e8574]">
+                      <span>Spot Registrations: Subject to availability at the IEEE-SB venue registration desk on event day.</span>
+                    </div>
+                  </div>
+                ) : !currentUser ? (
                   <div className="space-y-8">
                     <div className="bg-gradient-to-br from-[#121218] via-[#171724] to-[#0e0e14] border-2 border-[#d4a935]/70 rounded-3xl p-6 sm:p-10 shadow-2xl relative overflow-hidden space-y-6">
                     <div className="max-w-2xl mx-auto text-center space-y-3">
@@ -3518,8 +3601,8 @@ export default function App() {
                 </form>
               )}
 
-                {/* Mobile Sticky Quick-Checkout Bar (Only visible when space active and events are chosen) */}
-                {Boolean(currentUser) && !confirmedRecord && (selectedEvents.length > 0 || includeSpotEvents) && (
+                {/* Mobile Sticky Quick-Checkout Bar (Only visible when registrations are open and space active) */}
+                {!isRegClosed && Boolean(currentUser) && !confirmedRecord && (selectedEvents.length > 0 || includeSpotEvents) && (
                   <div className="lg:hidden fixed bottom-0 left-0 right-0 z-30 p-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] bg-[#0a0a0d]/95 backdrop-blur-md border-t border-[#2e2b22] flex items-center justify-between gap-3 shadow-2xl max-w-full">
                     <div className="min-w-0">
                       <span className="text-[10px] uppercase font-bold text-[#a79f8b] block">Total Payable</span>
