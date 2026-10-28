@@ -12,6 +12,8 @@
     "clean": "rm -rf dist server.js",
     "lint": "tsc --noEmit",
     "test": "tsx --test \"tests/**/*.test.ts\"",
+    "backup": "node scripts/backup-data.js",
+    "import:csv": "node scripts/import-csv.js",
     "sync:supabase": "node scripts/sync-supabase.js",
     "cap:sync": "vite build && cap sync",
     "cap:open": "cap open android",

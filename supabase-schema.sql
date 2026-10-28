@@ -38,12 +38,12 @@ CREATE TABLE IF NOT EXISTS public.portal_settings (
   id TEXT PRIMARY KEY DEFAULT 'current',
   is_reg_closed BOOLEAN DEFAULT false,
   closed_message TEXT DEFAULT 'Registration is currently closed. For spot entries or urgent queries, contact the IEEE-SB desk.',
-  admin_password TEXT DEFAULT 'kgr@2005',
+  admin_password TEXT DEFAULT 'katta@2005',
   updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 
 -- Ensure column exists if table was already created
-ALTER TABLE public.portal_settings ADD COLUMN IF NOT EXISTS admin_password TEXT DEFAULT 'kgr@2005';
+ALTER TABLE public.portal_settings ADD COLUMN IF NOT EXISTS admin_password TEXT DEFAULT 'katta@2005';
 ALTER TABLE public.portal_settings ADD COLUMN IF NOT EXISTS total_slots_limit INTEGER DEFAULT 0;
 ALTER TABLE public.portal_settings ADD COLUMN IF NOT EXISTS ieee_slots_limit INTEGER DEFAULT 0;
 ALTER TABLE public.portal_settings ADD COLUMN IF NOT EXISTS non_ieee_slots_limit INTEGER DEFAULT 0;

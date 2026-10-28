@@ -20,7 +20,7 @@ describe('NexusVerse 2K26 Backend API Endpoints Unit Tests', () => {
       settings: {
         isRegClosed: false,
         closedMessage: 'Registration is closed.',
-        adminPassword: 'kgr@2005',
+        adminPassword: 'katta@2005',
         paymentMode: 'upi',
         razorpayMeLink: 'https://razorpay.me/@veluriprasanth',
         razorpayMeName: 'VELURI PRASANTH'
@@ -313,11 +313,11 @@ describe('NexusVerse 2K26 Backend API Endpoints Unit Tests', () => {
     assert.equal(data.data.adminPassword, undefined, 'adminPassword must not be returned');
   });
 
-  it('POST /api/admin/verify-password should accept standard password kgr@2005', async () => {
+  it('POST /api/admin/verify-password should accept standard password katta@2005', async () => {
     const res = await fetch(`${BASE_URL}/api/admin/verify-password`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ password: 'kgr@2005' })
+      body: JSON.stringify({ password: 'katta@2005' })
     });
     assert.equal(res.status, 200);
     const data = await res.json();

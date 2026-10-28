@@ -89,7 +89,7 @@ function sanitizeSettings(settings: any) {
 
 function isAdminAuthorized(req: Request): boolean {
   const db = readDatabase();
-  const currentAdminPwd = (db.settings.adminPassword || process.env.ADMIN_PASSWORD || 'kgr@2005').trim();
+  const currentAdminPwd = (db.settings.adminPassword || process.env.ADMIN_PASSWORD || 'katta@2005').trim();
 
   // 1. Check custom admin header
   const adminKey = req.headers['x-admin-key'] || req.headers['x-admin-password'];
@@ -216,22 +216,7 @@ apiRouter.get('/health', (_req: Request, res: Response) => {
 // 2. Get all registrations
 apiRouter.get('/registrations', (_req: Request, res: Response) => {
   try {
-    const cached = serverCache.get<{ count: number; data: any[] }>('api:registrations:all');
-    if (cached) {
-      res.setHeader('X-Cache', 'HIT');
-      return res.json({
-        success: true,
-        count: cached.count,
-        data: cached.data
-      });
-    }
-
     const db = readDatabase();
-    serverCache.set('api:registrations:all', {
-      count: db.registrations.length,
-      data: db.registrations
-    }, 30000);
-    res.setHeader('X-Cache', 'MISS');
     res.json({
       success: true,
       count: db.registrations.length,
@@ -771,7 +756,7 @@ apiRouter.post('/admin/verify-password', async (req: Request, res: Response) => 
     // 2. Fallback to server db / env
     if (!isMatch) {
       const db = readDatabase();
-      const correctPwd = db.settings.adminPassword || process.env.ADMIN_PASSWORD || 'kgr@2005';
+      const correctPwd = db.settings.adminPassword || process.env.ADMIN_PASSWORD || 'katta@2005';
       isMatch = (password.trim() === correctPwd.trim());
     }
 
@@ -812,8 +797,8 @@ apiRouter.post('/verify/verify-password', async (req: Request, res: Response) =>
     }
 
     const cleanInput = password.trim();
-    // Valid passwords: 'nexusk26' or admin master key 'kgr@2005'
-    const isMatch = (cleanInput === 'nexusk26' || cleanInput === 'kgr@2005');
+    // Valid passwords: 'nexusk26' or admin master key 'katta@2005'
+    const isMatch = (cleanInput === 'nexusk26' || cleanInput === 'katta@2005');
 
     if (isMatch) {
       adminVerifyRateLimit.delete(lockKey);

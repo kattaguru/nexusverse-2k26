@@ -61,6 +61,9 @@ import {
   getRecordMemberCount, 
   computeDelegatesStats,
   getRecordCheckInStats,
+  getRecordLunchStats,
+  isMemberFoodEligible,
+  isRecordFoodRequired,
   flattenToIndividualParticipants,
   IndividualParticipant,
   getRecord5DeskSummary,
@@ -417,19 +420,6 @@ export const AdminModal: React.FC<AdminModalProps> = ({
     }
   };
 
-  // Continuous auto-refresh every 3 seconds while in admin portal (or 6s if minimized)
-  useEffect(() => {
-    if (!isOpen || !isAuthenticated) return;
-
-    const interval = setInterval(() => {
-      if (isRefreshingRef.current) return;
-      if (onRefreshRecords) {
-        onRefreshRecords();
-      }
-    }, typeof document !== 'undefined' && document.hidden ? 6000 : 3000);
-
-    return () => clearInterval(interval);
-  }, [isOpen, isAuthenticated, onRefreshRecords]);
 
   // Anti-brute-force lockout countdown timer
   useEffect(() => {
@@ -527,8 +517,9 @@ export const AdminModal: React.FC<AdminModalProps> = ({
   const [verificationFilter, setVerificationFilter] = useState<'all' | 'verified' | 'unverified' | 'upi' | 'razorpay'>('all');
   const [checkInFilter, setCheckInFilter] = useState<'all' | 'checked-in' | 'not-checked-in'>('all');
   const [deskFilter, setDeskFilter] = useState<'all' | 'tech' | 'lunch' | 'spot' | 'desk1' | 'desk2' | 'desk3' | 'desk4' | 'desk5' | 'all-completed'>('all');
+  const [foodFilter, setFoodFilter] = useState<'all' | 'required' | 'no-food'>('all');
   const [registrationViewMode, setRegistrationViewMode] = useState<'teams' | 'individual'>('teams');
-  const [individualAttendeeFilter, setIndividualAttendeeFilter] = useState<'all' | 'present' | 'absent'>('all');
+  const [individualAttendeeFilter, setIndividualAttendeeFilter] = useState<'all' | 'present' | 'absent' | 'food-required'>('all');
   const [sortBy, setSortBy] = useState<SortOption>('date-desc');
   const [expandedRecordId, setExpandedRecordId] = useState<string | null>(null);
 
@@ -793,7 +784,7 @@ export const AdminModal: React.FC<AdminModalProps> = ({
 
     setIsPurgingTests(true);
     try {
-      const res = await purgeTestRegistrationsApi(activeAdminKeyRef.current || 'kgr@2005');
+      const res = await purgeTestRegistrationsApi(activeAdminKeyRef.current || 'katta@2005');
       // Delete every test registration
       const testRecords = savedRecords.filter(isTestRegistration);
       for (const rec of testRecords) {
@@ -1036,9 +1027,9 @@ export const AdminModal: React.FC<AdminModalProps> = ({
     }
   };
 
-  // Pre-computed salted SHA-256 hash for standard administrative access (kgr@2005)
+  // Pre-computed salted SHA-256 hash for standard administrative access (katta@2005)
   // Password text NEVER exists in cleartext in the frontend bundle
-  const DEFAULT_SALTED_ADMIN_HASH = '9b3a72ed2e3b5e80fee2e002e1acee0d1541fdb84acc039a8907a1eb214bec6c';
+  const DEFAULT_SALTED_ADMIN_HASH = '057a5d6ce5713a439203f37252c9ca47149586a4fb79e526e58e43c1b878f1f5';
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -1079,7 +1070,7 @@ export const AdminModal: React.FC<AdminModalProps> = ({
         }
       } catch (e) {}
 
-      if (!authGranted && (cleanInput === 'nexusk26' || cleanInput === 'kgr@2005')) {
+      if (!authGranted && (cleanInput === 'nexusk26' || cleanInput === 'katta@2005')) {
         authGranted = true;
       }
     } else {
@@ -1184,11 +1175,11 @@ export const AdminModal: React.FC<AdminModalProps> = ({
           method: 'POST',
           headers: { 
             'Content-Type': 'application/json',
-            'X-Admin-Key': activeAdminKeyRef.current || 'kgr@2005'
+            'X-Admin-Key': activeAdminKeyRef.current || 'katta@2005'
           },
           body: JSON.stringify({ 
             newPassword: cleanPassword,
-            currentPassword: activeAdminKeyRef.current || 'kgr@2005'
+            currentPassword: activeAdminKeyRef.current || 'katta@2005'
           })
         });
       } catch (apiErr) {}
@@ -1227,7 +1218,7 @@ export const AdminModal: React.FC<AdminModalProps> = ({
         method: 'POST',
         headers: { 
           'Content-Type': 'application/json',
-          'X-Admin-Key': activeAdminKeyRef.current || 'kgr@2005'
+          'X-Admin-Key': activeAdminKeyRef.current || 'katta@2005'
         },
         body: JSON.stringify({ 
           keyId: rzpKeyId, 
@@ -1237,7 +1228,7 @@ export const AdminModal: React.FC<AdminModalProps> = ({
           upiVpa: rzpUpiVpa,
           upiPayeeName: upiPayeeName,
           paymentMode: paymentMode,
-          currentPassword: activeAdminKeyRef.current || 'kgr@2005'
+          currentPassword: activeAdminKeyRef.current || 'katta@2005'
         })
       });
       const data = await res.json();
@@ -1551,11 +1542,12 @@ export const AdminModal: React.FC<AdminModalProps> = ({
     URL.revokeObjectURL(url);
   };
 
-  // Export individual delegate attendance roster to CSV (All / Present / Absent)
-  const handleExportIndividualAttendanceCsv = (filterType: 'all' | 'present' | 'absent' = 'all') => {
+  // Export individual delegate attendance roster to CSV (All / Present / Absent / Food)
+  const handleExportIndividualAttendanceCsv = (filterType: 'all' | 'present' | 'absent' | 'food-required' = 'all') => {
     const list = flattenToIndividualParticipants(savedRecords).filter(p => {
       if (filterType === 'present') return p.isCheckedIn;
       if (filterType === 'absent') return !p.isCheckedIn;
+      if (filterType === 'food-required') return p.wantsFood;
       return true;
     });
 
@@ -1583,6 +1575,7 @@ export const AdminModal: React.FC<AdminModalProps> = ({
       'College',
       'IEEE Member',
       'IEEE ID',
+      'Food Required (Lunch Token)',
       'Payment Mode',
       'Payment Verified',
       'Total Paid',
@@ -1617,6 +1610,7 @@ export const AdminModal: React.FC<AdminModalProps> = ({
         `"${(p.college || '').replace(/"/g, '""')}"`,
         `"${p.isIeeeMember ? 'YES' : 'NO'}"`,
         `"${p.ieeeId || ''}"`,
+        `"${p.wantsFood ? 'YES (FOOD REQUIRED)' : 'NO (WITHOUT FOOD)'}"`,
         `"${p.paymentMode || 'UPI'}"`,
         `"${p.isVerified ? 'VERIFIED' : 'PENDING'}"`,
         `"${p.totalPaid}"`,
@@ -1634,6 +1628,80 @@ export const AdminModal: React.FC<AdminModalProps> = ({
     const link = document.createElement('a');
     link.href = url;
     link.setAttribute('download', `NexusVerse_Attendance_${filterType.toUpperCase()}_Delegates_${new Date().toISOString().slice(0, 10)}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  };
+
+  // Export dedicated Food / Lunch Token requirement roster to CSV
+  const handleExportFoodCsv = () => {
+    const foodDelegates = flattenToIndividualParticipants(savedRecords).filter(p => p.wantsFood);
+    if (foodDelegates.length === 0) {
+      alert('No delegates found who requested food.');
+      return;
+    }
+
+    const headers = [
+      'S.No',
+      'Registration ID',
+      'Member Pass Code',
+      'Delegate Name',
+      'Roll Number',
+      'Mobile Phone',
+      'Email Address',
+      'Team Role',
+      'Team Name',
+      'College Name',
+      'Department / Branch',
+      'Year',
+      'Section',
+      'Degree / Class',
+      'IEEE Member',
+      'IEEE ID',
+      'Food Status',
+      'Desk 3 (Lunch Tray Status)',
+      'Lunch Dispensed Time',
+      'Attendance Check-In Status',
+      'Payment Mode',
+      'Payment Verified'
+    ];
+
+    const rows = foodDelegates.map((p, idx) => {
+      const isLunchDone = p.isLunchCollected;
+      const lunchCollectedTime = (p.record.deskScans?.['desk3_lunch']?.memberTimes?.[p.memberKey]) || (isLunchDone ? p.record.lunchCollectedTime : undefined);
+      return [
+        idx + 1,
+        `"${p.regId}"`,
+        `"${p.passCode}"`,
+        `"${(p.name || '').replace(/"/g, '""')}"`,
+        `"${p.roll}"`,
+        `"${p.phone}"`,
+        `"${p.email}"`,
+        `"${p.role}"`,
+        `"${(p.teamName || 'Solo').replace(/"/g, '""')}"`,
+        `"${(p.college || '').replace(/"/g, '""')}"`,
+        `"${p.dept}"`,
+        `"${p.year}"`,
+        `"${p.section}"`,
+        `"${p.className}"`,
+        `"${p.isIeeeMember ? 'YES' : 'NO'}"`,
+        `"${p.ieeeId || ''}"`,
+        `"FOOD REQUIRED (Lunch Token Included)"`,
+        `"${isLunchDone ? 'DISPENSED' : 'PENDING'}"`,
+        `"${lunchCollectedTime ? new Date(lunchCollectedTime).toLocaleString() : 'N/A'}"`,
+        `"${p.isCheckedIn ? 'PRESENT' : 'ABSENT'}"`,
+        `"${p.paymentMode || 'UPI'}"`,
+        `"${p.isVerified ? 'VERIFIED' : 'PENDING'}"`
+      ].join(',');
+    });
+
+    const csvContent = '\uFEFF' + [headers.join(','), ...rows].join('\r\n');
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.setAttribute('download', `NexusVerse_Food_Required_Members_${new Date().toISOString().slice(0, 10)}.csv`);
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
@@ -1837,7 +1905,17 @@ export const AdminModal: React.FC<AdminModalProps> = ({
         ? Boolean(fiveDeskSummary.desks.find(d => d.key === 'spot')?.isScanned)
         : true;
 
-      return matchesEvent && matchesIeee && matchesVerification && matchesCheckIn && matchesDesk && matchesQuery;
+      // Food Requirement filter
+      const lunchStats = getRecordLunchStats(r);
+      const hasFood = lunchStats.totalMealsAllocated > 0;
+      const matchesFood = 
+        foodFilter === 'all'
+          ? true
+          : foodFilter === 'required'
+          ? hasFood
+          : !hasFood;
+
+      return matchesEvent && matchesIeee && matchesVerification && matchesCheckIn && matchesDesk && matchesFood && matchesQuery;
     })
     .sort((a, b) => {
       switch (sortBy) {
@@ -1874,6 +1952,9 @@ export const AdminModal: React.FC<AdminModalProps> = ({
   const totalRevenue = stats.totalRevenue;
   const totalIeeeMembers = stats.totalIeeeDelegates;
   const totalNonIeeeMembers = stats.totalNonIeeeDelegates;
+  const totalFoodRequiredDelegates = stats.totalFoodRequiredDelegates;
+  const totalNoFoodDelegates = stats.totalNoFoodDelegates;
+  const foodRequiredRegistrations = stats.foodRequiredRegistrations;
   const upiPendingCount = stats.upiPendingCount;
   const verifiedCount = stats.verifiedCount;
   const upiTotalCount = stats.upiTotalCount;
@@ -2001,16 +2082,16 @@ export const AdminModal: React.FC<AdminModalProps> = ({
           </div>
 
           <div className="flex items-center gap-1.5 sm:gap-2 self-end sm:self-auto shrink-0 flex-wrap">
-            {/* Live 3s Auto-Refresh Status & Manual Trigger */}
+            {/* Manual Refresh Trigger */}
             {isAuthenticated && (
               <button
                 type="button"
                 onClick={handleManualRefresh}
-                className="admin-header-btn px-2 sm:px-2.5 py-1.5 text-[11px] sm:text-xs font-semibold rounded-lg border border-[#2e2b22] text-[#4cc38a] hover:bg-[#142617] hover:border-[#4cc38a]/40 transition-all flex items-center gap-1 cursor-pointer shadow-sm"
-                title="Auto-refreshing every 3 seconds. Click to refresh instantly."
+                className="admin-header-btn px-2 sm:px-2.5 py-1.5 text-[11px] sm:text-xs font-semibold rounded-lg border border-[#2e2b22] text-[#f2c14e] hover:bg-[#1f1b0e] hover:border-[#d4a935]/40 transition-all flex items-center gap-1 cursor-pointer shadow-sm"
+                title="Click to refresh registrations and settings"
               >
-                <RefreshCw className={`w-3.5 h-3.5 text-[#4cc38a] ${isRefreshing ? 'animate-spin' : ''}`} />
-                <span className="inline">Live</span>
+                <RefreshCw className={`w-3.5 h-3.5 text-[#f2c14e] ${isRefreshing ? 'animate-spin' : ''}`} />
+                <span className="inline">Refresh</span>
               </button>
             )}
 
@@ -2353,12 +2434,12 @@ export const AdminModal: React.FC<AdminModalProps> = ({
               {activeTab === 'registrations' && (
                 <div className="space-y-4">
                   {/* KPI Quick Stats Cards (Clickable Filter Shortcuts with Slot Quota Caps) */}
-                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+                  <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2.5">
                     <button
                       type="button"
-                      onClick={() => { setIeeeFilter('all'); setVerificationFilter('all'); }}
+                      onClick={() => { setIeeeFilter('all'); setVerificationFilter('all'); setFoodFilter('all'); }}
                       className={`admin-kpi-card p-3 rounded-xl bg-[#0a0a0d] border text-left transition-all cursor-pointer ${
-                        ieeeFilter === 'all' && verificationFilter === 'all'
+                        ieeeFilter === 'all' && verificationFilter === 'all' && foodFilter === 'all'
                           ? 'border-[#d4a935] ring-1 ring-[#d4a935]/50 shadow-md shadow-[#d4a935]/10'
                           : 'border-[#2e2b22] hover:border-[#a79f8b]'
                       }`}
@@ -2375,7 +2456,7 @@ export const AdminModal: React.FC<AdminModalProps> = ({
                             {totalDelegates >= Number(inputTotalSlots) ? 'FULL' : `${Number(inputTotalSlots) - totalDelegates} left`}
                           </span>
                         ) : (
-                          ieeeFilter === 'all' && verificationFilter === 'all' && (
+                          ieeeFilter === 'all' && verificationFilter === 'all' && foodFilter === 'all' && (
                             <span className="text-[9px] px-1.5 py-0.2 rounded bg-[#d4a935]/20 text-[#f2c14e] font-semibold">All</span>
                           )
                         )}
@@ -2463,6 +2544,44 @@ export const AdminModal: React.FC<AdminModalProps> = ({
                         )}
                       </div>
                     </button>
+
+                    <button
+                      type="button"
+                      onClick={() => setFoodFilter(foodFilter === 'required' ? 'all' : 'required')}
+                      className={`admin-kpi-card p-3 rounded-xl bg-[#0a0a0d] border text-left transition-all cursor-pointer ${
+                        foodFilter === 'required'
+                          ? 'border-[#f2c14e] ring-1 ring-[#f2c14e]/50 shadow-md shadow-[#f2c14e]/10 bg-[#241a06]'
+                          : 'border-[#2e2b22] hover:border-[#f2c14e]/60'
+                      }`}
+                      title="Click to filter members & teams who want food"
+                    >
+                      <div className="flex items-center justify-between">
+                        <span className="admin-kpi-title text-[10px] text-[#a79f8b] uppercase block font-semibold flex items-center gap-1">
+                          <span>🍽️ Food Required</span>
+                        </span>
+                        {foodFilter === 'required' ? (
+                          <span className="text-[9px] px-1.5 py-0.2 rounded bg-[#f2c14e]/20 text-[#f2c14e] font-semibold">
+                            Filtered
+                          </span>
+                        ) : (
+                          <span className="text-[9px] px-1.5 py-0.2 rounded bg-[#181820] text-[#a79f8b]">
+                            {totalFoodRequiredDelegates}/{totalDelegates}
+                          </span>
+                        )}
+                      </div>
+                      <div className="flex items-baseline gap-1.5">
+                        <span className="admin-kpi-value-gold text-lg sm:text-xl font-bold font-mono text-[#f2c14e]">
+                          {totalFoodRequiredDelegates}
+                        </span>
+                        <span className="text-[10px] font-mono text-[#a79f8b] ml-auto">
+                          ({foodRequiredRegistrations} {foodRequiredRegistrations === 1 ? 'team' : 'teams'})
+                        </span>
+                      </div>
+                      <div className="text-[9px] text-[#a79f8b] mt-0.5 flex items-center justify-between font-mono">
+                        <span title="Meals already served at Desk 3">Served: <strong className="text-[#4cc38a]">{stats.totalLunchMealsDispensed}</strong></span>
+                        <span title="Meals remaining to be served">Pending: <strong className="text-[#f2c14e]">{Math.max(0, totalFoodRequiredDelegates - stats.totalLunchMealsDispensed)}</strong></span>
+                      </div>
+                    </button>
                   </div>
 
                   {/* SEARCH, SORT, FILTER & DOWNLOAD TOOLBAR */}
@@ -2514,6 +2633,24 @@ export const AdminModal: React.FC<AdminModalProps> = ({
                           <option value="all">All Memberships ({totalDelegates} Delegates · {totalRegistrations} Teams)</option>
                           <option value="ieee">IEEE Members Only ({totalIeeeMembers} Delegates)</option>
                           <option value="non-ieee">Non-IEEE Delegates Only ({totalNonIeeeMembers} Delegates)</option>
+                        </select>
+
+                        {/* Food Preference Filter */}
+                        <select
+                          value={foodFilter}
+                          onChange={(e) => setFoodFilter(e.target.value as any)}
+                          className={`w-full lg:w-auto px-2.5 py-2 text-xs rounded-lg border focus:outline-none cursor-pointer font-medium transition-colors ${
+                            foodFilter === 'required'
+                              ? 'bg-[#2a1e06] border-[#f2c14e] text-[#f2c14e]'
+                              : foodFilter === 'no-food'
+                              ? 'bg-[#231718] border-[#ff8a80] text-[#ff8a80]'
+                              : 'bg-[#131318] border-[#2e2b22] text-[#f3ecd9] focus:border-[#d4a935]'
+                          }`}
+                          aria-label="Filter by Food Requirement"
+                        >
+                          <option value="all">All Food Preferences ({totalDelegates} Delegates)</option>
+                          <option value="required">🍽️ Food Required Only ({totalFoodRequiredDelegates} Delegates · {foodRequiredRegistrations} Teams)</option>
+                          <option value="no-food">🚫 No Food / Without Food ({totalNoFoodDelegates} Delegates)</option>
                         </select>
 
                         {/* Verification & Payment Filter */}
@@ -2579,14 +2716,28 @@ export const AdminModal: React.FC<AdminModalProps> = ({
 
                       <button
                         type="button"
-                        onClick={() => { setIeeeFilter('all'); setVerificationFilter('all'); setCheckInFilter('all'); setDeskFilter('all'); }}
+                        onClick={() => { setIeeeFilter('all'); setVerificationFilter('all'); setCheckInFilter('all'); setDeskFilter('all'); setFoodFilter('all'); }}
                         className={`px-2.5 py-0.5 rounded-full text-[11px] font-semibold transition-all cursor-pointer ${
-                          ieeeFilter === 'all' && verificationFilter === 'all' && checkInFilter === 'all' && deskFilter === 'all'
+                          ieeeFilter === 'all' && verificationFilter === 'all' && checkInFilter === 'all' && deskFilter === 'all' && foodFilter === 'all'
                             ? 'bg-[#d4a935] text-[#1a1300]'
                             : 'bg-[#181820] text-[#a79f8b] hover:text-[#f3ecd9] border border-[#2e2b22]'
                         }`}
                       >
                         All ({totalDelegates} Delegates)
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => setFoodFilter(foodFilter === 'required' ? 'all' : 'required')}
+                        className={`px-2.5 py-0.5 rounded-full text-[11px] font-semibold transition-all cursor-pointer flex items-center gap-1 ${
+                          foodFilter === 'required'
+                            ? 'bg-[#f2c14e] text-[#1a1300] font-bold shadow-sm'
+                            : 'bg-[#181820] text-[#f2c14e] hover:bg-[#2b1f07] border border-[#d4a935]/40'
+                        }`}
+                        title="Show only members & teams who want food"
+                      >
+                        <span>🍽️</span>
+                        <span>Food Required ({totalFoodRequiredDelegates})</span>
                       </button>
 
                       <button
@@ -2773,6 +2924,16 @@ export const AdminModal: React.FC<AdminModalProps> = ({
 
                         <button
                           type="button"
+                          onClick={handleExportFoodCsv}
+                          className="px-3 py-1.5 rounded-lg bg-[#2a1e06] border border-[#f2c14e]/40 text-[#f2c14e] text-xs font-semibold hover:bg-[#f2c14e] hover:text-[#1a1300] transition-colors flex items-center justify-center gap-1.5 cursor-pointer shadow-sm"
+                          title="Download dedicated spreadsheet of all members who want food"
+                        >
+                          <span>🍽️</span>
+                          <span>Food Roster CSV</span>
+                        </button>
+
+                        <button
+                          type="button"
                           onClick={handleDownloadJsonBackup}
                           className="px-3 py-1.5 rounded-lg bg-[#181820] border border-[#2e2b22] text-[#f3ecd9] text-xs hover:border-[#d4a935]/50 transition-colors flex items-center justify-center gap-1.5 cursor-pointer"
                           title="Download full JSON database dump"
@@ -2832,14 +2993,35 @@ export const AdminModal: React.FC<AdminModalProps> = ({
                         <span className="text-[11px] text-[#a79f8b] font-semibold mr-0.5">Status:</span>
                         <button
                           type="button"
-                          onClick={() => setIndividualAttendeeFilter('all')}
+                          onClick={() => { setIndividualAttendeeFilter('all'); setFoodFilter('all'); }}
                           className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${
-                            individualAttendeeFilter === 'all'
+                            individualAttendeeFilter === 'all' && foodFilter === 'all'
                               ? 'bg-[#d4a935] text-[#1a1300]'
                               : 'bg-[#181820] text-[#a79f8b] hover:text-white border border-[#2e2b22]'
                           }`}
                         >
                           All ({totalDelegates})
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            if (individualAttendeeFilter === 'food-required') {
+                              setIndividualAttendeeFilter('all');
+                              setFoodFilter('all');
+                            } else {
+                              setIndividualAttendeeFilter('food-required');
+                              setFoodFilter('required');
+                            }
+                          }}
+                          className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
+                            individualAttendeeFilter === 'food-required' || foodFilter === 'required'
+                              ? 'bg-[#f2c14e] text-[#1a1300] shadow-sm font-bold'
+                              : 'bg-[#1c1708] text-[#f2c14e] hover:bg-[#2a2007] border border-[#d4a935]/40'
+                          }`}
+                          title="Show only individual delegates who requested food"
+                        >
+                          <span>🍽️</span>
+                          <span>Food Required ({totalFoodRequiredDelegates})</span>
                         </button>
                         <button
                           type="button"
@@ -2885,6 +3067,9 @@ export const AdminModal: React.FC<AdminModalProps> = ({
                       const filteredParticipants = allParticipants.filter(p => {
                         if (individualAttendeeFilter === 'present' && !p.isCheckedIn) return false;
                         if (individualAttendeeFilter === 'absent' && p.isCheckedIn) return false;
+                        if (individualAttendeeFilter === 'food-required' && !p.wantsFood) return false;
+                        if (foodFilter === 'required' && !p.wantsFood) return false;
+                        if (foodFilter === 'no-food' && p.wantsFood) return false;
                         if (selectedEventFilter !== 'all' && !p.eventIds.includes(selectedEventFilter)) return false;
                         if (ieeeFilter === 'ieee' && !p.isIeeeMember) return false;
                         if (ieeeFilter === 'non-ieee' && p.isIeeeMember) return false;
@@ -2919,7 +3104,7 @@ export const AdminModal: React.FC<AdminModalProps> = ({
                             <p>No individual participants match your search or filter criteria.</p>
                             <button
                               type="button"
-                              onClick={() => { setSearchQuery(''); setIndividualAttendeeFilter('all'); setSelectedEventFilter('all'); setIeeeFilter('all'); }}
+                              onClick={() => { setSearchQuery(''); setIndividualAttendeeFilter('all'); setSelectedEventFilter('all'); setIeeeFilter('all'); setFoodFilter('all'); }}
                               className="text-xs text-[#f2c14e] hover:underline"
                             >
                               Reset filters
@@ -2976,6 +3161,20 @@ export const AdminModal: React.FC<AdminModalProps> = ({
                                         ) : (
                                           <span className="text-[10px] px-1.5 py-0.2 rounded bg-[#181820] text-[#a79f8b] border border-[#2e2b22] font-mono">
                                             Non-IEEE
+                                          </span>
+                                        )}
+                                        {p.wantsFood ? (
+                                          <span className="text-[10px] px-2 py-0.2 rounded bg-[#2a1e06] text-[#f2c14e] border border-[#d4a935]/40 font-semibold flex items-center gap-1 font-mono">
+                                            <span>🍽️ Food: Required</span>
+                                            {p.isLunchCollected ? (
+                                              <span className="text-[#4cc38a] font-bold">✓ Served</span>
+                                            ) : (
+                                              <span className="text-[#ffb74d]">Pending</span>
+                                            )}
+                                          </span>
+                                        ) : (
+                                          <span className="text-[10px] px-1.5 py-0.2 rounded bg-[#181820] text-[#7e7663] border border-[#2e2b22] font-mono">
+                                            🚫 No Food
                                           </span>
                                         )}
                                       </div>
@@ -3103,7 +3302,7 @@ export const AdminModal: React.FC<AdminModalProps> = ({
                       <p>No registration records match your search or filter criteria.</p>
                       <button
                         type="button"
-                        onClick={() => { setSearchQuery(''); setSelectedEventFilter('all'); setIeeeFilter('all'); }}
+                        onClick={() => { setSearchQuery(''); setSelectedEventFilter('all'); setIeeeFilter('all'); setFoodFilter('all'); }}
                         className="text-xs text-[#f2c14e] hover:underline"
                       >
                         Reset filters
@@ -3194,6 +3393,26 @@ export const AdminModal: React.FC<AdminModalProps> = ({
                                       Team: {team.teamName} ({teammates.length + 1} members)
                                     </span>
                                   )}
+                                  {(() => {
+                                    const lStats = getRecordLunchStats(record);
+                                    if (lStats.totalMealsAllocated > 0) {
+                                      return (
+                                        <span className="text-[10px] font-semibold text-[#f2c14e] bg-[#2a1e06] px-2 py-0.5 rounded border border-[#d4a935]/40 font-mono flex items-center gap-1">
+                                          <span>🍽️ Food: {lStats.totalMealsAllocated}/{teammates.length + 1} Meals</span>
+                                          {lStats.mealsDispensed > 0 ? (
+                                            <span className="text-[#4cc38a]">({lStats.mealsDispensed} served)</span>
+                                          ) : (
+                                            <span className="text-[#a79f8b]">awaiting</span>
+                                          )}
+                                        </span>
+                                      );
+                                    }
+                                    return (
+                                      <span className="text-[10px] text-[#7e7663] bg-[#181820] px-2 py-0.5 rounded border border-[#2e2b22] font-mono">
+                                        🚫 No Food
+                                      </span>
+                                    );
+                                  })()}
                                 </div>
 
                                 <div className="text-[11px] text-[#a79f8b] flex flex-wrap items-center gap-x-3 gap-y-0.5">
@@ -3694,11 +3913,26 @@ export const AdminModal: React.FC<AdminModalProps> = ({
                                       </div>
                                       <div className="text-[#a79f8b] font-mono">Roll: {record.roll} · Phone: {record.phone}</div>
                                       <div className="text-[#a79f8b]">{record.className} {record.section} · {record.dept} ({record.year})</div>
-                                      <div className="text-[10px] font-medium">
+                                      <div className="flex flex-wrap items-center gap-1.5 text-[10px] font-medium">
                                         {record.isIeeeMember ? (
                                           <span className="text-[#4cc38a]">IEEE Member (ID: #{record.ieeeId || 'Active'})</span>
                                         ) : (
                                           <span className="text-[#a79f8b]">Non-IEEE Member</span>
+                                        )}
+                                        <span>·</span>
+                                        {isMemberFoodEligible(record, 'lead') ? (
+                                          <span className="text-[#f2c14e] font-semibold bg-[#2a1e06] px-1.5 py-0.2 rounded border border-[#d4a935]/40 flex items-center gap-1 font-mono">
+                                            <span>🍽️ Food: Required</span>
+                                            {record.memberLunchStatus?.['lead'] ? (
+                                              <span className="text-[#4cc38a]">✓ Served</span>
+                                            ) : (
+                                              <span className="text-[#a79f8b]">Pending</span>
+                                            )}
+                                          </span>
+                                        ) : (
+                                          <span className="text-[#7e7663] bg-[#141418] px-1.5 py-0.2 rounded border border-[#25252c] font-mono">
+                                            🚫 No Food
+                                          </span>
                                         )}
                                       </div>
                                       <div className="flex items-center justify-between pt-1 border-t border-[#2e2b22]/60">
@@ -3737,11 +3971,26 @@ export const AdminModal: React.FC<AdminModalProps> = ({
                                           </div>
                                           <div className="text-[#a79f8b] font-mono">Roll: {m.roll || 'Pending'} · Phone: {m.phone || 'N/A'}</div>
                                           <div className="text-[#a79f8b]">{m.className || 'B.Tech'} {m.section ? `Sec ${m.section}` : ''} · {m.branch || 'Branch'} ({m.year || '3rd Year'})</div>
-                                          <div className="text-[10px] font-medium">
+                                          <div className="flex flex-wrap items-center gap-1.5 text-[10px] font-medium">
                                             {m.isIeeeMember ? (
                                               <span className="text-[#4cc38a]">IEEE Member (ID: #{m.ieeeId || 'Active'})</span>
                                             ) : (
                                               <span className="text-[#a79f8b]">Non-IEEE Member</span>
+                                            )}
+                                            <span>·</span>
+                                            {isMemberFoodEligible(record, tKey) ? (
+                                              <span className="text-[#f2c14e] font-semibold bg-[#2a1e06] px-1.5 py-0.2 rounded border border-[#d4a935]/40 flex items-center gap-1 font-mono">
+                                                <span>🍽️ Food: Required</span>
+                                                {record.memberLunchStatus?.[tKey] ? (
+                                                  <span className="text-[#4cc38a]">✓ Served</span>
+                                                ) : (
+                                                  <span className="text-[#a79f8b]">Pending</span>
+                                                )}
+                                              </span>
+                                            ) : (
+                                              <span className="text-[#7e7663] bg-[#141418] px-1.5 py-0.2 rounded border border-[#25252c] font-mono">
+                                                🚫 No Food
+                                              </span>
                                             )}
                                           </div>
                                           <div className="flex items-center justify-between pt-1 border-t border-[#2e2b22]/60">

@@ -33,59 +33,131 @@ export function isTestRegistration(r: RegistrationRecord | any): boolean {
 }
 
 /**
- * Fetch all registrations from Supabase database with Express & localStorage fallback.
+ * Merges multiple lists of RegistrationRecord preserving unique regId and combining the most complete fields.
+ */
+export function mergeRegistrationLists(...lists: (RegistrationRecord[] | undefined | null)[]): RegistrationRecord[] {
+  const map = new Map<string, RegistrationRecord>();
+
+  for (const list of lists) {
+    if (!Array.isArray(list)) continue;
+    for (const r of list) {
+      if (!r || !r.regId || isTestRegistration(r)) continue;
+      const key = String(r.regId).trim().toUpperCase();
+      const existing = map.get(key);
+      if (!existing) {
+        map.set(key, r);
+      } else {
+        // Merge: keep non-empty fields and prefer confirmed attendance / check-in / payments
+        const existingTime = new Date(existing.timestamp || 0).getTime();
+        const incomingTime = new Date(r.timestamp || 0).getTime();
+        const newer = incomingTime >= existingTime ? r : existing;
+        const older = incomingTime < existingTime ? r : existing;
+
+        map.set(key, {
+          ...older,
+          ...newer,
+          checkedIn: Boolean(existing.checkedIn || r.checkedIn),
+          kitIssued: Boolean(existing.kitIssued || r.kitIssued),
+          lunchCollected: Boolean(existing.lunchCollected || r.lunchCollected),
+          certificateIssued: Boolean(existing.certificateIssued || r.certificateIssued),
+          attendedEvents: Array.from(new Set([...(existing.attendedEvents || []), ...(r.attendedEvents || [])])),
+          memberCheckInStatus: { ...(existing.memberCheckInStatus || {}), ...(r.memberCheckInStatus || {}) },
+          memberCheckInTimes: { ...(existing.memberCheckInTimes || {}), ...(r.memberCheckInTimes || {}) },
+          memberLunchStatus: { ...(existing.memberLunchStatus || {}), ...(r.memberLunchStatus || {}) },
+          memberTechStatus: { ...(existing.memberTechStatus || {}), ...(r.memberTechStatus || {}) },
+          memberTechTimes: { ...(existing.memberTechTimes || {}), ...(r.memberTechTimes || {}) },
+          memberSpotStatus: { ...(existing.memberSpotStatus || {}), ...(r.memberSpotStatus || {}) },
+          memberSpotTimes: { ...(existing.memberSpotTimes || {}), ...(r.memberSpotTimes || {}) },
+          memberCertStatus: { ...(existing.memberCertStatus || {}), ...(r.memberCertStatus || {}) },
+          memberCertTimes: { ...(existing.memberCertTimes || {}), ...(r.memberCertTimes || {}) },
+          paymentScreenshot: newer.paymentScreenshot || older.paymentScreenshot || '',
+          paymentId: newer.paymentId || older.paymentId || '',
+          teamDetails: { ...(older.teamDetails || {}), ...(newer.teamDetails || {}) }
+        });
+      }
+    }
+  }
+
+  return Array.from(map.values()).sort((a, b) => {
+    const timeA = new Date(a.timestamp || 0).getTime();
+    const timeB = new Date(b.timestamp || 0).getTime();
+    return timeB - timeA;
+  });
+}
+
+/**
+ * Fetch all registrations across all available sources (localStorage cache, Express backend, and Supabase cloud)
+ * with robust 2.5s timeouts and smart merging so data NEVER disappears or flashes blank.
  */
 export async function fetchRegistrationsApi(): Promise<RegistrationRecord[]> {
-  // 1. Try Supabase first if configured
-  if (isSupabaseConfigured() && supabase) {
+  // 1. Immediately read existing local cache
+  let localCacheList: RegistrationRecord[] = [];
+  try {
+    const cached = localStorage.getItem('nexusverse_registrations');
+    if (cached) {
+      const parsed = JSON.parse(cached);
+      if (Array.isArray(parsed)) {
+        localCacheList = parsed.filter(r => !isTestRegistration(r));
+      }
+    }
+  } catch (e) {}
+
+  // 2. Fetch from Express API Server with 2500ms timeout
+  const fetchExpressPromise = (async (): Promise<RegistrationRecord[]> => {
     try {
-      const { data, error } = await supabase
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 2500);
+      const res = await fetch(`${API_BASE}/registrations`, { signal: controller.signal });
+      clearTimeout(timeoutId);
+      if (res.ok) {
+        const json = await res.json();
+        if (json.success && Array.isArray(json.data)) {
+          return (json.data as RegistrationRecord[]).filter(r => !isTestRegistration(r));
+        }
+      }
+    } catch (e) {}
+    return [];
+  })();
+
+  // 3. Fetch from Supabase Cloud with strict 2500ms timeout (never blocks or hangs if paused)
+  const fetchSupabasePromise = (async (): Promise<RegistrationRecord[]> => {
+    if (!isSupabaseConfigured() || !supabase) return [];
+    try {
+      const queryPromise = supabase
         .from('registrations')
         .select('*')
         .order('created_at', { ascending: false });
 
-      if (!error && Array.isArray(data)) {
-        const records = data.map(mapDbToRegistrationRecord).filter(r => !isTestRegistration(r));
-        try {
-          localStorage.setItem('nexusverse_registrations', JSON.stringify(records));
-        } catch (e) {}
-        return records;
-      } else if (error) {
-        console.warn('Supabase fetch failed, falling back to local server:', error.message);
+      const timeoutPromise = new Promise<{ data: null; error: any }>((resolve) => {
+        setTimeout(() => resolve({ data: null, error: new Error('Supabase query timed out after 2500ms') }), 2500);
+      });
+
+      const result = await Promise.race([queryPromise, timeoutPromise]);
+
+      if (result && !result.error && Array.isArray(result.data)) {
+        return result.data.map(mapDbToRegistrationRecord).filter(r => !isTestRegistration(r));
       }
-    } catch (err) {
-      console.warn('Error reading from Supabase:', err);
-    }
+    } catch (e) {}
+    return [];
+  })();
+
+  // Execute remote fetches in parallel
+  const [expressRecords, supabaseRecords] = await Promise.all([
+    fetchExpressPromise,
+    fetchSupabasePromise
+  ]);
+
+  // Merge all 3 sources (localStorage, Express, Supabase)
+  const merged = mergeRegistrationLists(localCacheList, expressRecords, supabaseRecords);
+
+  // SAFEGUARD: Never overwrite non-empty local cache with empty array!
+  if (merged.length > 0) {
+    try {
+      localStorage.setItem('nexusverse_registrations', JSON.stringify(merged));
+    } catch (e) {}
   }
 
-  // 2. Try Express API Server
-  try {
-    const res = await fetch(`${API_BASE}/registrations`);
-    if (res.ok) {
-      const json = await res.json();
-      if (json.success && Array.isArray(json.data)) {
-        const cleanList = (json.data as RegistrationRecord[]).filter(r => !isTestRegistration(r));
-        try {
-          localStorage.setItem('nexusverse_registrations', JSON.stringify(cleanList));
-        } catch (e) {}
-        return cleanList;
-      }
-    }
-  } catch (err) {
-    // Express server might be offline if hosted purely on frontend static host
-  }
-
-  // 3. Fallback to localStorage
-  try {
-    const cached = localStorage.getItem('nexusverse_registrations');
-    if (cached) {
-      const parsed: RegistrationRecord[] = JSON.parse(cached);
-      return parsed.filter(r => !isTestRegistration(r));
-    }
-    return [];
-  } catch (e) {
-    return [];
-  }
+  return merged;
 }
 
 /**
@@ -108,9 +180,9 @@ export async function purgeTestRegistrationsApi(adminPassword?: string): Promise
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'X-Admin-Key': adminPassword || 'kgr@2005'
+        'X-Admin-Key': adminPassword || 'katta@2005'
       },
-      body: JSON.stringify({ currentPassword: adminPassword || 'kgr@2005' })
+      body: JSON.stringify({ currentPassword: adminPassword || 'katta@2005' })
     });
     if (res.ok) {
       const data = await res.json();
@@ -383,14 +455,20 @@ export function embedQuotaInMessage(
  * Fetch portal settings (open/closed status, banner message, and slot capacity limits).
  */
 export async function fetchSettingsApi(): Promise<PortalSettingsData> {
-  // 1. Supabase settings
+  // 1. Supabase settings with 2500ms timeout
   if (isSupabaseConfigured() && supabase) {
     try {
-      const { data, error } = await supabase
+      const queryPromise = supabase
         .from('portal_settings')
         .select('*')
         .eq('id', 'current')
         .single();
+
+      const timeoutPromise = new Promise<{ data: null; error: any }>((resolve) => {
+        setTimeout(() => resolve({ data: null, error: new Error('Settings query timed out after 2500ms') }), 2500);
+      });
+
+      const { data, error } = await Promise.race([queryPromise, timeoutPromise]);
 
       if (!error && data) {
         const rawMsg = data.closed_message || 'Registration is currently closed.';
@@ -586,13 +664,19 @@ export async function updateSettingsApi(settings: {
  * Fetch symposium gallery photos from Supabase or Express.
  */
 export async function fetchPhotosApi(): Promise<any[]> {
-  // Supabase photos
+  // Supabase photos with 2500ms timeout
   if (isSupabaseConfigured() && supabase) {
     try {
-      const { data, error } = await supabase
+      const queryPromise = supabase
         .from('gallery_photos')
         .select('*')
         .order('uploaded_at', { ascending: false });
+
+      const timeoutPromise = new Promise<{ data: null; error: any }>((resolve) => {
+        setTimeout(() => resolve({ data: null, error: new Error('Photos query timed out after 2500ms') }), 2500);
+      });
+
+      const { data, error } = await Promise.race([queryPromise, timeoutPromise]);
 
       if (!error && Array.isArray(data)) {
         const photos = data.map(p => ({

@@ -1,17 +1,24 @@
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
 import { RegistrationRecord } from '../components/TicketPass';
 
-// Read environment variables (supports VITE_, NEXT_PUBLIC_, and standard names)
+// Read environment variables (supports Vite, Next, Node process.env, and Capacitor)
+const metaEnv = typeof import.meta !== 'undefined' && (import.meta as any).env ? (import.meta as any).env : {};
+const procEnv = typeof process !== 'undefined' && process.env ? process.env : {};
+
 const supabaseUrl = (
-  import.meta.env.VITE_SUPABASE_URL ||
-  import.meta.env.NEXT_PUBLIC_SUPABASE_URL ||
+  metaEnv.VITE_SUPABASE_URL ||
+  metaEnv.NEXT_PUBLIC_SUPABASE_URL ||
+  procEnv.VITE_SUPABASE_URL ||
+  procEnv.SUPABASE_URL ||
   ''
 ).trim();
 
 const supabaseAnonKey = (
-  import.meta.env.VITE_SUPABASE_ANON_KEY ||
-  import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY ||
-  import.meta.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY ||
+  metaEnv.VITE_SUPABASE_ANON_KEY ||
+  metaEnv.VITE_SUPABASE_PUBLISHABLE_KEY ||
+  metaEnv.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY ||
+  procEnv.VITE_SUPABASE_ANON_KEY ||
+  procEnv.SUPABASE_PUBLISHABLE_KEY ||
   ''
 ).trim();
 

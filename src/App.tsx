@@ -42,7 +42,9 @@ import {
   deleteRegistrationApi, 
   fetchSettingsApi, 
   updateSettingsApi,
-  sendTicketEmailApi
+  sendTicketEmailApi,
+  mergeRegistrationLists,
+  isTestRegistration
 } from './services/api';
 import { 
   ShieldCheck, 
@@ -214,7 +216,19 @@ export default function App() {
   const [isLookupOpen, setIsLookupOpen] = useState(false);
   const [confirmedRecord, setConfirmedRecord] = useState<RegistrationRecord | null>(null);
   const [upiPendingRecord, setUpiPendingRecord] = useState<RegistrationRecord | null>(null);
-  const [savedRecords, setSavedRecords] = useState<RegistrationRecord[]>([]);
+  // Instant local-first initialization prevents empty admin screens or blank flashes
+  const [savedRecords, setSavedRecords] = useState<RegistrationRecord[]>(() => {
+    try {
+      const cached = localStorage.getItem('nexusverse_registrations');
+      if (cached) {
+        const parsed = JSON.parse(cached);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          return parsed.filter((r: any) => !isTestRegistration(r));
+        }
+      }
+    } catch (e) {}
+    return [];
+  });
   const [isScannedPass, setIsScannedPass] = useState(false);
   // Pass link (?passId=...) is held here until we confirm the logged-in user owns it
   const [pendingPassRecord, setPendingPassRecord] = useState<RegistrationRecord | null>(null);
@@ -783,8 +797,8 @@ export default function App() {
     async function loadBackendData() {
       try {
         const records = await fetchRegistrationsApi();
-        if (mounted && Array.isArray(records)) {
-          setSavedRecords(records);
+        if (mounted && Array.isArray(records) && records.length > 0) {
+          setSavedRecords(prev => mergeRegistrationLists(prev, records));
         }
         const settings = await fetchSettingsApi();
         if (mounted && settings) {
@@ -855,8 +869,13 @@ export default function App() {
       const records = await fetchRegistrationsApi();
       if (Array.isArray(records)) {
         setSavedRecords(prev => {
-          if (prev.length !== records.length || JSON.stringify(prev) !== JSON.stringify(records)) {
-            return records;
+          // Critical Safeguard: Never wipe out existing registrations with an empty array during background refresh!
+          if (records.length === 0 && prev.length > 0) {
+            return prev;
+          }
+          const merged = mergeRegistrationLists(prev, records);
+          if (prev.length !== merged.length || JSON.stringify(prev) !== JSON.stringify(merged)) {
+            return merged;
           }
           return prev;
         });
@@ -872,26 +891,10 @@ export default function App() {
     } catch (e) {}
   };
 
-  // Continuous auto-refresh every 3 seconds while in admin portal or participant space
+  // Fetch data once when admin portal or participant space is opened (no continuous background polling)
   useEffect(() => {
     if (!isAdminRoute && !isAdminOpen && !isParticipantSpaceOpen) return;
-
-    if (isParticipantSpaceOpen) {
-      refreshAllAdminData();
-    }
-
-    let isPolling = false;
-    const interval = setInterval(async () => {
-      if (isPolling || (typeof document !== 'undefined' && document.hidden)) return;
-      isPolling = true;
-      try {
-        await refreshAllAdminData();
-      } finally {
-        isPolling = false;
-      }
-    }, 3000);
-
-    return () => clearInterval(interval);
+    refreshAllAdminData();
   }, [isAdminRoute, isAdminOpen, isParticipantSpaceOpen]);
 
   // Save registration record helper (synced to backend API + local cache)

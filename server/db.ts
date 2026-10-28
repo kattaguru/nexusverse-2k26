@@ -126,6 +126,7 @@ export const DEFAULT_DB: DatabaseSchema = {
 const IS_VERCEL = !!process.env.VERCEL;
 const VERCEL_TMP_FILE = path.resolve('/tmp', 'database.json');
 let memoryDb: DatabaseSchema | null = null;
+let lastDbMtime = 0;
 
 function getActiveDbPath(): string {
   if (process.env.TEST_DB_FILE) {
@@ -139,6 +140,7 @@ function getActiveDbPath(): string {
 
 export function resetMemoryDb(): void {
   memoryDb = null;
+  lastDbMtime = 0;
 }
 
 function ensureDbExists() {
@@ -156,29 +158,38 @@ function ensureDbExists() {
 }
 
 export function readDatabase(): DatabaseSchema {
-  if (memoryDb) {
-    if (!memoryDb.users) memoryDb.users = [];
-    return memoryDb;
-  }
   try {
     const targetFile = getActiveDbPath();
     if (fs.existsSync(targetFile)) {
-      const data = fs.readFileSync(targetFile, 'utf-8');
-      memoryDb = JSON.parse(data);
-      if (!memoryDb!.users) memoryDb!.users = [];
+      const stat = fs.statSync(targetFile);
+      if (!memoryDb || stat.mtimeMs > lastDbMtime) {
+        const data = fs.readFileSync(targetFile, 'utf-8');
+        memoryDb = JSON.parse(data);
+        if (!memoryDb!.users) memoryDb!.users = [];
+        lastDbMtime = stat.mtimeMs;
+      }
       return memoryDb!;
     }
     ensureDbExists();
     if (fs.existsSync(DB_FILE)) {
-      const data = fs.readFileSync(DB_FILE, 'utf-8');
-      memoryDb = JSON.parse(data);
-      if (!memoryDb!.users) memoryDb!.users = [];
+      const stat = fs.statSync(DB_FILE);
+      if (!memoryDb || stat.mtimeMs > lastDbMtime) {
+        const data = fs.readFileSync(DB_FILE, 'utf-8');
+        memoryDb = JSON.parse(data);
+        if (!memoryDb!.users) memoryDb!.users = [];
+        lastDbMtime = stat.mtimeMs;
+      }
       return memoryDb!;
+    }
+    if (memoryDb) {
+      if (!memoryDb.users) memoryDb.users = [];
+      return memoryDb;
     }
     memoryDb = { ...DEFAULT_DB, users: [] };
     return memoryDb;
   } catch (err) {
     console.error('Error reading database file:', err);
+    if (memoryDb) return memoryDb;
     memoryDb = { ...DEFAULT_DB, users: [] };
     return memoryDb;
   }
@@ -207,6 +218,9 @@ function flushToDisk(data: DatabaseSchema): void {
       fs.writeFileSync(tempFile, payload, 'utf-8');
       fs.renameSync(tempFile, targetFile);
     }
+    try {
+      lastDbMtime = fs.statSync(targetFile).mtimeMs;
+    } catch {}
   } catch (err) {
     console.warn('Error flushing database to disk, in-memory state preserved:', err);
   } finally {

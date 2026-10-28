@@ -21,7 +21,7 @@ describe('NexusVerse 2K26 Security & Attack Vector Defensive Tests', () => {
       settings: {
         isRegClosed: false,
         closedMessage: 'Registration is closed.',
-        adminPassword: 'kgr@2005'
+        adminPassword: 'katta@2005'
       },
       photos: [],
       users: []
@@ -299,7 +299,7 @@ describe('NexusVerse 2K26 Security & Attack Vector Defensive Tests', () => {
           'Content-Type': 'application/json',
           'X-Forwarded-For': '198.51.100.42'
         },
-        body: JSON.stringify({ password: 'kgr@2005' })
+        body: JSON.stringify({ password: 'katta@2005' })
       });
 
       assert.equal(lockedRes.status, 429, 'Locked IP should receive 429 status code');

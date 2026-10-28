@@ -126,6 +126,14 @@ export interface RecordLunchStats {
 }
 
 /**
+ * Helper to parse food boolean safely (preventing "false" string being treated as truthy)
+ */
+function parseFoodBoolean(val: any): boolean {
+  if (val === true || val === 'true' || val === 1 || val === '1') return true;
+  return false;
+}
+
+/**
  * Checks whether an individual member of a registration record is eligible for food/lunch.
  * - For Technical Events: IEEE members have complimentary food included; Non-IEEE members must have opted for food (wantsFood === true).
  * - For Spot Events: No food is included by default for anyone (IEEE or Non-IEEE). Food is only eligible if wantsFood === true (+₹50 extra).
@@ -138,12 +146,12 @@ export function isMemberFoodEligible(record: RegistrationRecord | undefined | nu
   if (memberKey === 'lead') {
     if (isSpotOnly) {
       // Spot events have no food included by default for anyone. Food requires explicit +₹50 add-on.
-      if (record.wantsFood !== undefined) return Boolean(record.wantsFood);
+      if (record.wantsFood !== undefined) return parseFoodBoolean(record.wantsFood);
       return (record.totalPaid || 0) >= 150;
     }
     // Technical event: IEEE members have complimentary food included
     if (record.isIeeeMember) return true;
-    if (record.wantsFood !== undefined) return Boolean(record.wantsFood);
+    if (record.wantsFood !== undefined) return parseFoodBoolean(record.wantsFood);
     // Legacy fallback: if record paid >= 200, food was included in original ₹200 fee
     return (record.totalPaid || 0) >= 200;
   }
@@ -154,16 +162,24 @@ export function isMemberFoodEligible(record: RegistrationRecord | undefined | nu
   if (!tm) return false;
 
   if (isSpotOnly) {
-    if (tm.wantsFood !== undefined) return Boolean(tm.wantsFood);
-    if (record.wantsFood !== undefined) return Boolean(record.wantsFood);
+    if (tm.wantsFood !== undefined) return parseFoodBoolean(tm.wantsFood);
+    if (record.wantsFood !== undefined) return parseFoodBoolean(record.wantsFood);
     return (record.totalPaid || 0) >= 150;
   }
 
   if (tm.isIeeeMember) return true;
-  if (tm.wantsFood !== undefined) return Boolean(tm.wantsFood);
-  if (record.wantsFood !== undefined) return Boolean(record.wantsFood);
+  if (tm.wantsFood !== undefined) return parseFoodBoolean(tm.wantsFood);
+  if (record.wantsFood !== undefined) return parseFoodBoolean(record.wantsFood);
   // Legacy fallback
   return (record.totalPaid || 0) >= 200;
+}
+
+/**
+ * Checks whether a registration record has at least 1 delegate who requires food.
+ */
+export function isRecordFoodRequired(record: RegistrationRecord | undefined | null): boolean {
+  if (!record) return false;
+  return getRecordLunchStats(record).totalMealsAllocated > 0;
 }
 
 /**
@@ -530,6 +546,9 @@ export interface DelegateStats {
   upiTotalCount: number;
   razorpayTotalCount: number;
   totalLunchMealsDispensed: number;
+  totalFoodRequiredDelegates: number;
+  totalNoFoodDelegates: number;
+  foodRequiredRegistrations: number;
 }
 
 /**
@@ -552,6 +571,8 @@ export function computeDelegatesStats(records: RegistrationRecord[]): DelegateSt
   let upiTotalCount = 0;
   let razorpayTotalCount = 0;
   let totalLunchMealsDispensed = 0;
+  let totalFoodRequiredDelegates = 0;
+  let foodRequiredRegistrations = 0;
 
   for (const r of records) {
     const teammates = getRecordTeammates(r);
@@ -598,8 +619,14 @@ export function computeDelegatesStats(records: RegistrationRecord[]): DelegateSt
     }
     checkedInDelegates += effectiveCheckedInCount;
 
-    // Lunch Trays
-    totalLunchMealsDispensed += getRecordLunchStats(r).mealsDispensed;
+    // Lunch Trays & Food Requirement Stats
+    const lunchStats = getRecordLunchStats(r);
+    totalLunchMealsDispensed += lunchStats.mealsDispensed;
+    const foodAllocated = lunchStats.totalMealsAllocated;
+    totalFoodRequiredDelegates += foodAllocated;
+    if (foodAllocated > 0) {
+      foodRequiredRegistrations++;
+    }
 
     // Revenue
     totalRevenue += r.totalPaid || 0;
@@ -635,7 +662,10 @@ export function computeDelegatesStats(records: RegistrationRecord[]): DelegateSt
     verifiedCount,
     upiTotalCount,
     razorpayTotalCount,
-    totalLunchMealsDispensed
+    totalLunchMealsDispensed,
+    totalFoodRequiredDelegates,
+    totalNoFoodDelegates: Math.max(0, totalDelegates - totalFoodRequiredDelegates),
+    foodRequiredRegistrations
   };
 }
 

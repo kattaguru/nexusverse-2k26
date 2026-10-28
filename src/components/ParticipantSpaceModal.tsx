@@ -141,14 +141,10 @@ export const ParticipantSpaceModal: React.FC<ParticipantSpaceModalProps> = ({
     }
   }, [isOpen, initialMode]);
 
-  // Live auto-refresh when participant space is opened or activeTab is passes
+  // Refresh participant space passes once on open (no continuous background interval polling)
   useEffect(() => {
     if (isOpen && currentUser) {
       refreshPassesNow();
-      const interval = setInterval(() => {
-        refreshPassesNow();
-      }, 5000);
-      return () => clearInterval(interval);
     }
   }, [isOpen, currentUser?.id]);
 
