@@ -51,7 +51,7 @@ export interface DatabaseSchema {
 export const DEFAULT_DB: DatabaseSchema = {
   registrations: [],
   settings: {
-    isRegClosed: false,
+    isRegClosed: true,
     closedMessage: 'Registration is currently closed. For inquiries or spot availability, contact the IEEE-SB desk.',
     paymentMode: 'upi',
     upiVpa: '9441759500@ptyes',

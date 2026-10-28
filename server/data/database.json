@@ -3935,7 +3935,7 @@
     }
   ],
   "settings": {
-    "isRegClosed": false,
+    "isRegClosed": true,
     "closedMessage": "Registration is currently closed. For inquiries or spot availability, contact the IEEE-SB desk.",
     "adminPassword": "katta@2005",
     "paymentMode": "upi",
