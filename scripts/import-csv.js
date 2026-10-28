@@ -139,11 +139,82 @@ function importCSV() {
     return new Date(b.timestamp || 0).getTime() - new Date(a.timestamp || 0).getTime();
   });
 
-  db.registrations = merged;
+  // Also check and import participant_users_rows.csv if available
+  const userCandidates = [
+    path.resolve(rootDir, 'participant_users.csv'),
+    path.resolve(rootDir, 'backups', 'participant_users.csv'),
+    path.resolve(process.env.USERPROFILE || '', 'Downloads', 'participant_users_rows.csv'),
+    path.resolve(process.env.USERPROFILE || '', 'Downloads', 'participant_users.csv')
+  ];
+
+  let targetUsersCsv = '';
+  for (const c of userCandidates) {
+    if (fs.existsSync(c)) {
+      targetUsersCsv = c;
+      break;
+    }
+  }
+
+  if (targetUsersCsv) {
+    console.log('\n📥 Found participant users CSV at:', targetUsersCsv);
+    const uContent = fs.readFileSync(targetUsersCsv, 'utf8');
+    const uLines = uContent.split(/\r?\n/).filter(l => l.trim().length > 0);
+    if (uLines.length > 1) {
+      const uHeader = parseCSVLine(uLines[0]).map(h => h.toLowerCase().replace(/[^a-z0-9_]/g, ''));
+      if (!db.users) db.users = [];
+      const userMap = new Map();
+      db.users.forEach(u => {
+        if (u && (u.id || u.email)) userMap.set(u.id || u.email, u);
+      });
+
+      let importedUsers = 0;
+      for (let i = 1; i < uLines.length; i++) {
+        const vals = parseCSVLine(uLines[i]);
+        if (vals.length < 3) continue;
+        const uRow = {};
+        uHeader.forEach((h, idx) => {
+          uRow[h] = vals[idx] || '';
+        });
+
+        const id = uRow.id || `usr_${Date.now()}_${i}`;
+        const email = uRow.email || '';
+        if (!email) continue;
+
+        const userObj = {
+          id: id,
+          name: uRow.name || '',
+          email: email,
+          username: uRow.username || email.split('@')[0],
+          passwordHash: uRow.password_hash || uRow.passwordhash || '',
+          phone: uRow.phone || '',
+          college: uRow.college || 'NBKRIST',
+          roll: uRow.roll || '',
+          branch: uRow.branch || '',
+          year: uRow.year || '',
+          isIeeeMember: uRow.is_ieee_member === 'true' || uRow.is_ieee_member === 't' || uRow.is_ieee_member === '1',
+          ieeeId: uRow.ieee_id || '',
+          avatarUrl: uRow.avatar_url || '',
+          authProvider: uRow.auth_provider || (uRow.password_hash ? 'local' : 'google'),
+          createdAt: uRow.created_at || new Date().toISOString(),
+          updatedAt: uRow.updated_at || new Date().toISOString()
+        };
+
+        const existing = userMap.get(id) || userMap.get(email);
+        userMap.set(id, { ...(existing || {}), ...userObj });
+        importedUsers++;
+      }
+
+      db.users = Array.from(userMap.values());
+      console.log(`✅ Successfully imported ${importedUsers} participant users for 'Your Space'!`);
+      console.log(`👤 Total student accounts in database.json: ${db.users.length}`);
+    }
+  }
+
   fs.writeFileSync(dbPath, JSON.stringify(db, null, 2), 'utf8');
 
-  console.log(`✅ Successfully imported ${importedCount} records from CSV!`);
-  console.log(`💾 Total registrations now in server/data/database.json: ${merged.length}`);
+  console.log(`\n🎉 Database import complete!`);
+  console.log(`📋 Total registrations: ${db.registrations.length}`);
+  console.log(`👤 Total student users: ${(db.users || []).length}`);
 }
 
 importCSV();
